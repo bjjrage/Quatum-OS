@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Trading / Quant OS — Master Blueprint & Roadmap v1.1</title>
+<title>Trading / Quant OS — Master Blueprint & Roadmap v1.1.1</title>
 <meta name="description" content="Master Blueprint interactivo del proyecto Trading / Quant OS (Quantum-OS)." />
 <style>
 :root{
@@ -123,7 +123,7 @@ footer{margin:54px 0 0;padding-top:22px;border-top:1px solid var(--line);font-si
 
 <aside class="sidebar">
   <div class="brand">
-    <div class="eyebrow">Authoritative Blueprint v1.1</div>
+    <div class="eyebrow">Authoritative Blueprint v1.1.1</div>
     <h1>Trading / Quant OS</h1>
     <p>Operating System cuantitativo multi-estrategia.</p>
   </div>
@@ -156,7 +156,7 @@ footer{margin:54px 0 0;padding-top:22px;border-top:1px solid var(--line);font-si
 
 <div class="main">
 <header class="hero">
-  <div class="eyebrow">Master Architecture Amendment v1.1</div>
+  <div class="eyebrow">Master Architecture Amendment v1.1.1</div>
   <h2>Trading / Quant OS</h2>
   <p class="lead">
     An evidence-driven alpha discovery, validation, allocation, risk and execution operating system.
@@ -167,13 +167,14 @@ footer{margin:54px 0 0;padding-top:22px;border-top:1px solid var(--line);font-si
     <span class="pill good">Smoke Validation: PASS</span>
     <span class="pill good">Deribit Math Spike: COMPLETE</span>
     <span class="pill good">Fair Value Math: UNBLOCKED</span>
+    <span class="pill good">Governance Hardening v1.1.1: IMPLEMENTED</span>
     <span class="pill warn">24h / 72h Acceptance: ONGOING</span>
     <span class="pill danger">Live Capital: LOCKED ($0 Risk)</span>
-    <span class="pill">Versión 1.1 — 2026-10-02</span>
+    <span class="pill">Versión 1.1.1 — 2026-10-02</span>
   </div>
   <div class="progress-wrap"><div class="progress" title="Progreso de Foundation & Spike"></div></div>
   <div class="muted" style="font-size:12px;margin-top:6px">
-    Estado: Batch 0 implementado | Deribit Math Spike validado | Registry de Estrategias operativo | Capital bloqueado.
+    Estado: Batch 0 implementado | Deribit Math Spike validado | Registry operativo | Hardening de gobernanza implementado (SHA 9040ea5, 49 unit tests PASS) | Capital bloqueado.
   </div>
 </header>
 
@@ -249,46 +250,62 @@ footer{margin:54px 0 0;padding-top:22px;border-top:1px solid var(--line);font-si
         <ul>
           <li>Hipótesis humanas</li>
           <li>Investigación cuantitativa clásica</li>
-          <li>Descubrimiento estadístico (StatArb, Cointegración)</li>
-          <li>Machine Learning sobre datasets propios</li>
+          <li>Descubrimiento estadístico (StatArb, cointegración, relaciones cross-asset)</li>
+          <li>Machine Learning sobre datasets point-in-time propios</li>
           <li>Anomalías cross-market y cross-asset</li>
           <li>Research automatizado asistido por IA</li>
+          <li>Futuras familias descubiertas por el propio sistema</li>
         </ul>
       </div>
       <div class="card span6">
         <div class="kicker">Strategy Registry (IMPLEMENTADO)</div>
         <p>Inventario declarativo puro en <code>src/strategies/</code>:</p>
         <ul>
-          <li><strong>Zero execution authority:</strong> No puede enviar órdenes ni asignar saldo.</li>
-          <li><strong>Rechazo de IDs duplicados:</strong> Inmutabilidad de especificaciones.</li>
-          <li><strong>Tracking de 11 estados de ciclo de vida:</strong> Desde IDEA hasta KILLED.</li>
-          <li><strong>Hosting de familias arbitrarias:</strong> Escalable sin modificar el core.</li>
-          <li><strong>Evidence-Gated Transitions:</strong> Prohíbe saltos arbitrarios hacia estados activos.</li>
+          <li><strong>Zero execution authority:</strong> no puede enviar órdenes ni asignar saldo.</li>
+          <li><strong>Rechazo de IDs duplicados:</strong> cada estrategia conserva identidad única.</li>
+          <li><strong>Tracking de lifecycle:</strong> IDEA, RESEARCH, VALIDATION, HOLDOUT, PAPER, SMALL_LIVE, ACTIVE y estados operativos.</li>
+          <li><strong>Hosting de familias arbitrarias:</strong> el OS no se reconstruye para agregar una nueva familia.</li>
         </ul>
       </div>
     </div>
 
-    <div class="callout" style="margin-top:18px">
-      <h4>SUPPORTED ARCHITECTURAL STRATEGY SPACE</h4>
-      <p>El Strategy Factory y el Registry están diseñados para albergar familias arbitrarias de estrategias, tales como:</p>
-      <ul>
-        <li><strong>Relative Value / Cross-Market:</strong> Desalineaciones entre contratos y derivados relacionados (ej. STR-001).</li>
-        <li><strong>Funding / Basis / Carry:</strong> Captura sistemática de primas de tasa de financiamiento y basis futuros vs spot.</li>
-        <li><strong>Statistical Arbitrage:</strong> Cointegración, pairs trading multivariante y reversión a la media sintética.</li>
-        <li><strong>Cross-Asset:</strong> Traspaso de información y flujos macro entre activos interconectados.</li>
-        <li><strong>Momentum & Trend Following:</strong> Despliegue direccional sistemático en regímenes tendenciales.</li>
-        <li><strong>Mean Reversion / Behavioral:</strong> Agotamiento de impulsos y sobre-extensiones (ej. STR-002).</li>
-        <li><strong>Volatility & Options:</strong> Trading de varianza, skew, convexidad y calendar spreads.</li>
-        <li><strong>Event / News Alpha:</strong> Reacción estructurada a catalizadores programados o imprevistos.</li>
-        <li><strong>Liquidity / Microstructure / Market Making:</strong> Provisión de liquidez y captura de spread.</li>
-        <li><strong>ML Alpha:</strong> Señales complejas no-lineales entrenadas exclusivamente sobre el lakehouse propio.</li>
-        <li><strong>Regime-Specific Alpha:</strong> Modelos activados únicamente bajo condiciones macro/micro validadas.</li>
-        <li><strong>Prediction Markets:</strong> Extracción de probabilidades y arbitraje de resolución binaria.</li>
-        <li><strong>Future Machine-Discovered Families:</strong> Familias autónomamente descubiertas en investigación.</li>
-      </ul>
-      <p><strong>Regla de Ingeniería:</strong> <em>Soporte arquitectónico: REQUERIDO AHORA. Implementación concreta de cada familia: DIFERIDA hasta que la evidencia empírica y la capacidad lo justifiquen.</em></p>
+    <h4>Governance Hardening v1.1.1 — Lifecycle evidence-gated</h4>
+    <div class="callout warn">
+      <strong>Política autoritativa:</strong> una estrategia no puede promoverse libremente de RESEARCH a ACTIVE ni saltar gates.
+      El flujo de promoción permitido es:
+      <strong>IDEA → RESEARCH → VALIDATION → HOLDOUT → PAPER → SMALL_LIVE → ACTIVE</strong>.
+      Los estados REDUCED y PAUSED son operativos; KILLED conduce a ARCHIVED, y ARCHIVED es terminal.
     </div>
-  </div>
+    <div class="callout good">
+      <strong>Estado de implementación:</strong> esta regla queda completamente implementada y verificada en <code>src/strategies/</code> (commit <code>9040ea5</code>) con 49 pruebas unitarias pasando en CI.
+    </div>
+
+    <h4>Supported Architectural Strategy Space</h4>
+    <div class="grid">
+      <div class="card span12">
+        <p><strong>Architectural support: CURRENT REQUIREMENT.</strong> La implementación concreta de cada familia se difiere hasta que evidencia, datos y prioridad la justifiquen.</p>
+        <div class="flow">
+          <div class="node">Relative Value</div>
+          <div class="node">Cross-Market</div>
+          <div class="node">Funding / Basis / Carry</div>
+          <div class="node">Statistical Arbitrage</div>
+          <div class="node">Cross-Asset</div>
+          <div class="node">Momentum</div>
+          <div class="node">Mean Reversion</div>
+          <div class="node">Behavioral</div>
+          <div class="node">Volatility</div>
+          <div class="node">Options</div>
+          <div class="node">Event / News Alpha</div>
+          <div class="node">Liquidity / Microstructure</div>
+          <div class="node">Market Making</div>
+          <div class="node">ML Alpha</div>
+          <div class="node">Regime-Specific Alpha</div>
+          <div class="node">Prediction Markets</div>
+          <div class="node">Future Machine-Discovered</div>
+        </div>
+      </div>
+    </div>
+</div>
 </section>
 
 <section id="seed-str001" class="section">
@@ -331,62 +348,54 @@ footer{margin:54px 0 0;padding-top:22px;border-top:1px solid var(--line);font-si
       <div class="card span6">
         <div class="kicker">Ficha Técnica STR-002</div>
         <p><strong>ID:</strong> STR-002</p>
-        <p><strong>Familia:</strong> BEHAVIORAL / MEAN_REVERSION</p>
+        <p><strong>Familia:</strong> BEHAVIORAL / MEAN_REVERSION_CANDIDATE</p>
         <p><strong>Origen:</strong> HUMAN</p>
         <p><strong>Estado:</strong> RESEARCH</p>
         <p><strong>Privilegiado:</strong> NO</p>
       </div>
       <div class="card span6">
-        <div class="kicker">Principio de Evaluación</div>
-        <p>Nacido de la experiencia manual de trading en futuros perpetuos (~5-10m horizon).</p>
-        <p><strong>Derecho adquirido:</strong> Derecho a ser testeado científicamente.</p>
-        <p><strong>Derecho negado:</strong> NO tiene derecho a recibir capital sin evidencia. Si el event study no supera costos o FDR, se archiva de inmediato.</p>
+        <div class="kicker">Tesis de Investigación Correcta</div>
+        <p><strong>Hipótesis:</strong> impulsos extremos de precio a corto horizonte, normalizados por volatilidad previa, pueden exhibir overshoot seguido por un retracement explotable.</p>
+        <p><strong>No es:</strong> una estrategia definida por order-book imbalance, ni HFT, ni un predictor obligatorio de cambio completo de tendencia.</p>
+        <p><strong>Order book:</strong> puede aportar features de contexto/microestructura, pero no define la estrategia.</p>
       </div>
     </div>
 
-    <h4>Hipótesis Central de Investigación</h4>
-    <div class="quote">
-      "Extreme short-horizon price impulses, normalized by prior volatility, may exhibit an exploitable overshoot followed by retracement."
+    <h4>Variables iniciales del Event Study</h4>
+    <div class="grid">
+      <div class="card span12">
+        <ul>
+          <li>Impulse magnitude y retorno log/% normalizado por realized volatility previa.</li>
+          <li>Forward returns y retracement ratio.</li>
+          <li>MFE / MAE.</li>
+          <li>Time-to-retracement.</li>
+          <li>Liquidez, spread y depth.</li>
+          <li>Funding y Open Interest.</li>
+          <li>Forced liquidations.</li>
+          <li>Régimen/contexto de mercado.</li>
+          <li>Long y short evaluados por separado.</li>
+          <li>Baseline del mismo activo/contexto y corrección de múltiples hipótesis (FDR).</li>
+        </ul>
+      </div>
+    </div>
+
+    <h4>Forced vs Informative Move</h4>
+    <div class="grid">
+      <div class="card span6">
+        <div class="kicker">Informative Move</div>
+        <p>Hack, delisting, noticia fundamental material o evento regulatorio. El precio puede estar incorporando información nueva y <strong>no tiene obligación de revertir</strong>.</p>
+      </div>
+      <div class="card span6">
+        <div class="kicker">Forced / Liquidity Move</div>
+        <p>Liquidaciones, stops, deleveraging, pánico o retiro temporal de liquidez. Puede generar overshoot y posterior retracement.</p>
+      </div>
     </div>
 
     <div class="callout warn">
-      <strong>Aclaración Metodológica Crítica:</strong> STR-002 <em>NO</em> está definido como "scalping de order-book imbalance".
-      La información del orderbook es únicamente una <strong>feature auxiliar</strong> de microestructura, no la definición ontológica de la estrategia.
+      <strong>Gobernanza:</strong> STR-002 tiene derecho a ser testeada, no derecho a recibir capital.
+      Si el event study no supera costos, baseline, FDR, holdout y paper, se archiva.
     </div>
-
-    <h4>Distinción Fundamental: Informative vs Forced Moves</h4>
-    <div class="grid">
-      <div class="card span6">
-        <div class="kicker">INFORMATIVE MOVE</div>
-        <p>Hack, exploit, delisting, anuncio regulatorio mayor o cambio fundamental.</p>
-        <p><strong>Comportamiento esperado:</strong> El precio incorpora nueva información racionalmente y <em>puede NO revertir jamás</em>. Las posiciones de contratendencia aquí son suicidio financiero.</p>
-      </div>
-      <div class="card span6">
-        <div class="kicker">FORCED / LIQUIDITY MOVE</div>
-        <p>Cascada de liquidaciones forzadas, stop-outs en cadena, deleveraging acelerado, pánico y retiro transitorio de liquidez.</p>
-        <p><strong>Comportamiento esperado:</strong> Desplazamiento mecánico inducido por falta de profundidad transitoria. Alto potencial de <em>overshoot con posterior retracement</em> al restablecerse la liquidez.</p>
-      </div>
-    </div>
-
-    <h4>Dimensiones Iniciales de Investigación en Event Study</h4>
-    <p>El event study analizará formalmente las siguientes 14 dimensiones:</p>
-    <ul>
-      <li><code>impulse_magnitude</code>: Retorno del impulso en escala logarítmica / porcentual.</li>
-      <li><code>prior_realized_volatility</code>: Volatilidad realizada previa para normalizar el shock ($z$-score).</li>
-      <li><code>forward_return</code>: Retorno posterior a 1m, 3m, 5m, 10m, 15m y 30m.</li>
-      <li><code>retracement_ratio</code>: Fracción del impulso revertida (amplitud del rebote).</li>
-      <li><code>mfe</code> (Maximum Favorable Excursion): Excursión máxima favorable post-entrada.</li>
-      <li><code>mae</code> (Maximum Adverse Excursion): Drawdown máximo intratrade antes de la resolución.</li>
-      <li><code>time_to_retracement</code>: Duración temporal hasta que se alcanza el objetivo o timeout.</li>
-      <li><code>liquidity</code>: Tier de liquidez del activo y volumen promedio en 24h.</li>
-      <li><code>spread</code>: Costo de bid-ask spread relativo al tamaño del edge neto.</li>
-      <li><code>depth</code>: Profundidad acumulada en los niveles L2 del orderbook.</li>
-      <li><code>funding</code>: Tasa de financiamiento del perpetuo y desalineación con el spot.</li>
-      <li><code>open_interest</code>: Expansión o colapso del OI durante el impulso (apertura de posiciones vs liquidaciones).</li>
-      <li><code>forced_liquidations</code>: Volumen de órdenes forzadas ejecutadas en el cluster.</li>
-      <li><code>market_regime</code>: Régimen de volatilidad y tendencia dominante en BTC/ETH.</li>
-    </ul>
-  </div>
+</div>
 </section>
 
 <section id="regimen" class="section">
@@ -503,7 +512,7 @@ footer{margin:54px 0 0;padding-top:22px;border-top:1px solid var(--line);font-si
         <div class="label">BATCH 0</div>
         <div>
           <strong>Market Data Foundation & Deribit Math Spike</strong>
-          <p>Collectors multi-venue, sink Parquet con atomic rename, timestamping estricto, 36 pruebas unitarias y spike matemático completo.</p>
+          <p>Collectors multi-venue, sink Parquet con atomic rename, timestamping estricto, 49 pruebas unitarias (30 math spike, 13 strategies governance, 6 foundation) y spike matemático completo.</p>
           <div class="timeline-meta"><span class="tag good">IMPLEMENTED</span><span class="tag">Zero Live Capital</span></div>
         </div>
       </div>
@@ -519,7 +528,7 @@ footer{margin:54px 0 0;padding-top:22px;border-top:1px solid var(--line);font-si
         <div class="label">BATCH 1</div>
         <div>
           <strong>Research Infrastructure & Strategy Factory</strong>
-          <p>Harness unificado de backtesting point-in-time, data loaders DuckDB, generador de candidatos y evaluación empírica de STR-001 y STR-002.</p>
+          <p>Harness genérico de investigación/backtesting point-in-time, loaders DuckDB, feature/event pipelines, candidate generation y evaluación empírica reutilizable para STR-001, STR-002 y futuras estrategias.</p>
         </div>
       </div>
       <div class="phase gate" data-type="gate">
@@ -605,8 +614,11 @@ footer{margin:54px 0 0;padding-top:22px;border-top:1px solid var(--line);font-si
         <tr class="decision-row" data-status="approved"><td>Multi-Strategy Core</td><td>Arquitectura multi-estrategia obligatoria ahora; implementaciones específicas diferidas.</td><td><span class="status approved">APPROVED</span></td></tr>
         <tr class="decision-row" data-status="approved"><td>Strategy Factory</td><td>Primer ciudadano de la arquitectura para candidate generation.</td><td><span class="status approved">APPROVED</span></td></tr>
         <tr class="decision-row" data-status="approved"><td>Strategy Registry</td><td>Implementado en src/strategies/; cero autoridad de ejecución.</td><td><span class="status approved">APPROVED</span></td></tr>
+        <tr class="decision-row" data-status="approved"><td>Lifecycle Governance</td><td>Promoción evidence-gated: IDEA → RESEARCH → VALIDATION → HOLDOUT → PAPER → SMALL_LIVE → ACTIVE. No saltos arbitrarios.</td><td><span class="status approved">APPROVED</span></td></tr>
+        <tr class="decision-row" data-status="approved"><td>Strategy Space</td><td>Soporte arquitectónico multi-familia requerido ahora; implementaciones concretas diferidas.</td><td><span class="status approved">APPROVED</span></td></tr>
+        <tr class="decision-row" data-status="approved"><td>STR-002 Thesis</td><td>Impulse → overshoot → retracement. Order-book imbalance es feature potencial, no definición de la estrategia.</td><td><span class="status approved">APPROVED</span></td></tr>
         <tr class="decision-row" data-status="approved"><td>STR-001 Status</td><td>Seed Research Program. Base matemática validada; edge económico pendiente de prueba.</td><td><span class="status approved">APPROVED</span></td></tr>
-        <tr class="decision-row" data-status="approved"><td>STR-002 Status</td><td>Seed Research Program de origen humano. Sin privilegios; sujeto a kill criteria.</td><td><span class="status approved">APPROVED</span></td></tr>
+        <tr class="decision-row" data-status="approved"><td>STR-002 Status</td><td>Seed Research Program de origen humano. Hipótesis impulse/overshoot/retracement; sin privilegios y sujeto a kill criteria.</td><td><span class="status approved">APPROVED</span></td></tr>
         <tr class="decision-row" data-status="approved"><td>Portfolio Allocation</td><td>Capa arquitectónica formal de primer orden; fórmulas numéricas diferidas.</td><td><span class="status approved">APPROVED</span></td></tr>
         <tr class="decision-row" data-status="approved"><td>Risk Engine</td><td>Autoridad final irrevocable; gestión de riesgo por EventCluster.</td><td><span class="status approved">APPROVED</span></td></tr>
         <tr class="decision-row" data-status="approved"><td>AI Execution Policy</td><td>Luna / Jev prohibidos de ejecutar órdenes directas o acceder a API keys.</td><td><span class="status approved">APPROVED</span></td></tr>
@@ -623,8 +635,8 @@ footer{margin:54px 0 0;padding-top:22px;border-top:1px solid var(--line);font-si
 </section>
 
 <footer>
-  <strong>Trading / Quant OS — Master Blueprint & Roadmap v1.1</strong>
-  <p>Documento maestro autoritativo de arquitectura y gobernanza para el repositorio. Toda modificación futura debe actualizar este documento y el Decision Registry explícitamente.</p>
+  <strong>Trading / Quant OS — Master Blueprint & Roadmap v1.1.1</strong>
+  <p>Documento maestro autoritativo de arquitectura y gobernanza para el repositorio. Toda modificación futura debe actualizar este documento y el Decision Registry explícitamente. v1.1.1 endurece la gobernanza de lifecycle y la semántica de STR-002; la implementación técnica del hardening está completamente implementada y verificada en código (SHA 9040ea5, 49 tests PASS).</p>
 </footer>
 
 </main>

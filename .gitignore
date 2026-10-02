@@ -13,10 +13,13 @@ __pycache__/
 credentials*
 secrets*
 
-# Data Lakehouse (do not commit market data)
+# Data Lakehouse & Runtime (do not commit market data or run artifacts)
 data/raw/
 data/catalog/
 data/smoke_test/
+data/runtime/
+data/quality/
+data/logs/
 *.parquet
 *.parquet.tmp
 

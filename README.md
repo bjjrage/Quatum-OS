@@ -65,8 +65,9 @@ SCALE / REDUCE / PAUSE / KILL
 | **Strict Timestamp Engine** | `[IMPLEMENTED]` | Strict UTC epoch nanoseconds (`ts_exchange_ns`, `ts_received_utc_ns`), local monotonic durations (`ts_received_mono_ns`), and observed event age. |
 | **Lakehouse Storage Sink** | `[IMPLEMENTED]` | Async buffered Parquet writer, Zstandard compression (level 7), atomic `.tmp` rename, SHA-256 partition manifests. |
 | **Quant Pricing & Numéraire (Line A)** | `[IMPLEMENTED]` | Black-76, exact Breeden-Litzenberger strike derivative with skew, synthetic smile arbitrage validators, Deribit inverse numéraire proof & normalization. |
-| **Strategy Domain & Registry** | `[IMPLEMENTED]` | Pure domain models (`StrategySpec`, `StrategyStage`, `StrategyOrigin`, `StrategyFamily`), `StrategyRegistry` (zero execution authority, seed strategies STR-001 & STR-002). |
-| **CI / Offline Test Suite** | `[IMPLEMENTED]` | GitHub Actions CI workflow, 46 offline unit tests across math, strategies, and storage foundation. |
+| **Strategy Domain & Registry** | `[IMPLEMENTED]` | Pure domain models (`StrategySpec`, `StrategyStage`, `StrategyOrigin`, `StrategyFamily`), `StrategyRegistry` (evidence-gated lifecycle, zero execution authority, seed strategies STR-001 & STR-002). |
+| **Data Quality & Acceptance Gates** | `[IMPLEMENTED]` | Strict duration gating (24h / 72h cannot pass early), deterministic config fingerprinting, DuckDB timestamp integrity analysis, SHA-256 manifest verification, and automated reporting. |
+| **CI / Offline Test Suite** | `[IMPLEMENTED]` | GitHub Actions CI workflow, 56 offline unit tests across math, strategies, storage, and quality gates. |
 | **Strategy Factory / Alpha Discovery** | `[ARCHITECTURAL]` | Extensible candidate generator framework designed to host multiple strategy families. |
 | **EventCluster Risk Layer** | `[ARCHITECTURAL]` | Economic shock clustering and cross-position risk capping architecture. |
 | **Portfolio / Capital Allocation** | `[ARCHITECTURAL]` | Interface and governance specified; numerical allocation formulas deferred. |
@@ -101,6 +102,11 @@ TRADING OS / Quantum-OS
 │   │   ├── manifest.py              # SHA-256 partition manifest & verification
 │   │   ├── storage_sink.py          # Buffered Parquet writer (atomic rename, Zstd level 7)
 │   │   └── types.py                 # Nanosecond timestamp models & PyArrow schemas
+│   ├── quality/                     # Data Quality & Acceptance Gate Infrastructure
+│   │   ├── acceptance.py            # State machine, strict duration gating, runtime manifest
+│   │   ├── fingerprint.py           # Deterministic SHA-256 config fingerprinting
+│   │   ├── metrics.py               # DuckDB metrics collector (storage, latency, coverage)
+│   │   └── reporter.py              # Automated acceptance report generator
 │   ├── quant/                       # Mathematical pricing & volatility models
 │   │   ├── black76.py               # Black-76 pricing, greeks, and flat-vol probability
 │   │   ├── deribit_inverse.py       # Inverse-option numéraire proof & normalization
@@ -112,10 +118,12 @@ TRADING OS / Quantum-OS
 ├── tests/
 │   ├── math/                        # 30 unit tests for pricing, skew, arbitrage, and numéraire
 │   ├── test_parsers.py              # Venue payload parsing tests
+│   ├── test_quality.py              # 7 acceptance gate, duration gating & metric tests
 │   ├── test_storage_sink.py         # Buffered parquet storage tests
-│   ├── test_strategies.py           # 10 strategy domain & registry lifecycle tests
+│   ├── test_strategies.py           # 13 strategy domain, privilege & governance lifecycle tests
 │   └── test_types.py                # Schema & timestamp completeness tests
 └── scripts/
+    ├── data_quality_report.py       # Auditable acceptance gate report generator
     ├── run_recorder.py              # Continuous production market recorder
     ├── smoke_test.py                # Live multi-venue connectivity & DuckDB verification
     └── verify_data.py               # Lakehouse dataset inspector
@@ -183,9 +191,23 @@ uv sync
 ```bash
 uv run pytest -v
 ```
-*Current test suite: 46 passing tests (0 failures).*
+*Current test suite: 56 passing tests (0 failures).*
 
 ### Running Live Recorder Smoke Verification
 ```bash
 uv run python scripts/smoke_test.py --duration 10
 ```
+
+### Auditable Data Quality & Acceptance Reporting
+```bash
+# Generate comprehensive acceptance report and formatted console summary
+uv run python scripts/data_quality_report.py
+
+# Output raw JSON report for automated monitoring
+uv run python scripts/data_quality_report.py --json-only
+```
+
+#### Acceptance Gate Invariants:
+- **24h Acceptance Gate (`MIN_24H_SECONDS = 86400`):** Continuous production recording without data corruption, zero negative event ages (`observed_event_age_ns >= 0`), valid SHA-256 partition manifests, zero orphan `.tmp` files, and continuous coverage of all configured venues. Under 24 continuous hours, this gate evaluates strictly as `PENDING`.
+- **72h Acceptance Gate (`MIN_72H_SECONDS = 259200`):** Extended stability run verifying long-horizon continuity, feed reconnection resilience, and storage projection consistency. Under 72 continuous hours, this gate evaluates strictly as `PENDING`.
+- **Live Capital Policy:** **LOCKED ($0 Live Risk)**. No capital is unblocked until formal acceptance gates are satisfied.
