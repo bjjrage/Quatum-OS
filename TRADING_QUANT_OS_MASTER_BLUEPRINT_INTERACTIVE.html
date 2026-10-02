@@ -1,0 +1,774 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Trading / Quant OS — Master Blueprint & Roadmap</title>
+<meta name="description" content="Master Blueprint interactivo del proyecto Trading / Quant OS." />
+<style>
+:root{
+  --bg:#08111f; --bg2:#0d1728; --panel:#101b2f; --panel2:#14233b; --text:#edf5ff; --muted:#97a8c0;
+  --line:#233552; --accent:#69a7ff; --accent2:#59e1bd; --warn:#ffcc6e; --danger:#ff7c8a; --violet:#b99dff;
+  --good:#65d79b; --shadow:0 18px 50px rgba(0,0,0,.28);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:linear-gradient(180deg,#06101d 0%,#08111f 55%,#0a1321 100%);color:var(--text);
+font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;line-height:1.55}
+a{color:inherit;text-decoration:none}
+button,input,select{font:inherit}
+.shell{display:grid;grid-template-columns:300px minmax(0,1fr);min-height:100vh}
+.sidebar{
+  position:sticky;top:0;height:100vh;overflow:auto;padding:24px 18px;border-right:1px solid var(--line);
+  background:rgba(7,15,27,.96);backdrop-filter:blur(12px);z-index:30
+}
+.brand{padding:6px 8px 18px;border-bottom:1px solid var(--line);margin-bottom:14px}
+.brand .eyebrow{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent2);font-weight:800}
+.brand h1{font-size:24px;line-height:1.05;margin:8px 0 7px;letter-spacing:-.03em}
+.brand p{font-size:12px;color:var(--muted);margin:0}
+.search{margin:14px 0}
+.search input{width:100%;padding:10px 11px;border-radius:10px;border:1px solid var(--line);background:#0c1728;color:var(--text);outline:none}
+.search input:focus{border-color:var(--accent)}
+.nav-group{margin:15px 0}
+.nav-group-title{font-size:10px;color:#7184a2;text-transform:uppercase;letter-spacing:.14em;font-weight:800;padding:0 8px 7px}
+.nav-link{display:flex;gap:10px;align-items:center;padding:9px 10px;border-radius:9px;color:#b9c8df;font-size:13px;margin:2px 0}
+.nav-link:hover,.nav-link.active{background:#15243a;color:white}
+.dot{width:7px;height:7px;border-radius:50%;background:#3e5477;flex:none}
+.nav-link.active .dot{background:var(--accent2)}
+.sidebar-controls{display:grid;gap:8px;margin-top:18px;padding-top:14px;border-top:1px solid var(--line)}
+.control-btn{border:1px solid var(--line);background:#111e33;color:#d9e5f6;border-radius:9px;padding:9px 10px;cursor:pointer}
+.control-btn:hover{background:#172842}
+.main{min-width:0}
+.hero{
+  padding:54px 48px 36px;border-bottom:1px solid var(--line);
+  background:
+    radial-gradient(circle at 12% 12%,rgba(105,167,255,.18),transparent 28%),
+    radial-gradient(circle at 88% 8%,rgba(89,225,189,.11),transparent 30%)
+}
+.hero .eyebrow{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent2);font-weight:800}
+.hero h2{font-size:clamp(38px,6vw,72px);line-height:.98;margin:12px 0 18px;letter-spacing:-.045em}
+.hero .lead{font-size:20px;max-width:1000px;color:#c9d7eb}
+.pills{display:flex;gap:8px;flex-wrap:wrap;margin-top:20px}
+.pill{border:1px solid var(--line);border-radius:999px;padding:7px 10px;font-size:12px;color:#ccd8e9;background:rgba(255,255,255,.03)}
+.pill.good{border-color:rgba(101,215,155,.35);color:#baf1d0;background:rgba(101,215,155,.08)}
+.pill.warn{border-color:rgba(255,204,110,.35);color:#ffe0a4;background:rgba(255,204,110,.07)}
+.content{max-width:1320px;margin:0 auto;padding:22px 42px 90px}
+.section{scroll-margin-top:20px;margin:28px 0 42px}
+.section.hidden-by-search{display:none}
+.section-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;cursor:pointer;padding:10px 0}
+.section h3{font-size:30px;margin:0;letter-spacing:-.02em}
+.section-sub{color:var(--muted);margin-top:5px;max-width:980px}
+.collapse{border:1px solid var(--line);background:#101c30;color:#c7d4e6;width:34px;height:34px;border-radius:9px;cursor:pointer}
+.section-body{display:block}
+.section.collapsed .section-body{display:none}
+.section.collapsed .collapse{transform:rotate(-90deg)}
+.grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:14px}
+.card{background:linear-gradient(180deg,rgba(20,35,59,.96),rgba(16,27,47,.96));border:1px solid var(--line);border-radius:15px;padding:18px;box-shadow:var(--shadow)}
+.span4{grid-column:span 4}.span6{grid-column:span 6}.span8{grid-column:span 8}.span12{grid-column:span 12}
+.kicker{font-size:10px;text-transform:uppercase;letter-spacing:.14em;color:var(--muted);font-weight:800}
+.kpi{font-size:27px;font-weight:900;margin:5px 0 7px;letter-spacing:-.03em}
+.muted{color:var(--muted)}
+.quote{border-left:4px solid var(--accent2);padding:14px 18px;margin:15px 0;background:rgba(89,225,189,.06);border-radius:0 12px 12px 0;color:#e0faf3;font-size:18px}
+.callout{border:1px solid rgba(105,167,255,.3);background:rgba(105,167,255,.07);border-radius:13px;padding:15px 17px;margin:14px 0}
+.callout.warn{border-color:rgba(255,204,110,.32);background:rgba(255,204,110,.07)}
+.callout.danger{border-color:rgba(255,124,138,.28);background:rgba(255,124,138,.06)}
+.flow{display:flex;align-items:stretch;gap:7px;flex-wrap:wrap;margin:16px 0}
+.node{flex:1 1 135px;min-width:135px;border:1px solid var(--line);background:#101b2f;border-radius:11px;padding:13px;text-align:center;font-size:12px;font-weight:800}
+.arrow{display:flex;align-items:center;color:#7f91ab;font-weight:900}
+table{width:100%;border-collapse:separate;border-spacing:0;margin:13px 0 18px;overflow:hidden;border:1px solid var(--line);border-radius:13px}
+th,td{padding:11px 12px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line);font-size:13px}
+tr:last-child td{border-bottom:0}
+th{background:#0e182a;color:#c6d5ea;font-size:11px;text-transform:uppercase;letter-spacing:.07em}
+td{background:#101b2f;color:#dce6f5}
+.status{display:inline-block;font-size:10px;font-weight:900;padding:4px 7px;border-radius:999px;white-space:nowrap}
+.approved{color:#bdf3d4;background:rgba(101,215,155,.1);border:1px solid rgba(101,215,155,.3)}
+.provisional{color:#ffe1a6;background:rgba(255,204,110,.1);border:1px solid rgba(255,204,110,.3)}
+.outscope{color:#c8d0dc;background:rgba(151,168,192,.09);border:1px solid rgba(151,168,192,.22)}
+.kill{color:#ffc5cb;background:rgba(255,124,138,.09);border:1px solid rgba(255,124,138,.27)}
+pre,code{font-family:"SFMono-Regular",Consolas,"Liberation Mono",monospace}
+pre{background:#070d17;border:1px solid var(--line);border-radius:13px;padding:16px;overflow:auto;color:#d8e8ff}
+ul{padding-left:20px} li{margin:7px 0;color:#dbe5f4}
+.roadmap-toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 16px}
+.filter-btn{border:1px solid var(--line);background:#101c31;color:#bfcce0;border-radius:999px;padding:7px 10px;cursor:pointer;font-size:12px}
+.filter-btn.active{background:#193052;color:white;border-color:#3a5e8f}
+.roadmap{display:grid;gap:11px}
+.phase{display:grid;grid-template-columns:145px minmax(0,1fr);gap:16px;padding:16px;border:1px solid var(--line);background:#0f1a2e;border-radius:13px}
+.phase .label{font-weight:900;color:var(--accent2)}
+.phase.gate{border-left:4px solid var(--warn)}
+.phase.future{opacity:.84}
+.phase.hidden-phase{display:none}
+.timeline-meta{display:flex;gap:8px;flex-wrap:wrap;margin-top:9px}
+.tag{font-size:10px;border:1px solid var(--line);border-radius:999px;padding:3px 7px;color:#aebcd1}
+.progress-wrap{height:7px;background:#10182a;border-radius:999px;overflow:hidden;margin:12px 0 5px}
+.progress{height:100%;width:10%;background:linear-gradient(90deg,var(--accent),var(--accent2))}
+.decision-toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.decision-row.hidden-decision{display:none}
+footer{margin:54px 0 0;padding-top:22px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
+.floating-top{position:fixed;right:22px;bottom:22px;border:1px solid var(--line);background:#14233a;color:white;border-radius:12px;padding:10px 13px;cursor:pointer;box-shadow:var(--shadow);display:none}
+mark{background:rgba(255,204,110,.28);color:#fff3c8;padding:0 2px;border-radius:3px}
+@media(max-width:1000px){
+  .shell{grid-template-columns:1fr}
+  .sidebar{position:relative;height:auto;border-right:0;border-bottom:1px solid var(--line)}
+  .main{width:100%}
+  .hero{padding:42px 24px 30px}
+  .content{padding:20px 22px 70px}
+  .span4,.span6,.span8{grid-column:span 12}
+  .phase{grid-template-columns:1fr}
+}
+@media print{
+  .sidebar,.floating-top,.collapse,.roadmap-toolbar,.decision-toolbar{display:none!important}
+  .shell{display:block}
+  body{background:white;color:#111}
+  .hero,.card,.phase,td,th,.node,.callout{background:white!important;color:#111!important;box-shadow:none!important;border-color:#bbb!important}
+  p,li,.section-sub,.muted,.lead{color:#222!important}
+  .content{max-width:none;padding:10px 20px}
+  .section-body{display:block!important}
+}
+</style>
+</head>
+<body>
+<div class="shell">
+
+<aside class="sidebar">
+  <div class="brand">
+    <div class="eyebrow">Authoritative Blueprint</div>
+    <h1>Trading / Quant OS</h1>
+    <p>Documento maestro interactivo del repo.</p>
+  </div>
+
+  <div class="search"><input id="searchInput" placeholder="Buscar en el blueprint…" /></div>
+
+  <div class="nav-group">
+    <div class="nav-group-title">Blueprint</div>
+    <a class="nav-link" href="#principios"><span class="dot"></span>Principios</a>
+    <a class="nav-link" href="#arquitectura"><span class="dot"></span>Arquitectura</a>
+    <a class="nav-link" href="#linea-a"><span class="dot"></span>Línea A — Polymarket × Deribit</a>
+    <a class="nav-link" href="#linea-b"><span class="dot"></span>Línea B — Behavioral Alpha</a>
+    <a class="nav-link" href="#regimen"><span class="dot"></span>Contexto y régimen</a>
+    <a class="nav-link" href="#ia"><span class="dot"></span>Jev / Luna / ML</a>
+    <a class="nav-link" href="#riesgo"><span class="dot"></span>Risk / EventCluster</a>
+    <a class="nav-link" href="#datos"><span class="dot"></span>Datos / Batch 0</a>
+    <a class="nav-link" href="#roadmap"><span class="dot"></span>Roadmap</a>
+    <a class="nav-link" href="#kill"><span class="dot"></span>Kill Criteria</a>
+    <a class="nav-link" href="#decisiones"><span class="dot"></span>Decisiones</a>
+  </div>
+
+  <div class="sidebar-controls">
+    <button class="control-btn" id="expandAll">Expandir todo</button>
+    <button class="control-btn" id="collapseAll">Colapsar todo</button>
+    <button class="control-btn" id="printBtn">Imprimir / Guardar PDF</button>
+  </div>
+</aside>
+
+<div class="main">
+<header class="hero">
+  <div class="eyebrow">Master Blueprint & Roadmap</div>
+  <h2>Trading / Quant OS</h2>
+  <p class="lead">
+    Plataforma cuantitativa adaptativa para descubrir, validar, ejecutar y retirar estrategias con edge medible.
+    El foco inicial es prop trading con capital propio. El OS comercial es una visión futura condicionada a track record real.
+  </p>
+  <div class="pills">
+    <span class="pill good">GREENFIELD CONFIRMADO</span>
+    <span class="pill">Capital inicial: USD 2.000</span>
+    <span class="pill">Hasta USD 20.000 adicionales en el primer año</span>
+    <span class="pill warn">Live solo por evidencia</span>
+    <span class="pill">Versión 1.0 — 2026-10-02</span>
+  </div>
+  <div class="progress-wrap"><div class="progress" title="Estado conceptual inicial"></div></div>
+  <div class="muted" style="font-size:12px">Estado actual: blueprint cerrado → Batch 0 pendiente de aprobación/implementación.</div>
+</header>
+
+<main class="content">
+
+<section id="principios" class="section">
+  <div class="section-head">
+    <div><h3>1. Objetivo y principios</h3><div class="section-sub">Qué estamos construyendo y qué reglas no se negocian.</div></div>
+    <button class="collapse">▼</button>
+  </div>
+  <div class="section-body">
+    <div class="grid">
+      <div class="card span4"><div class="kicker">Objetivo inicial</div><div class="kpi">Prop Trading</div><p>Demostrar alpha real con capital propio antes de comercializar infraestructura.</p></div>
+      <div class="card span4"><div class="kicker">Métrica clave</div><div class="kpi">Capacity</div><p>Cuánto capital acepta cada edge antes de degradarse.</p></div>
+      <div class="card span4"><div class="kicker">Disciplina</div><div class="kpi">Kill Fast</div><p>Una hipótesis que no sobrevive evidencia se archiva.</p></div>
+    </div>
+
+    <div class="quote">Code calculates. ML learns from our data. Jev classifies context. Luna reasons. Risk controls. Execution executes.</div>
+
+    <table>
+      <thead><tr><th>Principio</th><th>Decisión</th><th>Estado</th></tr></thead>
+      <tbody>
+        <tr><td>Risk Engine</td><td>Determinístico y con autoridad final.</td><td><span class="status approved">APPROVED</span></td></tr>
+        <tr><td>IA</td><td>Sin autoridad transaccional directa. Jev/Luna pueden estar OFF.</td><td><span class="status approved">APPROVED</span></td></tr>
+        <tr><td>Validación</td><td>Discovery → Validation → Holdout → Paper → Gate → Small Live.</td><td><span class="status approved">APPROVED</span></td></tr>
+        <tr><td>Capital</td><td>USD 2.000 iniciales; inyección adicional solo si el sistema la gana con evidencia.</td><td><span class="status approved">APPROVED</span></td></tr>
+        <tr><td>Objetivo retorno</td><td>3–8% mensual aspiracional, nunca target forzado.</td><td><span class="status approved">APPROVED</span></td></tr>
+        <tr><td>SaaS</td><td>Visión futura.</td><td><span class="status outscope">OUT OF SCOPE NOW</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="arquitectura" class="section">
+  <div class="section-head">
+    <div><h3>2. Arquitectura conceptual</h3><div class="section-sub">Cómo fluye una señal desde mercado hasta ejecución.</div></div>
+    <button class="collapse">▼</button>
+  </div>
+  <div class="section-body">
+    <div class="flow">
+      <div class="node">Market Data</div><div class="arrow">→</div>
+      <div class="node">Normalize / Quality</div><div class="arrow">→</div>
+      <div class="node">Quant / Features</div><div class="arrow">→</div>
+      <div class="node">Strategy / Policy</div><div class="arrow">→</div>
+      <div class="node">Risk Engine</div><div class="arrow">→</div>
+      <div class="node">Execution</div><div class="arrow">→</div>
+      <div class="node">Recorder / Attribution</div>
+    </div>
+
+    <div class="grid">
+      <div class="card span6">
+        <div class="kicker">Quant Core</div>
+        <ul>
+          <li>Fair value, spreads, fees, slippage, volatilidad, capacity, P&amp;L y features.</li>
+          <li>Reproducible y point-in-time.</li>
+          <li>ML solo después de evidencia estadística.</li>
+        </ul>
+      </div>
+      <div class="card span6">
+        <div class="kicker">Context Layer</div>
+        <ul>
+          <li>Jev clasifica/rutea información semiestructurada.</li>
+          <li>Luna interpreta contexto complejo.</li>
+          <li>Policy/Safety Engine determinístico decide qué hacer con los flags.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="callout">
+      <strong>AssetAgents:</strong> 100–200 agentes lógicos dentro de uno o pocos workers compartidos.
+      No se desplegará un servicio por token.
+    </div>
+  </div>
+</section>
+
+<section id="linea-a" class="section">
+  <div class="section-head">
+    <div><h3>3. Línea A — Polymarket × Deribit</h3><div class="section-sub">Primera estrategia a validar: relative-value informado por opciones.</div></div>
+    <button class="collapse">▼</button>
+  </div>
+  <div class="section-body">
+    <div class="flow">
+      <div class="node">Deribit Options</div><div class="arrow">→</div>
+      <div class="node">IV / Total Variance</div><div class="arrow">→</div>
+      <div class="node">Risk-Neutral Distribution</div><div class="arrow">→</div>
+      <div class="node">Reference Band</div><div class="arrow">→</div>
+      <div class="node">Polymarket Executable Price</div><div class="arrow">→</div>
+      <div class="node">Net Edge</div>
+    </div>
+
+    <div class="grid">
+      <div class="card span6">
+        <h4>Tesis</h4>
+        <p>Mercados binarios de Polymarket pueden divergir de una referencia profesional derivada de opciones de Deribit.</p>
+        <p>No asumimos que Deribit “tenga razón”; eso se valida.</p>
+      </div>
+      <div class="card span6">
+        <h4>Naturaleza del trade</h4>
+        <p>Con USD 2.000 no asumimos hedge perfecto en Deribit. La primera versión es relative-value / informed directional, no arbitraje risk-free.</p>
+      </div>
+    </div>
+
+    <h4>Fair value</h4>
+    <ul>
+      <li>La distribución de opciones es risk-neutral, no probabilidad física verdadera.</li>
+      <li>Phase 1 produce una banda de referencia/fair value con incertidumbre.</li>
+      <li>Cualquier RN → physical calibration futura debe ser empírica y out-of-sample.</li>
+    </ul>
+
+    <pre>BUY YES:
+FairValueLow - ExecutableAsk - Fees - Slippage - OtherCosts > 0
+
+SELL / SHORT YES:
+ExecutableBid - FairValueHigh - Fees - Slippage - OtherCosts > 0</pre>
+
+    <div class="callout warn">
+      <strong>Deribit inverse options:</strong> documentar quote convention, premium denomination y unidades.
+      Preferir surface en IV/total variance. Si se usa Breeden–Litzenberger sobre precios, convertir explícitamente y testear
+      contra un caso Black-76 conocido para detectar errores de signo, descuento y unidades.
+    </div>
+
+    <div class="callout">
+      <strong>Polymarket fees:</strong> guardar estructura completa y versionada, no un único bps. El backtest registra <code>FEE_MODEL_VERSION</code>.
+    </div>
+
+    <h4>Blocker histórico</h4>
+    <table>
+      <thead><tr><th>Opción</th><th>Ventaja</th><th>Riesgo/costo</th><th>Estado</th></tr></thead>
+      <tbody>
+        <tr><td>Comprar historia especializada</td><td>Backtest histórico inmediato.</td><td>Costo, cobertura, licensing y granularidad a verificar.</td><td><span class="status provisional">REQUIRES APPROVAL</span></td></tr>
+        <tr><td>Forward-only propio</td><td>Máxima integridad y control.</td><td>Requiere esperar suficientes eventos independientes.</td><td><span class="status provisional">REQUIRES APPROVAL</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="linea-b" class="section">
+  <div class="section-head">
+    <div><h3>4. Línea B — Behavioral Alpha</h3><div class="section-sub">Industrializar la intuición manual: impulse → overshoot → retracement.</div></div>
+    <button class="collapse">▼</button>
+  </div>
+  <div class="section-body">
+    <div class="quote">IMPULSE → OVERSHOOT → SHORT-HORIZON RETRACEMENT</div>
+
+    <div class="grid">
+      <div class="card span6">
+        <h4>Técnica manual original</h4>
+        <ul>
+          <li>Futuros; históricamente ~3× leverage, pero el leverage no crea edge.</li>
+          <li>Horizonte visual principal: ~5–10 minutos.</li>
+          <li>Se buscaba capturar solo una fracción del contra-movimiento.</li>
+          <li>Caída fuerte → agotamiento → rebote → long → salida.</li>
+          <li>Subida fuerte → overshoot → pullback → short → salida.</li>
+        </ul>
+      </div>
+      <div class="card span6">
+        <h4>Intuición histórica</h4>
+        <p>Ejemplo mental: si el movimiento era 15, tomar 3–5 del retroceso podía ser suficiente.</p>
+        <p><strong>No se congela 1/3, bps ni porcentaje.</strong> Los datos determinan ratios, timeouts, MFE y MAE.</p>
+      </div>
+    </div>
+
+    <h4>Qué NO es</h4>
+    <ul>
+      <li>No es HFT.</li>
+      <li>No compite por 20–100 ms de price discovery.</li>
+      <li>No depende de queue priority.</li>
+      <li>No es “order-book imbalance scalping” puro.</li>
+      <li>No intenta predecir un trend flip completo.</li>
+    </ul>
+
+    <h4>Hipótesis</h4>
+    <table>
+      <thead><tr><th>Nivel</th><th>Pregunta</th><th>Orden</th></tr></thead>
+      <tbody>
+        <tr><td>General</td><td>¿Impulsos extremos normalizados por volatilidad muestran retracement explotable?</td><td>1</td></tr>
+        <tr><td>Clusters</td><td>¿Cambia por liquidez, volatilidad, market cap y régimen?</td><td>2</td></tr>
+        <tr><td>Activo</td><td>¿Algunos tokens tienen comportamiento longitudinalmente persistente?</td><td>3, solo si lo ganan</td></tr>
+      </tbody>
+    </table>
+
+    <h4>Event study</h4>
+    <ul>
+      <li>100–200 contratos históricos cuando sea posible.</li>
+      <li>Impulso definido por log/percentage return normalizado por realized volatility previa.</li>
+      <li>Medir forward returns, retracement ratio, MFE, MAE y time-to-retracement.</li>
+      <li>Long y short se estudian por separado.</li>
+      <li>Comparar contra baseline del mismo activo/contexto.</li>
+      <li>FDR / multiple-testing correction obligatoria.</li>
+      <li>Cross-asset + longitudinal validation.</li>
+    </ul>
+
+    <h4>Forced vs Informative</h4>
+    <div class="grid">
+      <div class="card span6">
+        <div class="kicker">Informative Move</div>
+        <p>Hack, delisting, noticia material, cambio regulatorio/fundamental. Puede no revertir.</p>
+      </div>
+      <div class="card span6">
+        <div class="kicker">Forced / Liquidity Move</div>
+        <p>Liquidaciones, stops, deleveraging, pánico, retiro de liquidez. Puede producir overshoot y retracement.</p>
+      </div>
+    </div>
+
+    <h4>Tradability</h4>
+    <pre>edge neto + frecuencia + spread + slippage + depth + estabilidad + capacity + regime similarity
+→ ACTIVE / WATCH / REDUCED / PAUSED</pre>
+
+    <div class="callout">
+      Batch 0 empezará además a grabar forward microstructure de una muestra inicial de 20–40 perps por tiers de liquidez,
+      sujeto a medición de costo/CPU/storage a las 72 h.
+    </div>
+  </div>
+</section>
+
+<section id="regimen" class="section">
+  <div class="section-head">
+    <div><h3>5. Contexto, régimen y Policy Engine</h3><div class="section-sub">Conservar la ventaja contextual humana sin permitir improvisación no testeable.</div></div>
+    <button class="collapse">▼</button>
+  </div>
+  <div class="section-body">
+    <div class="flow">
+      <div class="node">Global Context</div><div class="arrow">→</div>
+      <div class="node">Domain Regime</div><div class="arrow">→</div>
+      <div class="node">Strategy Regime</div><div class="arrow">→</div>
+      <div class="node">Asset State</div><div class="arrow">→</div>
+      <div class="node">Validated Profile</div>
+    </div>
+
+    <p>No existe un único “sentimiento del día” universal. El contexto se interpreta por dominio y estrategia.</p>
+
+    <div class="callout danger">
+      Luna NO cambia take-profit, stop o size directamente. El flujo correcto es:
+      <strong>contexto → estado estructurado → Policy Engine determinístico → perfil validado.</strong>
+    </div>
+
+    <h4>Scalping por régimen</h4>
+    <p>Ejemplos conceptuales: un régimen favorable a longs puede permitir target/timeout/size mayores; uno adverso puede reducir size, exigir más confirmación o deshabilitar longs. Los números solo existen si fueron validados.</p>
+
+    <h4>Backtest de régimen</h4>
+    <ul>
+      <li>Solo variables point-in-time: tendencia, realized volatility, funding, breadth, BTC state, OI, etc.</li>
+      <li>No usar LLMs generales para etiquetar históricos.</li>
+      <li>Cada régimen necesita muestra independiente suficiente; si no, fusionar o eliminar perfiles.</li>
+    </ul>
+  </div>
+</section>
+
+<section id="ia" class="section">
+  <div class="section-head">
+    <div><h3>6. Jev, Luna y ML</h3><div class="section-sub">IA como capa auxiliar, no como autoridad de trading.</div></div>
+    <button class="collapse">▼</button>
+  </div>
+  <div class="section-body">
+    <table>
+      <thead><tr><th>Componente</th><th>Rol</th><th>No hace</th><th>Entrada</th></tr></thead>
+      <tbody>
+        <tr><td>Jev</td><td>Clasificación/routing rápido de contexto semiestructurado.</td><td>No es core trader ni Regime Engine base.</td><td>Shadow / forward A-B</td></tr>
+        <tr><td>Luna</td><td>Noticias, macro, anomalías, ambigüedad, post-mortem y research.</td><td>No cambia parámetros ni ejecuta/veta directo.</td><td>Shadow / forward A-B</td></tr>
+        <tr><td>ML propio</td><td>Aprender targets económicos específicos con datos propios.</td><td>No entra antes del event study y reglas simples.</td><td>Después de evidencia</td></tr>
+      </tbody>
+    </table>
+
+    <pre>Luna → ambiguity_flag=true
+Deterministic Safety Policy → needs_review / automation_blocked</pre>
+  </div>
+</section>
+
+<section id="riesgo" class="section">
+  <div class="section-head">
+    <div><h3>7. Risk, EventCluster y Execution</h3><div class="section-sub">El sistema no confunde muchas señales con muchas apuestas independientes.</div></div>
+    <button class="collapse">▼</button>
+  </div>
+  <div class="section-body">
+    <h4>Risk Engine</h4>
+    <ul>
+      <li>Max order, asset exposure, strategy exposure, portfolio exposure.</li>
+      <li>Max exposure por EventCluster.</li>
+      <li>Leverage, liquidity checks, concurrent positions, daily loss, drawdown y kill switches.</li>
+      <li>Valores concretos son configurables/provisionales hasta validación.</li>
+    </ul>
+
+    <h4>EventCluster</h4>
+    <pre>BTC shock
+├─ SOL long-retracement
+├─ AVAX long-retracement
+├─ DOGE long-retracement
+└─ LINK long-retracement
+      ↓
+ EventCluster #X
+      ↓
+ Aggregate Risk Cap</pre>
+
+    <h4>Execution</h4>
+    <p>Market/limit, maker/taker, cancel/replace, partial fills, reconciliation, position sync e idempotencia. Ningún backtest usa midpoint fantasy fills.</p>
+  </div>
+</section>
+
+<section id="datos" class="section">
+  <div class="section-head">
+    <div><h3>8. Data Architecture & Batch 0</h3><div class="section-sub">Start the clock on data: capturar primero, derivar después.</div></div>
+    <button class="collapse">▼</button>
+  </div>
+  <div class="section-body">
+    <div class="flow">
+      <div class="node">RAW</div><div class="arrow">→</div>
+      <div class="node">NORMALIZED</div><div class="arrow">→</div>
+      <div class="node">DERIVED</div><div class="arrow">→</div>
+      <div class="node">RESEARCH / PAPER / LIVE</div>
+    </div>
+
+    <table>
+      <thead><tr><th>Fuente</th><th>Batch 0 captura</th><th>Objetivo</th></tr></thead>
+      <tbody>
+        <tr><td>Polymarket</td><td>Discovery, events/BBO/L2, trades, metadata, resolution rules, fee structure versionada.</td><td>Línea A + execution calibration.</td></tr>
+        <tr><td>Deribit</td><td>Options/IV/greeks, index, selected trades/orderbook, expiries/strikes relevantes.</td><td>Fair value + uncertainty.</td></tr>
+        <tr><td>Line B sample</td><td>20–40 perps por tiers: trades, BBO/L2, OI, funding, liquidations cuando existan.</td><td>Forward cost/microstructure calibration.</td></tr>
+      </tbody>
+    </table>
+
+    <h4>Raw first, economically bounded</h4>
+    <ul>
+      <li>Polymarket: raw/event-level lo más completo razonablemente posible.</li>
+      <li>Deribit: alcance raw acotado a expiries/strikes útiles y presupuesto.</li>
+      <li>Downsampling solo en capas derivadas.</li>
+      <li>Medir 24h, 72h y 7 días antes de expandir universo.</li>
+    </ul>
+
+    <h4>Stack baseline</h4>
+    <table>
+      <thead><tr><th>Área</th><th>Baseline</th><th>Estado</th></tr></thead>
+      <tbody>
+        <tr><td>Research</td><td>Python + DuckDB + Parquet</td><td><span class="status approved">APPROVED BASELINE</span></td></tr>
+        <tr><td>Collectors/live</td><td>Node/TypeScript baseline vs Python-first a comparar</td><td><span class="status provisional">OPEN</span></td></tr>
+        <tr><td>Operational metadata</td><td>Supabase</td><td><span class="status approved">APPROVED DIRECTION</span></td></tr>
+        <tr><td>Runtime</td><td>Railway baseline vs Hetzner/hybrid</td><td><span class="status provisional">OPEN</span></td></tr>
+        <tr><td>Object storage</td><td>S3-compatible; R2 candidato</td><td><span class="status provisional">OPEN</span></td></tr>
+      </tbody>
+    </table>
+
+    <pre>MEASURE AFTER 24H
+MEASURE AFTER 72H
+MEASURE AFTER 7D
+
+→ bytes/event
+→ events/sec
+→ compression ratio
+→ storage/day
+→ bandwidth/day
+→ CPU/RAM
+→ gap rate
+→ reconnect behavior</pre>
+
+    <div class="callout warn">
+      Objetivo de costo fijo: aproximadamente &lt;1% mensual del capital de validación. Las cifras son estimaciones hasta medir el recorder real.
+    </div>
+  </div>
+</section>
+
+<section id="roadmap" class="section">
+  <div class="section-head">
+    <div><h3>9. Roadmap</h3><div class="section-sub">Batches de ingeniería + gates de evidencia. El calendario nunca obliga a poner dinero real.</div></div>
+    <button class="collapse">▼</button>
+  </div>
+  <div class="section-body">
+    <div class="roadmap-toolbar">
+      <button class="filter-btn active" data-phase="all">Todos</button>
+      <button class="filter-btn" data-phase="now">Ahora</button>
+      <button class="filter-btn" data-phase="gate">Gates</button>
+      <button class="filter-btn" data-phase="future">Futuro</button>
+    </div>
+
+    <div class="roadmap">
+      <div class="phase" data-type="now">
+        <div class="label">BATCH 0</div>
+        <div><strong>Production Market Data Foundation</strong><p>Greenfield foundation + recorder Polymarket, Deribit y muestra forward de Line B.</p><div class="timeline-meta"><span class="tag">No live</span><span class="tag">No IA</span><span class="tag">No ML</span></div></div>
+      </div>
+      <div class="phase" data-type="now">
+        <div class="label">TRACK A — 1A</div>
+        <div><strong>Line A Math & Data Quality</strong><p>Surface/IV, units, Black-76 tests, temporal alignment, fee model y uncertainty band.</p></div>
+      </div>
+      <div class="phase" data-type="now">
+        <div class="label">TRACK B — 1B</div>
+        <div><strong>Behavioral Alpha Offline Event Study</strong><p>Fenómeno general primero, FDR, cross-asset y longitudinal validation.</p></div>
+      </div>
+      <div class="phase gate" data-type="gate">
+        <div class="label">GATE — DATA</div>
+        <div><strong>Data Quality Gate</strong><p>Integridad de feeds, timestamps, gaps, fee versions, costo y reproducibilidad.</p></div>
+      </div>
+      <div class="phase" data-type="now">
+        <div class="label">BATCH 2</div>
+        <div><strong>Line A Fair Value + Realistic Backtest</strong><p>Reference band, executable prices, uncertainty, costs y independent events.</p></div>
+      </div>
+      <div class="phase" data-type="now">
+        <div class="label">BATCH 3</div>
+        <div><strong>Risk Foundation + Paper Engine</strong><p>Risk determinístico, EventCluster, paper broker, attribution y observability.</p></div>
+      </div>
+      <div class="phase gate" data-type="gate">
+        <div class="label">GATE 1</div>
+        <div><strong>Backtest / Holdout Evidence Gate</strong><p>Sin expectancy, estabilidad y capacity: KILL o iterate. Si pasa: paper.</p></div>
+      </div>
+      <div class="phase" data-type="now">
+        <div class="label">PAPER</div>
+        <div><strong>Forward Paper Observation</strong><p>Frecuencia real, fills faltantes, slippage, drawdown, capacity y degradación vs backtest.</p></div>
+      </div>
+      <div class="phase gate" data-type="gate">
+        <div class="label">GATE 2</div>
+        <div><strong>Promotion to Small Live</strong><p>Solo si paper confirma la evidencia. La fecha puede ser mes 2, 3, más tarde o nunca.</p></div>
+      </div>
+      <div class="phase" data-type="future">
+        <div class="label">SMALL LIVE</div>
+        <div><strong>USD 2.000 Validation Capital</strong><p>Micro sizing inicial, retiros manuales, secrets aislados y risk hard limits.</p></div>
+      </div>
+      <div class="phase future" data-type="future">
+        <div class="label">AI SHADOW</div>
+        <div><strong>Jev / Luna forward A-B</strong><p>Cada componente debe demostrar alpha incremental neto de costo.</p></div>
+      </div>
+      <div class="phase future" data-type="future">
+        <div class="label">FUTURE</div>
+        <div><strong>Funding / Market Making / Multi-strategy / Commercial OS</strong><p>Solo si track record, capacity y capital allocation justifican expansión.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="kill" class="section">
+  <div class="section-head">
+    <div><h3>10. Kill Criteria</h3><div class="section-sub">Evitar líneas infinitas de investigación.</div></div>
+    <button class="collapse">▼</button>
+  </div>
+  <div class="section-body">
+    <div class="grid">
+      <div class="card span6">
+        <h4>Línea A</h4>
+        <ul>
+          <li>Expectancy neta no defendible.</li>
+          <li>Edge desaparece con executable prices y costos realistas.</li>
+          <li>Falla holdout o paper.</li>
+          <li>Capacity demasiado baja.</li>
+          <li>Reference/fair-value model inestable.</li>
+        </ul>
+      </div>
+      <div class="card span6">
+        <h4>Línea B</h4>
+        <ul>
+          <li>Retracement condicional no supera baseline después de costos.</li>
+          <li>Edge económico menor a ~1.5–2× round-trip cost como filtro provisional.</li>
+          <li>No sobrevive multiple-testing correction.</li>
+          <li>Falla validation/holdout.</li>
+          <li>Parámetros inestables o extremadamente específicos.</li>
+          <li>No hay persistencia longitudinal/capacity.</li>
+          <li>Requiere fills irreales.</li>
+        </ul>
+        <p><strong>Timebox:</strong> 3–4 semanas como checkpoint. Si no aparece evidencia defendible, ARCHIVE.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="decisiones" class="section">
+  <div class="section-head">
+    <div><h3>11. Decision Registry</h3><div class="section-sub">Qué está congelado, qué sigue abierto y qué no se construye todavía.</div></div>
+    <button class="collapse">▼</button>
+  </div>
+  <div class="section-body">
+    <div class="decision-toolbar">
+      <button class="filter-btn active" data-decision="all">Todas</button>
+      <button class="filter-btn" data-decision="approved">Approved</button>
+      <button class="filter-btn" data-decision="provisional">Provisional</button>
+      <button class="filter-btn" data-decision="outscope">Out of scope</button>
+    </div>
+
+    <table id="decisionTable">
+      <thead><tr><th>Área</th><th>Decisión</th><th>Estado</th></tr></thead>
+      <tbody>
+        <tr class="decision-row" data-status="approved"><td>Project</td><td>Greenfield confirmado.</td><td><span class="status approved">APPROVED</span></td></tr>
+        <tr class="decision-row" data-status="approved"><td>Batch 0</td><td>Recorder tiene prioridad absoluta.</td><td><span class="status approved">APPROVED</span></td></tr>
+        <tr class="decision-row" data-status="approved"><td>Data layers</td><td>Raw → Normalized → Derived.</td><td><span class="status approved">APPROVED</span></td></tr>
+        <tr class="decision-row" data-status="approved"><td>Line A</td><td>Polymarket × Deribit.</td><td><span class="status approved">APPROVED</span></td></tr>
+        <tr class="decision-row" data-status="approved"><td>Line B</td><td>Behavioral Alpha / impulse-retracement, no HFT.</td><td><span class="status approved">APPROVED</span></td></tr>
+        <tr class="decision-row" data-status="approved"><td>Jev</td><td>Context classifier/router; no core trader.</td><td><span class="status approved">APPROVED</span></td></tr>
+        <tr class="decision-row" data-status="approved"><td>Luna</td><td>Reasoning/context; no direct parameter changes or execution.</td><td><span class="status approved">APPROVED</span></td></tr>
+        <tr class="decision-row" data-status="approved"><td>EventCluster</td><td>First-class concept in risk/backtest/paper/live.</td><td><span class="status approved">APPROVED</span></td></tr>
+        <tr class="decision-row" data-status="approved"><td>Live</td><td>Evidence-gated, never calendar-gated.</td><td><span class="status approved">APPROVED</span></td></tr>
+        <tr class="decision-row" data-status="provisional"><td>Live stack</td><td>Node/TypeScript baseline vs Python-first.</td><td><span class="status provisional">OPEN</span></td></tr>
+        <tr class="decision-row" data-status="provisional"><td>Infra</td><td>Railway vs Hetzner vs hybrid.</td><td><span class="status provisional">OPEN</span></td></tr>
+        <tr class="decision-row" data-status="provisional"><td>Line A history</td><td>Commercial dataset vs forward-only.</td><td><span class="status provisional">OPEN</span></td></tr>
+        <tr class="decision-row" data-status="provisional"><td>Risk numbers</td><td>Exact numerical limits.</td><td><span class="status provisional">PROVISIONAL</span></td></tr>
+        <tr class="decision-row" data-status="provisional"><td>RN → physical</td><td>Future empirical calibration only.</td><td><span class="status provisional">RESEARCH ONLY</span></td></tr>
+        <tr class="decision-row" data-status="outscope"><td>SaaS / billing</td><td>Commercial product.</td><td><span class="status outscope">OUT OF SCOPE NOW</span></td></tr>
+        <tr class="decision-row" data-status="outscope"><td>Market making / funding</td><td>Future strategy families.</td><td><span class="status outscope">OUT OF SCOPE NOW</span></td></tr>
+        <tr class="decision-row" data-status="outscope"><td>200 live scalpers</td><td>Only after Line B earns promotion.</td><td><span class="status outscope">OUT OF SCOPE NOW</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="section">
+  <div class="section-head">
+    <div><h3>12. Definition of Success</h3><div class="section-sub">El proyecto no gana por construir software; gana por transformar hipótesis en capital asignable.</div></div>
+    <button class="collapse">▼</button>
+  </div>
+  <div class="section-body">
+    <div class="quote">
+      El sistema solo escala capital cuando expectancy, drawdown, capacity y ejecución real justifican la promoción.
+      Las estrategias que dejan de funcionar se retiran.
+    </div>
+    <div class="grid">
+      <div class="card span4"><div class="kicker">Line A</div><div class="kpi">Fair Value → Edge</div><p>¿Deribit aporta información monetizable en Polymarket?</p></div>
+      <div class="card span4"><div class="kicker">Line B</div><div class="kpi">Behavior → Alpha</div><p>¿Impulse/overshoot/retracement sobrevive costos y holdout?</p></div>
+      <div class="card span4"><div class="kicker">OS</div><div class="kpi">Evidence → Capital</div><p>Asignar y retirar capital de forma disciplinada.</p></div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <strong>Trading / Quant OS — Master Blueprint & Roadmap</strong>
+  <p>Documento autoritativo inicial para el repositorio. Toda decisión futura que altere una decisión aprobada debe actualizar versión y Decision Registry explícitamente.</p>
+</footer>
+
+</main>
+</div>
+</div>
+
+<button id="topBtn" class="floating-top">↑ Arriba</button>
+
+<script>
+const sections = [...document.querySelectorAll('.section')];
+const navLinks = [...document.querySelectorAll('.nav-link')];
+const topBtn = document.getElementById('topBtn');
+
+document.querySelectorAll('.section-head').forEach(head=>{
+  head.addEventListener('click', e=>{
+    if(e.target.closest('button') || e.currentTarget===e.target || !e.target.closest('a')){
+      head.parentElement.classList.toggle('collapsed');
+    }
+  });
+});
+
+document.getElementById('expandAll').onclick=()=>sections.forEach(s=>s.classList.remove('collapsed'));
+document.getElementById('collapseAll').onclick=()=>sections.forEach(s=>s.classList.add('collapsed'));
+document.getElementById('printBtn').onclick=()=>window.print();
+
+const observer = new IntersectionObserver(entries=>{
+  entries.forEach(entry=>{
+    if(entry.isIntersecting){
+      navLinks.forEach(a=>a.classList.toggle('active', a.getAttribute('href')==='#'+entry.target.id));
+    }
+  });
+},{rootMargin:'-25% 0px -65% 0px',threshold:0});
+sections.filter(s=>s.id).forEach(s=>observer.observe(s));
+
+window.addEventListener('scroll',()=>{ topBtn.style.display = window.scrollY>500 ? 'block':'none'; });
+topBtn.onclick=()=>window.scrollTo({top:0,behavior:'smooth'});
+
+document.querySelectorAll('[data-phase]').forEach(btn=>{
+  if(!btn.classList.contains('filter-btn')) return;
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.roadmap-toolbar .filter-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    const type=btn.dataset.phase;
+    document.querySelectorAll('.phase').forEach(p=>{
+      p.classList.toggle('hidden-phase', type!=='all' && p.dataset.type!==type);
+    });
+  });
+});
+
+document.querySelectorAll('[data-decision]').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.decision-toolbar .filter-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    const type=btn.dataset.decision;
+    document.querySelectorAll('.decision-row').forEach(r=>{
+      r.classList.toggle('hidden-decision', type!=='all' && r.dataset.status!==type);
+    });
+  });
+});
+
+const searchInput=document.getElementById('searchInput');
+searchInput.addEventListener('input',()=>{
+  const q=searchInput.value.trim().toLowerCase();
+  sections.forEach(s=>{
+    const hit=!q || s.innerText.toLowerCase().includes(q);
+    s.classList.toggle('hidden-by-search',!hit);
+    if(hit && q) s.classList.remove('collapsed');
+  });
+});
+
+document.addEventListener('keydown',e=>{
+  if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='k'){
+    e.preventDefault(); searchInput.focus();
+  }
+});
+</script>
+</body>
+</html>

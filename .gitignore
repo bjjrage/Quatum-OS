@@ -1,0 +1,23 @@
+# Virtual environment
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Data Lakehouse (do not commit market data)
+data/raw/
+data/catalog/
+data/smoke_test/
+*.parquet
+*.parquet.tmp
+
+# Logs & temp
+*.log
+.tmp/
+.pytest_cache/
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
