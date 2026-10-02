@@ -3,6 +3,12 @@ import argparse
 import json
 from pathlib import Path
 import sys
+from typing import Dict, Any
+
+# Ensure root repository directory is on sys.path
+root_dir = Path(__file__).resolve().parent.parent
+if str(root_dir) not in sys.path:
+    sys.path.insert(0, str(root_dir))
 
 from src.quality.reporter import generate_quality_report
 

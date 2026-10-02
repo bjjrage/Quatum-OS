@@ -78,9 +78,13 @@ class QualityMetricsCollector:
         parquet_files = list(self.base_data_path.glob("**/*.parquet"))
         total_compressed_bytes = sum(f.stat().st_size for f in parquet_files)
 
-        # Check for orphan temporary files
-        tmp_files = list(self.base_data_path.glob("**/*.tmp"))
-        orphan_count = len(tmp_files)
+        # Check for orphan temporary files (files only, excluding directories like .tmp/, older than 120s)
+        now_ts = time.time()
+        orphan_files = [
+            f for f in self.base_data_path.glob("**/*.tmp")
+            if f.is_file() and (now_ts - f.stat().st_mtime > 120.0)
+        ]
+        orphan_count = len(orphan_files)
 
         # Verify manifests
         manifest_files = list(self.base_data_path.glob("**/manifest.json"))
