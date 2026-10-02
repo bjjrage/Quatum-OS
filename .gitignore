@@ -4,6 +4,15 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Secrets and environment credentials (PUBLIC REPO HYGIENE)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials*
+secrets*
+
 # Data Lakehouse (do not commit market data)
 data/raw/
 data/catalog/
