@@ -8,8 +8,8 @@ Origin is metadata. Origin is NOT evidence.
 """
 
 from enum import Enum
-from typing import Dict, Any, Optional
-from pydantic import BaseModel, Field
+from typing import Dict, Any, Optional, Set
+from pydantic import BaseModel, Field, computed_field, model_validator
 
 
 class StrategyOrigin(str, Enum):
@@ -57,9 +57,59 @@ class StrategyFamily(str, Enum):
     CUSTOM = "CUSTOM"
 
 
+# Deterministic lifecycle stage transition graph
+VALID_STAGE_TRANSITIONS: Dict[StrategyStage, Set[StrategyStage]] = {
+    StrategyStage.IDEA: {
+        StrategyStage.RESEARCH,
+        StrategyStage.KILLED,
+    },
+    StrategyStage.RESEARCH: {
+        StrategyStage.VALIDATION,
+        StrategyStage.KILLED,
+    },
+    StrategyStage.VALIDATION: {
+        StrategyStage.HOLDOUT,
+        StrategyStage.KILLED,
+    },
+    StrategyStage.HOLDOUT: {
+        StrategyStage.PAPER,
+        StrategyStage.KILLED,
+    },
+    StrategyStage.PAPER: {
+        StrategyStage.SMALL_LIVE,
+        StrategyStage.KILLED,
+    },
+    StrategyStage.SMALL_LIVE: {
+        StrategyStage.ACTIVE,
+        StrategyStage.REDUCED,
+        StrategyStage.PAUSED,
+        StrategyStage.KILLED,
+    },
+    StrategyStage.ACTIVE: {
+        StrategyStage.REDUCED,
+        StrategyStage.PAUSED,
+        StrategyStage.KILLED,
+    },
+    StrategyStage.REDUCED: {
+        StrategyStage.ACTIVE,
+        StrategyStage.PAUSED,
+        StrategyStage.KILLED,
+    },
+    StrategyStage.PAUSED: {
+        StrategyStage.ACTIVE,
+        StrategyStage.REDUCED,
+        StrategyStage.KILLED,
+    },
+    StrategyStage.KILLED: {
+        StrategyStage.ARCHIVED,
+    },
+    StrategyStage.ARCHIVED: set(),  # Terminal state: no outbound transitions permitted
+}
+
+
 class StrategySpec(BaseModel):
     """Specification and registration record of a strategy candidate.
-    
+
     Contains metadata, origin, lifecycle stage, and empirical validation flags.
     No execution authority is granted by this specification.
     """
@@ -70,24 +120,36 @@ class StrategySpec(BaseModel):
     stage: StrategyStage = Field(default=StrategyStage.IDEA, description="Current lifecycle stage")
     description: str = Field(default="", description="Detailed thesis and hypothesis description")
     math_foundation_validated: bool = Field(
-        default=False, 
+        default=False,
         description="Whether mathematical foundations are validated"
     )
     economic_edge_validated: bool = Field(
-        default=False, 
+        default=False,
         description="Whether out-of-sample economic edge is empirically validated"
     )
-    is_privileged: bool = Field(
-        default=False, 
-        description="Non-negotiable invariant: Always False. No strategy is privileged."
-    )
     metadata: Dict[str, Any] = Field(
-        default_factory=dict, 
+        default_factory=dict,
         description="Arbitrary strategy-specific metadata"
     )
 
-    def __init__(self, **data: Any):
-        super().__init__(**data)
-        # Enforce non-negotiable invariant: no strategy may be privileged
-        if self.is_privileged:
+    @computed_field
+    @property
+    def is_privileged(self) -> bool:
+        """Core Governance Invariant: No strategy can technically be privileged. Always False."""
+        return False
+
+    @model_validator(mode="before")
+    @classmethod
+    def _reject_privileged_input(cls, data: Any) -> Any:
+        if isinstance(data, dict) and data.get("is_privileged"):
             raise ValueError("Core Governance Invariant Violated: No strategy may be marked privileged.")
+        return data
+
+    def model_copy(self, *, update: Optional[Dict[str, Any]] = None, deep: bool = False) -> "StrategySpec":
+        """Harden model_copy against attempts to inject privilege via update dict."""
+        if update:
+            if update.get("is_privileged"):
+                raise ValueError("Core Governance Invariant Violated: No strategy may be marked privileged via copy/update.")
+            if "is_privileged" in update:
+                update = {k: v for k, v in update.items() if k != "is_privileged"}
+        return super().model_copy(update=update, deep=deep)

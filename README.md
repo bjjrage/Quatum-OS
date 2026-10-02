@@ -130,14 +130,39 @@ TRADING OS / Quantum-OS
 - **Origin:** `QUANT`
 - **Stage:** `RESEARCH`
 - **Status:** Mathematical pricing foundation validated (Deribit inverse numéraire verified). Economic edge **not yet validated** (pending historical backtesting and paper trading).
-- **Privilege:** None.
+- **Privilege:** None (Hardened invariant: `is_privileged` is read-only `False`).
 
 ### STR-002: Impulse / Overshoot / Short-Horizon Retracement
 - **Family:** `BEHAVIORAL` / `MEAN_REVERSION`
 - **Origin:** `HUMAN`
 - **Stage:** `RESEARCH`
+- **Thesis:** Extreme short-horizon price impulses, normalized by prior volatility, may exhibit an exploitable overshoot followed by retracement.
+- **Evaluation Criteria:**
+  - Order-book information is an evaluation **feature**, not the definition of the strategy.
+  - Distinguishes **Informative Moves** (hacks, delistings, fundamental news that may rationally never revert) from **Forced Moves** (cascading liquidations, stop cascades, deleveraging that overshoot and retrace).
+  - Evaluated across 14 empirical dimensions (impulse magnitude, prior volatility, forward returns, MFE, MAE, retracement ratio, time-to-retracement, liquidity, spread, depth, funding, OI, forced liquidations, market regime).
 - **Status:** Human intuition hypothesis. Unvalidated. Evaluated under the exact same empirical criteria as quantitative models.
-- **Privilege:** None.
+- **Privilege:** None (Hardened invariant: `is_privileged` is read-only `False`).
+
+---
+
+## 6. Supported Architectural Strategy Space
+
+The Strategy Factory and Registry are architected to host diverse strategy families:
+- **Relative Value / Cross-Market:** Misalignments between related assets (e.g. STR-001).
+- **Funding / Basis / Carry:** Systematic funding rate harvest and futures basis trading.
+- **Statistical Arbitrage:** Cointegration, multi-asset pairs trading, synthetic mean reversion.
+- **Cross-Asset:** Lead-lag and macroeconomic information transmission across crypto, equities, and FX.
+- **Momentum & Trend Following:** Systematic breakout capture conditioned on volatility expansion.
+- **Mean Reversion / Behavioral:** Exhaustion of non-informative microstructure liquidity shocks (e.g. STR-002).
+- **Volatility & Options:** Variance, volatility surface skew, convexity, and calendar spreads.
+- **Event / News Alpha:** Structured reactions to scheduled economic catalysts or unscheduled breaks.
+- **Liquidity / Microstructure / Market Making:** Passive liquidity provision and spread capture.
+- **ML Alpha:** Non-linear signals trained strictly on internal lakehouse datasets.
+- **Regime-Specific Alpha:** Models constrained to validated macro/micro volatility profiles.
+- **Prediction Markets:** Binary event mispricing and resolution arbitrage.
+
+> **Engineering Rule:** *Architectural support is a **CURRENT REQUIREMENT**; concrete implementation of each individual strategy family is **DEFERRED** until empirical research and capital allocation justify it.*
 
 ---
 

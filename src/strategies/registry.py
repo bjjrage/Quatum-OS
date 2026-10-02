@@ -4,6 +4,7 @@ Core Governance Rules:
 1. NO STRATEGY IS PRIVILEGED BY ORIGIN.
 2. The Strategy Registry is purely declarative: it has ZERO execution authority.
 3. Duplicate strategy IDs are strictly rejected.
+4. Stage transitions are strictly evidence-gated: arbitrary promotion skipping is rejected.
 """
 
 from typing import Dict, List, Optional
@@ -12,6 +13,7 @@ from src.strategies.models import (
     StrategyStage,
     StrategyOrigin,
     StrategyFamily,
+    VALID_STAGE_TRANSITIONS,
 )
 
 
@@ -25,6 +27,11 @@ class StrategyNotFoundError(Exception):
     pass
 
 
+class InvalidStageTransitionError(Exception):
+    """Raised when an illegal or gate-bypassing lifecycle stage transition is attempted."""
+    pass
+
+
 class StrategyRegistry:
     """In-memory declarative registry of all strategy candidates across lifecycle stages."""
 
@@ -33,10 +40,10 @@ class StrategyRegistry:
 
     def register(self, spec: StrategySpec) -> None:
         """Register a new strategy specification.
-        
+
         Args:
             spec: Validated StrategySpec
-            
+
         Raises:
             DuplicateStrategyError: If a strategy with the same ID already exists.
         """
@@ -69,8 +76,25 @@ class StrategyRegistry:
         return [s for s in self._strategies.values() if s.origin == origin]
 
     def update_stage(self, strategy_id: str, new_stage: StrategyStage) -> None:
-        """Update the lifecycle stage of a registered strategy."""
+        """Update the lifecycle stage of a registered strategy, enforcing evidence-gated transitions.
+
+        Raises:
+            StrategyNotFoundError: If strategy_id is not registered.
+            InvalidStageTransitionError: If the requested transition bypasses gates or violates the lifecycle graph.
+        """
         spec = self.get(strategy_id)
+        current_stage = spec.stage
+
+        if current_stage == new_stage:
+            return
+
+        allowed = VALID_STAGE_TRANSITIONS.get(current_stage, set())
+        if new_stage not in allowed:
+            raise InvalidStageTransitionError(
+                f"Invalid stage transition for strategy '{strategy_id}': "
+                f"cannot transition from {current_stage.value} to {new_stage.value}."
+            )
+
         updated = spec.model_copy(update={"stage": new_stage})
         self._strategies[strategy_id] = updated
 
@@ -94,24 +118,59 @@ def get_seed_str_001() -> StrategySpec:
         description="Cross-market relative value between Polymarket binary contracts and Deribit options.",
         math_foundation_validated=True,
         economic_edge_validated=False,
-        is_privileged=False,
         metadata={"seed_program": "Line A", "reference_market": "BTC/ETH"},
     )
 
 
 def get_seed_str_002() -> StrategySpec:
-    """Return standard specification for Seed Research Program STR-002."""
+    """Return standard specification for Seed Research Program STR-002.
+
+    Preserves original hypothesis:
+    Extreme short-horizon price impulses, normalized by prior volatility,
+    may exhibit an exploitable overshoot followed by retracement.
+    Orderbook information is an evaluation feature, not the definition of the strategy.
+    """
     return StrategySpec(
         strategy_id="STR-002",
         name="Impulse / Overshoot / Short-Horizon Retracement",
         family=StrategyFamily.BEHAVIORAL.value,
         origin=StrategyOrigin.HUMAN,
         stage=StrategyStage.RESEARCH,
-        description="Microstructure overshoot and mean-reversion following high-velocity orderbook imbalances.",
+        description=(
+            "Extreme short-horizon price impulses, normalized by prior volatility, "
+            "may exhibit an exploitable overshoot followed by retracement."
+        ),
         math_foundation_validated=False,
         economic_edge_validated=False,
-        is_privileged=False,
-        metadata={"seed_program": "Line B", "reference_market": "Binance USD(S)-M"},
+        metadata={
+            "seed_program": "Line B",
+            "reference_market": "Binance USD(S)-M",
+            "thesis": (
+                "Extreme short-horizon price impulses, normalized by prior volatility, "
+                "may exhibit an exploitable overshoot followed by retracement."
+            ),
+            "move_types": {
+                "informative_move": "Hack / delisting / fundamental news / regulatory event -> may rationally NOT revert",
+                "forced_liquidity_move": "Liquidations / stops / deleveraging / panic / liquidity withdrawal -> may overshoot and retrace",
+            },
+            "research_dimensions": [
+                "impulse_magnitude",
+                "prior_realized_volatility",
+                "forward_return",
+                "retracement_ratio",
+                "mfe",
+                "mae",
+                "time_to_retracement",
+                "liquidity",
+                "spread",
+                "depth",
+                "funding",
+                "open_interest",
+                "forced_liquidations",
+                "market_regime",
+            ],
+            "feature_notes": "Orderbook information is an evaluation feature, not the definition of the strategy.",
+        },
     )
 
 

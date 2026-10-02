@@ -1,4 +1,4 @@
-"""Unit tests for Strategy Domain and Registry."""
+"""Unit tests for Strategy Domain and Registry with hardened governance invariants."""
 
 import pytest
 from src.strategies.models import (
@@ -11,6 +11,7 @@ from src.strategies.registry import (
     StrategyRegistry,
     DuplicateStrategyError,
     StrategyNotFoundError,
+    InvalidStageTransitionError,
     get_seed_str_001,
     get_seed_str_002,
     create_default_registry,
@@ -58,7 +59,7 @@ def test_reject_duplicate_strategy_id():
 
 
 def test_represent_all_lifecycle_stages():
-    """Verify that all 11 lifecycle stages can be represented and transitioned."""
+    """Verify that all 11 lifecycle stages can be represented and transitioned step-by-step."""
     expected_stages = [
         StrategyStage.IDEA,
         StrategyStage.RESEARCH,
@@ -73,17 +74,17 @@ def test_represent_all_lifecycle_stages():
         StrategyStage.ARCHIVED,
     ]
     assert len(expected_stages) == 11
-    
+
     registry = StrategyRegistry()
     spec = StrategySpec(
         strategy_id="STR-STAGE-01",
         name="Stage Pipeline Test",
-        family=StrategyFamily.QUANT.value if hasattr(StrategyFamily, "QUANT") else "CUSTOM_TEST",
+        family="CUSTOM_TEST",
         origin=StrategyOrigin.QUANT,
         stage=StrategyStage.IDEA,
     )
     registry.register(spec)
-    
+
     for stage in expected_stages:
         registry.update_stage("STR-STAGE-01", stage)
         assert registry.get("STR-STAGE-01").stage == stage
@@ -99,7 +100,7 @@ def test_represent_all_strategy_origins():
         StrategyOrigin.AI_RESEARCH,
     ]
     assert len(expected_origins) == 5
-    
+
     registry = StrategyRegistry()
     for origin in expected_origins:
         s_id = f"STR-ORIGIN-{origin.value}"
@@ -170,7 +171,6 @@ def test_str_002_behaves_like_normal_registry_entry():
 
 def test_origin_creates_no_privileged_behavior():
     """Verify that no strategy origin confers special privileges, and attempting to privilege any fails."""
-    # Attempting to set is_privileged=True must raise ValueError
     with pytest.raises(ValueError, match="No strategy may be marked privileged"):
         StrategySpec(
             strategy_id="STR-PRIV-01",
@@ -180,7 +180,6 @@ def test_origin_creates_no_privileged_behavior():
             is_privileged=True,
         )
 
-    # Human, Quant, ML all have identical structure and permissions
     registry = create_default_registry()
     strategies = registry.list_all()
     assert len(strategies) == 2
@@ -188,12 +187,203 @@ def test_origin_creates_no_privileged_behavior():
         assert s.is_privileged is False
 
 
+def test_privilege_cannot_be_injected_via_mutation_or_copy():
+    """HARDENING: Invariant 1 - Verify that StrategySpec cannot technically become privileged.
+
+    Tests:
+    1. Direct property assignment raises AttributeError.
+    2. model_copy(update={'is_privileged': True}) raises ValueError.
+    3. object.__setattr__ fails to override descriptor (spec.is_privileged remains False).
+    4. Constructor rejects truthy is_privileged.
+    """
+    spec = StrategySpec(
+        strategy_id="STR-HARDEN-01",
+        name="Harden Test",
+        family="MOMENTUM",
+        origin=StrategyOrigin.QUANT,
+    )
+    assert spec.is_privileged is False
+
+    # 1. Direct attribute mutation must be blocked by read-only property
+    with pytest.raises(AttributeError):
+        spec.is_privileged = True
+
+    # 2. model_copy update injection must raise ValueError
+    with pytest.raises(ValueError, match="No strategy may be marked privileged"):
+        spec.model_copy(update={"is_privileged": True})
+
+    # 3. Descriptor priority prevents even object.__setattr__ from writing to property
+    with pytest.raises(AttributeError, match="has no setter"):
+        object.__setattr__(spec, "is_privileged", True)
+    assert spec.is_privileged is False
+
+    # 4. Constructor injection
+    with pytest.raises(ValueError, match="No strategy may be marked privileged"):
+        StrategySpec(
+            strategy_id="STR-HARDEN-02",
+            name="Harden Test 2",
+            family="MOMENTUM",
+            origin=StrategyOrigin.ML,
+            is_privileged=True,
+        )
+
+
+def test_evidence_gated_lifecycle_transitions():
+    """HARDENING: Invariant 2 - Verify that strategy lifecycle transitions enforce evidence gates.
+
+    Allowed forward promotion:
+      RESEARCH -> VALIDATION
+      VALIDATION -> HOLDOUT
+      HOLDOUT -> PAPER
+      PAPER -> SMALL_LIVE
+      SMALL_LIVE -> ACTIVE
+
+    Illegal gate bypasses:
+      RESEARCH -> ACTIVE (bypasses validation, holdout, paper, small_live)
+      IDEA -> SMALL_LIVE (bypasses research, validation, holdout, paper)
+      VALIDATION -> ACTIVE (bypasses holdout, paper, small_live)
+
+    Operational reversibility:
+      ACTIVE -> PAUSED
+      PAUSED -> ACTIVE
+
+    Kill / archive:
+      RESEARCH -> KILLED
+      KILLED -> ARCHIVED
+      ARCHIVED -> anything (terminal, must be rejected)
+    """
+    registry = StrategyRegistry()
+    spec = StrategySpec(
+        strategy_id="STR-GATE-01",
+        name="Gate Test",
+        family="RELATIVE_VALUE",
+        origin=StrategyOrigin.QUANT,
+        stage=StrategyStage.RESEARCH,
+    )
+    registry.register(spec)
+
+    # 1. Allowed forward sequence
+    registry.update_stage("STR-GATE-01", StrategyStage.VALIDATION)
+    assert registry.get("STR-GATE-01").stage == StrategyStage.VALIDATION
+
+    registry.update_stage("STR-GATE-01", StrategyStage.HOLDOUT)
+    assert registry.get("STR-GATE-01").stage == StrategyStage.HOLDOUT
+
+    registry.update_stage("STR-GATE-01", StrategyStage.PAPER)
+    assert registry.get("STR-GATE-01").stage == StrategyStage.PAPER
+
+    registry.update_stage("STR-GATE-01", StrategyStage.SMALL_LIVE)
+    assert registry.get("STR-GATE-01").stage == StrategyStage.SMALL_LIVE
+
+    registry.update_stage("STR-GATE-01", StrategyStage.ACTIVE)
+    assert registry.get("STR-GATE-01").stage == StrategyStage.ACTIVE
+
+    # 2. Operational state toggles
+    registry.update_stage("STR-GATE-01", StrategyStage.PAUSED)
+    assert registry.get("STR-GATE-01").stage == StrategyStage.PAUSED
+
+    registry.update_stage("STR-GATE-01", StrategyStage.ACTIVE)
+    assert registry.get("STR-GATE-01").stage == StrategyStage.ACTIVE
+
+    # 3. Illegal gate-skipping tests
+    spec_research = StrategySpec(
+        strategy_id="STR-GATE-JUMP-1",
+        name="Jump 1",
+        family="MOMENTUM",
+        origin=StrategyOrigin.HUMAN,
+        stage=StrategyStage.RESEARCH,
+    )
+    registry.register(spec_research)
+    with pytest.raises(InvalidStageTransitionError):
+        registry.update_stage("STR-GATE-JUMP-1", StrategyStage.ACTIVE)
+
+    spec_idea = StrategySpec(
+        strategy_id="STR-GATE-JUMP-2",
+        name="Jump 2",
+        family="MOMENTUM",
+        origin=StrategyOrigin.STATISTICAL,
+        stage=StrategyStage.IDEA,
+    )
+    registry.register(spec_idea)
+    with pytest.raises(InvalidStageTransitionError):
+        registry.update_stage("STR-GATE-JUMP-2", StrategyStage.SMALL_LIVE)
+
+    spec_validation = StrategySpec(
+        strategy_id="STR-GATE-JUMP-3",
+        name="Jump 3",
+        family="MOMENTUM",
+        origin=StrategyOrigin.ML,
+        stage=StrategyStage.VALIDATION,
+    )
+    registry.register(spec_validation)
+    with pytest.raises(InvalidStageTransitionError):
+        registry.update_stage("STR-GATE-JUMP-3", StrategyStage.ACTIVE)
+
+    # 4. Kill and terminal archive paths
+    spec_kill = StrategySpec(
+        strategy_id="STR-GATE-KILL",
+        name="Kill Test",
+        family="MOMENTUM",
+        origin=StrategyOrigin.QUANT,
+        stage=StrategyStage.RESEARCH,
+    )
+    registry.register(spec_kill)
+    registry.update_stage("STR-GATE-KILL", StrategyStage.KILLED)
+    assert registry.get("STR-GATE-KILL").stage == StrategyStage.KILLED
+
+    registry.update_stage("STR-GATE-KILL", StrategyStage.ARCHIVED)
+    assert registry.get("STR-GATE-KILL").stage == StrategyStage.ARCHIVED
+
+    # ARCHIVED is terminal: any outbound transition must fail
+    with pytest.raises(InvalidStageTransitionError):
+        registry.update_stage("STR-GATE-KILL", StrategyStage.RESEARCH)
+    with pytest.raises(InvalidStageTransitionError):
+        registry.update_stage("STR-GATE-KILL", StrategyStage.ACTIVE)
+    with pytest.raises(InvalidStageTransitionError):
+        registry.update_stage("STR-GATE-KILL", StrategyStage.IDEA)
+
+
+def test_str_002_thesis_and_dimensions_preserved():
+    """HARDENING: Invariant 3 - Verify STR-002 thesis preserves original behavioral overshoot hypothesis.
+
+    Verifies that:
+    1. Thesis is defined as extreme price impulses normalized by prior volatility.
+    2. Orderbook information is documented as a feature, not the definition.
+    3. Informative move vs Forced liquidity move distinction is formally documented.
+    """
+    spec = get_seed_str_002()
+
+    expected_thesis = (
+        "Extreme short-horizon price impulses, normalized by prior volatility, "
+        "may exhibit an exploitable overshoot followed by retracement."
+    )
+    assert expected_thesis in spec.description
+    assert spec.metadata["thesis"] == expected_thesis
+
+    # Check move types
+    assert "informative_move" in spec.metadata["move_types"]
+    assert "forced_liquidity_move" in spec.metadata["move_types"]
+
+    # Check research dimensions
+    dimensions = spec.metadata["research_dimensions"]
+    assert "impulse_magnitude" in dimensions
+    assert "prior_realized_volatility" in dimensions
+    assert "forward_return" in dimensions
+    assert "retracement_ratio" in dimensions
+    assert "mfe" in dimensions
+    assert "mae" in dimensions
+    assert "time_to_retracement" in dimensions
+    assert "forced_liquidations" in dimensions
+
+    # Verify feature note
+    assert "Orderbook information is an evaluation feature" in spec.metadata["feature_notes"]
+
+
 def test_registry_has_no_execution_authority():
     """Verify non-negotiable governance: StrategyRegistry has strictly zero execution authority."""
     registry = StrategyRegistry()
     assert registry.has_execution_authority() is False
-    
-    # Assert registry does not have order placement or trading execution methods
+
     forbidden_methods = [
         "execute_trade",
         "place_order",
