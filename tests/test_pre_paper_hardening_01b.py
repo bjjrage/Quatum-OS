@@ -41,11 +41,10 @@ import pytest
 from src.common.storage_sink import ChunkWriteStatus, StorageSink, StorageSinkState
 from src.execution_plane.adapters.base import (
     ExecutionAuthorization,
-    ExecutionAuthorizer,
+    ExecutionAuthorizationVerifier,
     SubmitPermit,
-    issue_permit,
-    mint_test_authorization,
 )
+from src.execution_plane.authority import ExecutionAuthorizationSigner
 from src.execution_plane.models import ExecutionMode, OrderIntent
 from src.execution_plane.router import ExecutionRouter
 from src.paper.broker import PaperBroker, PaperOrderSide, PaperOrderType
@@ -91,15 +90,15 @@ class TestExecutionAuthorizationHardenings:
             )
 
     def test_unapproved_risk_decision_cannot_mint_authorization(self):
-        """Authorizer refuses to mint an ExecutionAuthorization if RiskDecision is rejected."""
-        authorizer = ExecutionAuthorizer()
+        """Signer refuses to mint an ExecutionAuthorization if RiskDecision is rejected."""
+        signer = ExecutionAuthorizationSigner()
         rejected_decision = RiskDecision(
             approved=False,
             violation_code=RiskViolationCode.KILL_SWITCH_ACTIVE,
             reason="Kill switch triggered",
         )
         with pytest.raises(PermissionError, match="RiskDecision rejected"):
-            authorizer.mint(
+            signer.mint(
                 kind="SUBMIT",
                 venue="binance_perp",
                 mode=ExecutionMode.PAPER,
@@ -108,9 +107,9 @@ class TestExecutionAuthorizationHardenings:
 
     def test_forged_signature_rejected(self):
         """Permit with altered fields or tampered signature is rejected."""
-        authorizer = ExecutionAuthorizer()
+        signer = ExecutionAuthorizationSigner()
         approved_decision = RiskDecision(approved=True, reason="Pass")
-        auth = authorizer.mint(
+        auth = signer.mint(
             kind="SUBMIT",
             venue="binance_perp",
             symbol="BTCUSDT",
@@ -138,7 +137,7 @@ class TestExecutionAuthorizationHardenings:
             _issuer=auth._issuer,
         )
 
-        broker = PaperBroker(simulated_latency_ms=0.0, authorizer=authorizer)
+        broker = PaperBroker(simulated_latency_ms=0.0, verifier=signer.verifier)
         with pytest.raises(PermissionError, match="invalid cryptographic signature"):
             broker.submit_order(
                 symbol="BTCUSDT",
@@ -151,9 +150,9 @@ class TestExecutionAuthorizationHardenings:
 
     def test_symbol_mismatch_rejected(self):
         """Permit minted for BTC cannot be used to submit an ETH order."""
-        authorizer = ExecutionAuthorizer()
+        signer = ExecutionAuthorizationSigner()
         approved_decision = RiskDecision(approved=True, reason="Pass")
-        auth = authorizer.mint(
+        auth = signer.mint(
             kind="SUBMIT",
             venue="binance_perp",
             symbol="BTCUSDT",
@@ -161,7 +160,7 @@ class TestExecutionAuthorizationHardenings:
             risk_decision=approved_decision,
         )
 
-        broker = PaperBroker(simulated_latency_ms=0.0, authorizer=authorizer)
+        broker = PaperBroker(simulated_latency_ms=0.0, verifier=signer.verifier)
         with pytest.raises(PermissionError, match="Authorization symbol mismatch"):
             broker.submit_order(
                 symbol="ETHUSDT",  # Mismatch!
@@ -174,9 +173,9 @@ class TestExecutionAuthorizationHardenings:
 
     def test_venue_mismatch_rejected(self):
         """Permit minted for binance_perp cannot be used on deribit."""
-        authorizer = ExecutionAuthorizer()
+        signer = ExecutionAuthorizationSigner()
         approved_decision = RiskDecision(approved=True, reason="Pass")
-        auth = authorizer.mint(
+        auth = signer.mint(
             kind="SUBMIT",
             venue="binance_perp",
             symbol="BTCUSDT",
@@ -184,7 +183,7 @@ class TestExecutionAuthorizationHardenings:
             risk_decision=approved_decision,
         )
 
-        broker = PaperBroker(simulated_latency_ms=0.0, authorizer=authorizer)
+        broker = PaperBroker(simulated_latency_ms=0.0, verifier=signer.verifier)
         with pytest.raises(PermissionError, match="Authorization venue mismatch"):
             broker.submit_order(
                 symbol="BTCUSDT",
@@ -197,11 +196,11 @@ class TestExecutionAuthorizationHardenings:
 
     def test_expired_permit_rejected(self):
         """Permit submitted past expires_at_ns is rejected."""
-        authorizer = ExecutionAuthorizer()
+        signer = ExecutionAuthorizationSigner()
         approved_decision = RiskDecision(approved=True, reason="Pass")
         t0 = 1_000_000_000_000
         # 1-second validity window
-        auth = authorizer.mint(
+        auth = signer.mint(
             kind="SUBMIT",
             venue="paper",
             symbol="BTCUSDT",
@@ -211,7 +210,7 @@ class TestExecutionAuthorizationHardenings:
             validity_window_ns=1_000_000_000,
         )
 
-        broker = PaperBroker(simulated_latency_ms=0.0, authorizer=authorizer)
+        broker = PaperBroker(simulated_latency_ms=0.0, verifier=signer.verifier)
         # Attempt to use permit 2 seconds later
         t_late = t0 + 2_000_000_000
         with pytest.raises(PermissionError, match="Authorization expired"):
@@ -227,10 +226,10 @@ class TestExecutionAuthorizationHardenings:
 
     def test_single_use_replay_protection(self):
         """Permit cannot be replayed or reused for multiple order submissions."""
-        authorizer = ExecutionAuthorizer()
+        signer = ExecutionAuthorizationSigner()
         approved_decision = RiskDecision(approved=True, reason="Pass")
         t0 = 1_000_000_000_000
-        auth = authorizer.mint(
+        auth = signer.mint(
             kind="SUBMIT",
             venue="paper",
             symbol="BTCUSDT",
@@ -240,7 +239,7 @@ class TestExecutionAuthorizationHardenings:
             validity_window_ns=10_000_000_000,
         )
 
-        broker = PaperBroker(simulated_latency_ms=0.0, authorizer=authorizer)
+        broker = PaperBroker(simulated_latency_ms=0.0, verifier=signer.verifier)
         # First execution succeeds
         order1 = broker.submit_order(
             symbol="BTCUSDT",

@@ -34,7 +34,7 @@ from src.quality.acceptance import (
     evaluate_duration_gate,
     MIN_24H_SECONDS,
 )
-from src.execution_plane.adapters.base import issue_permit
+from tests.helpers.auth import create_test_signer_and_verifier, issue_permit
 from src.execution_plane.models import ExecutionMode
 
 
@@ -273,15 +273,18 @@ def test_paper_broker_strictly_rejects_unpermitted_orders():
 
 def test_paper_broker_accepts_order_with_valid_risk_permit():
     """PaperBroker accepts order when authorized with a valid approved SubmitPermit."""
-    broker = PaperBroker(simulated_latency_ms=0.0)
+    signer, verifier = create_test_signer_and_verifier()
+    broker = PaperBroker(simulated_latency_ms=0.0, verifier=verifier)
     permit = issue_permit(
         kind="SUBMIT",
         venue="paper",
         client_order_id="client_ord_999",
+        symbol="BTC-USDT",
         mode=ExecutionMode.PAPER,
         authorized_live_capital_usd=0.0,
         risk_approved=True,
         issued_ns=1_000_000_000,
+        signer=signer,
     )
     order = broker.submit_order(
         symbol="BTC-USDT",
