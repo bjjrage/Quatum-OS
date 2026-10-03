@@ -40,25 +40,7 @@ class ExitTargetType(str, Enum):
     TIME_DECAY_STOP = "TIME_DECAY_STOP"
 
 
-class RegimeSnapshot(BaseModel):
-    """Point-in-time state recorded on every candidate trade."""
-    timestamp_ns: int
-    symbol: str
-    btc_state: BtcState
-    alt_residual_shock: float
-    alt_z_score: float
-    beta_down: float
-    beta_up: float
-    gamma_eth: float
-    reversal_detector_triggered: Optional[FirstReversalType] = None
-    book_replenishment_ratio: float = 0.0
-    pre_shock_vwap: float
-    pre_shock_origin: float
-    entry_price: float
-    realized_mfe: Optional[float] = None
-    realized_mae: Optional[float] = None
-    holding_time_s: Optional[float] = None
-    exit_reason: Optional[str] = None
+from src.portfolio.regime import RegimeSnapshot
 
 
 class TwoFactorResidualEstimator:
@@ -136,21 +118,29 @@ class BtcStateClassifier:
         ret_1m: float,
         ret_5m: float,
         ret_15m: float,
+        btc_realized_vol_5m: float = 0.002,  # Provisional research prior
         vol_5m_ratio: float = 1.0,
     ) -> BtcState:
-        """Classify BTC state based on multi-horizon returns and volume expansion."""
-        # Running hard down: severe drop or high velocity
-        if ret_5m < -0.010 or (ret_5m < -0.005 and vol_5m_ratio > 2.0):
+        """Classify BTC state based on multi-horizon returns normalized by realized volatility.
+        
+        Provisional research priors:
+        - Running hard: |ret_5m| >= 3.0 * sigma (or 2.0 * sigma with volume expansion > 2.0)
+        - Trend (UP/DOWN): |ret_5m| >= 1.0 * sigma
+        - FLAT: |ret_5m| < 1.0 * sigma
+        """
+        sigma = max(1e-5, btc_realized_vol_5m)
+        # Running hard down: severe drop or high velocity liquidation cascade
+        if ret_5m <= -3.0 * sigma or (ret_5m <= -2.0 * sigma and vol_5m_ratio > 2.0):
             return BtcState.RUNNING_HARD_DOWN
 
-        # Running hard up: severe rip or high velocity
-        if ret_5m > +0.010 or (ret_5m > +0.005 and vol_5m_ratio > 2.0):
+        # Running hard up: severe rip or high velocity market dislocation
+        if ret_5m >= 3.0 * sigma or (ret_5m >= 2.0 * sigma and vol_5m_ratio > 2.0):
             return BtcState.RUNNING_HARD_UP
 
-        if ret_5m < -0.002:
+        if ret_5m <= -1.0 * sigma:
             return BtcState.DOWN
 
-        if ret_5m > +0.002:
+        if ret_5m >= 1.0 * sigma:
             return BtcState.UP
 
         return BtcState.FLAT
@@ -161,6 +151,13 @@ class BtcStateClassifier:
         z_score: float,
     ) -> Tuple[bool, float, str]:
         """Evaluate action, sizing, and exit behavior from the BTC Decision Matrix.
+        
+        Authoritative rules:
+        - BTC FLAT: candidate may proceed normally if other filters pass (100% sizing)
+        - BTC UP: candidate may proceed normally (120% sizing, trail runner)
+        - BTC DOWN: block new entry or force early exit (0% sizing)
+        - BTC RUNNING_HARD_DOWN: strictly blocked (systemic liquidation cascade, 0% sizing)
+        - BTC RUNNING_HARD_UP: blocked (market dislocation/high dispersion, 0% sizing)
         
         Returns:
             (is_allowed, sizing_multiplier, behavior_description)
@@ -176,13 +173,13 @@ class BtcStateClassifier:
             return True, 1.2, "TARGET_REFERENCE_PRICE_TRAIL_RUNNER: 120% sizing, trail runner"
 
         elif btc_state == BtcState.DOWN:
-            return True, 0.3, "TIGHT_STOP_QUICK_SCALP: 30% sizing, tight defensive stop"
+            return False, 0.0, "BLOCKED_BTC_DOWN: Block new entry when BTC is down (early exit if in position)"
 
         elif btc_state == BtcState.RUNNING_HARD_DOWN:
             return False, 0.0, "STRICTLY_BLOCKED: Systemic liquidation cascade, knife catch forbidden"
 
         elif btc_state == BtcState.RUNNING_HARD_UP:
-            return True, 0.8, "MOMENTUM_TAILWIND: 80% sizing, momentum tailwind"
+            return False, 0.0, "BLOCKED_BTC_RUNNING_HARD_UP: Market dislocation / high dispersion, abstain from chasing/knife-catching"
 
         return False, 0.0, "UNKNOWN_STATE"
 
@@ -294,6 +291,7 @@ class Str002V2Strategy:
         bid_depth_0_5pct: float,
         pre_shock_median_depth: float,
         recent_1s_lows: List[float],
+        btc_realized_vol_5m: float = 0.002,
         is_short_side_hypothesis: bool = False,
     ) -> Tuple[bool, Optional[RegimeSnapshot], Dict[str, Any]]:
         """Evaluate STR-002 v2 signal and generate trade decision.
@@ -325,6 +323,7 @@ class Str002V2Strategy:
             ret_1m=btc_returns_1m_5m_15m[0],
             ret_5m=btc_returns_1m_5m_15m[1],
             ret_15m=btc_returns_1m_5m_15m[2],
+            btc_realized_vol_5m=btc_realized_vol_5m,
             vol_5m_ratio=btc_vol_5m_ratio,
         )
 
@@ -366,9 +365,15 @@ class Str002V2Strategy:
             pre_shock_vwap=pre_shock_vwap,
         )
 
-        # 5. Snapshot creation
+        # 5. Snapshot creation with complete 23+ fields
         snapshot = RegimeSnapshot(
             timestamp_ns=timestamp_ns,
+            regime_snapshot_id=f"regime_{timestamp_ns}_{symbol}",
+            btc_state_1m=self.btc_classifier.classify(btc_returns_1m_5m_15m[0], btc_returns_1m_5m_15m[0], btc_returns_1m_5m_15m[0], btc_realized_vol_5m).value,
+            btc_state_5m=btc_state.value,
+            btc_state_15m=self.btc_classifier.classify(btc_returns_1m_5m_15m[2], btc_returns_1m_5m_15m[2], btc_returns_1m_5m_15m[2], btc_realized_vol_5m).value,
+            btc_realized_vol_1h=btc_realized_vol_5m * math.sqrt(12.0),
+            market_regime="NORMAL",
             symbol=symbol,
             btc_state=btc_state,
             alt_residual_shock=current_eps,
@@ -376,7 +381,7 @@ class Str002V2Strategy:
             beta_down=beta_down,
             beta_up=beta_up,
             gamma_eth=gamma_eth,
-            reversal_detector_triggered=rev_type,
+            reversal_detector_triggered=rev_type.value if rev_type else None,
             book_replenishment_ratio=replenishment_ratio,
             pre_shock_vwap=pre_shock_vwap,
             pre_shock_origin=pre_shock_origin,
@@ -393,3 +398,85 @@ class Str002V2Strategy:
         }
 
         return True, snapshot, diagnostics
+
+
+def get_str002_model_variants() -> List[Dict[str, Any]]:
+    """Isolated evidence ladder specifications M0 through M7 for STR-002 v2.
+    
+    Each model must demonstrate incremental out-of-sample economic value.
+    No later model inherits validated status from an earlier model.
+    """
+    return [
+        {
+            "variant_id": "M0",
+            "name": "Raw Shock Reversal",
+            "description": "Baseline breakout / unadjusted price drop overshoot",
+            "factor_model": "NONE",
+            "btc_conditioning": False,
+            "reversal_filter": False,
+            "status": "UNVALIDATED",
+        },
+        {
+            "variant_id": "M1",
+            "name": "BTC Residual",
+            "description": "Volume surge and 1-factor BTC residualization",
+            "factor_model": "1_FACTOR_BTC",
+            "btc_conditioning": False,
+            "reversal_filter": False,
+            "status": "UNVALIDATED",
+        },
+        {
+            "variant_id": "M2",
+            "name": "BTC + ETH Orthogonalized",
+            "description": "2-factor residual with orthogonalized ETH component",
+            "factor_model": "2_FACTOR_ORTHOGONAL_ETH",
+            "btc_conditioning": False,
+            "reversal_filter": False,
+            "status": "UNVALIDATED",
+        },
+        {
+            "variant_id": "M3",
+            "name": "Asymmetric Downside Beta",
+            "description": "Ridge-regularized asymmetric downside beta estimation",
+            "factor_model": "2_FACTOR_ASYM_BETA",
+            "btc_conditioning": False,
+            "reversal_filter": False,
+            "status": "UNVALIDATED",
+        },
+        {
+            "variant_id": "M4",
+            "name": "BTC Regime Decision Matrix",
+            "description": "Multi-horizon BTC state classification and directional gating",
+            "factor_model": "2_FACTOR_ASYM_BETA",
+            "btc_conditioning": True,
+            "reversal_filter": False,
+            "status": "UNVALIDATED",
+        },
+        {
+            "variant_id": "M5",
+            "name": "First Reversal Confirmation",
+            "description": "Exhaustion detection via delta flip, replenishment, or micro HL",
+            "factor_model": "2_FACTOR_ASYM_BETA",
+            "btc_conditioning": True,
+            "reversal_filter": True,
+            "status": "UNVALIDATED",
+        },
+        {
+            "variant_id": "M6",
+            "name": "Regime-Conditioned Exits",
+            "description": "Dynamic holding period and reference price exits",
+            "factor_model": "2_FACTOR_ASYM_BETA",
+            "btc_conditioning": True,
+            "reversal_filter": True,
+            "status": "UNVALIDATED",
+        },
+        {
+            "variant_id": "M7",
+            "name": "Microstructure Confirmation",
+            "description": "Multi-timeframe confirmation with book depth replenishment ratio",
+            "factor_model": "2_FACTOR_ASYM_BETA",
+            "btc_conditioning": True,
+            "reversal_filter": True,
+            "status": "UNVALIDATED",
+        },
+    ]

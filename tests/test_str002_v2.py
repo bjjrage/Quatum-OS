@@ -50,38 +50,81 @@ def test_two_factor_residualization_and_asymmetric_beta():
     assert z_score < -3.0
 
 
-def test_btc_state_classification_and_decision_matrix():
-    """Verify multi-horizon BTC state classification and the decision matrix."""
-    # 1. Flat state
-    s_flat = BtcStateClassifier.classify(ret_1m=0.0001, ret_5m=0.0005, ret_15m=0.001)
-    assert s_flat == BtcState.FLAT
+def test_btc_decision_matrix_all_cells():
+    """Verify that EVERY single cell in the BTC decision matrix adheres to authoritative v2 spec."""
+    # 1. Flat state -> Allowed (100% sizing)
+    s_flat = BtcState.FLAT
     ok, sizing, beh = BtcStateClassifier.evaluate_decision_matrix(s_flat, z_score=-3.5)
     assert ok is True
     assert sizing == 1.0
+    assert "TARGET_REFERENCE_PRICE" in beh
 
-    # 2. Up state
-    s_up = BtcStateClassifier.classify(ret_1m=0.001, ret_5m=0.004, ret_15m=0.008)
-    assert s_up == BtcState.UP
+    # 2. Up state -> Allowed (120% sizing, runner profile)
+    s_up = BtcState.UP
     ok, sizing, beh = BtcStateClassifier.evaluate_decision_matrix(s_up, z_score=-3.5)
     assert ok is True
     assert sizing == 1.2
     assert "TRAIL_RUNNER" in beh
 
-    # 3. Down state
-    s_down = BtcStateClassifier.classify(ret_1m=-0.001, ret_5m=-0.003, ret_15m=-0.006)
-    assert s_down == BtcState.DOWN
+    # 3. Down state -> BLOCKED (0% sizing)
+    s_down = BtcState.DOWN
     ok, sizing, beh = BtcStateClassifier.evaluate_decision_matrix(s_down, z_score=-3.5)
-    assert ok is True
-    assert sizing == 0.3
-    assert "TIGHT_STOP" in beh
+    assert ok is False
+    assert sizing == 0.0
+    assert "BLOCKED_BTC_DOWN" in beh
 
-    # 4. Running hard down (systemic dump) -> STRICTLY BLOCKED
-    s_running_down = BtcStateClassifier.classify(ret_1m=-0.006, ret_5m=-0.015, ret_15m=-0.030)
-    assert s_running_down == BtcState.RUNNING_HARD_DOWN
+    # 4. Running hard down (liquidation cascade) -> STRICTLY BLOCKED (0% sizing)
+    s_running_down = BtcState.RUNNING_HARD_DOWN
     ok, sizing, beh = BtcStateClassifier.evaluate_decision_matrix(s_running_down, z_score=-3.5)
     assert ok is False
     assert sizing == 0.0
     assert "STRICTLY_BLOCKED" in beh
+
+    # 5. Running hard up (market dislocation / high dispersion) -> BLOCKED (0% sizing)
+    s_running_up = BtcState.RUNNING_HARD_UP
+    ok, sizing, beh = BtcStateClassifier.evaluate_decision_matrix(s_running_up, z_score=-3.5)
+    assert ok is False
+    assert sizing == 0.0
+    assert "BLOCKED_BTC_RUNNING_HARD_UP" in beh
+
+    # 6. Weak shock (|z_score| < 3.0) -> BLOCKED across all states
+    for state in BtcState:
+        ok, sizing, beh = BtcStateClassifier.evaluate_decision_matrix(state, z_score=-2.5)
+        assert ok is False
+        assert sizing == 0.0
+        assert "NO_SHOCK" in beh
+
+
+def test_btc_state_classification_vol_normalized():
+    """Verify BTC state classification normalizes thresholds by realized volatility."""
+    # Base vol = 0.002
+    sigma = 0.002
+    # ret_5m = 0.001 is < 1.0 * sigma -> FLAT
+    assert BtcStateClassifier.classify(0.0, 0.001, 0.0, btc_realized_vol_5m=sigma) == BtcState.FLAT
+    # ret_5m = 0.003 is > 1.0 * sigma -> UP
+    assert BtcStateClassifier.classify(0.0, 0.003, 0.0, btc_realized_vol_5m=sigma) == BtcState.UP
+    # ret_5m = -0.003 is < -1.0 * sigma -> DOWN
+    assert BtcStateClassifier.classify(0.0, -0.003, 0.0, btc_realized_vol_5m=sigma) == BtcState.DOWN
+    # ret_5m = -0.007 is < -3.0 * sigma -> RUNNING_HARD_DOWN
+    assert BtcStateClassifier.classify(0.0, -0.007, 0.0, btc_realized_vol_5m=sigma) == BtcState.RUNNING_HARD_DOWN
+    # ret_5m = +0.007 is > +3.0 * sigma -> RUNNING_HARD_UP
+    assert BtcStateClassifier.classify(0.0, +0.007, 0.0, btc_realized_vol_5m=sigma) == BtcState.RUNNING_HARD_UP
+
+    # Higher volatility regime (sigma = 0.010)
+    # ret_5m = 0.005 was UP under sigma=0.002, but is now FLAT under sigma=0.010
+    assert BtcStateClassifier.classify(0.0, 0.005, 0.0, btc_realized_vol_5m=0.010) == BtcState.FLAT
+
+
+def test_str002_model_variants_m0_to_m7_isolated():
+    """Verify evidence ladder variants M0-M7 are isolated and start UNVALIDATED."""
+    from src.strategies.str002_v2 import get_str002_model_variants
+    variants = get_str002_model_variants()
+    assert len(variants) == 8
+    expected_ids = ["M0", "M1", "M2", "M3", "M4", "M5", "M6", "M7"]
+    assert [v["variant_id"] for v in variants] == expected_ids
+    # Invariant: No variant inherits validated status
+    for v in variants:
+        assert v["status"] == "UNVALIDATED"
 
 
 def test_first_reversal_pluggable_detectors():

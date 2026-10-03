@@ -14,6 +14,7 @@ from src.portfolio.gates import (
     CorrelationCapacityGate,
     all_gates_pass,
 )
+from src.portfolio.regime import RegimeSnapshot
 
 __all__ = [
     "AllocationAction",
@@ -26,4 +27,5 @@ __all__ = [
     "MultipleSelectionGate",
     "CorrelationCapacityGate",
     "all_gates_pass",
+    "RegimeSnapshot",
 ]
