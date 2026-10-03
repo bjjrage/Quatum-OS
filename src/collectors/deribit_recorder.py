@@ -2,6 +2,7 @@
 import asyncio
 import json
 import time
+from datetime import datetime
 from typing import Dict, Any, List, Set, Optional
 import aiohttp
 import websockets
@@ -12,6 +13,21 @@ from src.common.storage_sink import StorageSink
 from src.common.types import Venue
 
 logger = setup_logger("deribit_recorder")
+
+
+def parse_deribit_expiry_timestamp(instrument_name: str) -> float:
+    """Parse Deribit instrument name like BTC-27MAR26-65000-C into epoch timestamp for chronological sorting.
+    
+    Prevents alphabetical sorting bug where '1OCT26' sorted before '26DEC25'.
+    """
+    try:
+        parts = instrument_name.split("-")
+        if len(parts) >= 2:
+            dt = datetime.strptime(parts[1], "%d%b%y")
+            return dt.timestamp()
+    except Exception:
+        pass
+    return float("inf")
 
 
 class DeribitRecorder:
@@ -25,6 +41,8 @@ class DeribitRecorder:
         self.dvol_indices: Dict[str, float] = {"BTC": 0.0, "ETH": 0.0}
         self._running = False
         self._session: Optional[aiohttp.ClientSession] = None
+        self._ws: Optional[Any] = None
+        self._subscribed_channels: Set[str] = set()
         self._ws_task: Optional[asyncio.Task] = None
         self._instrument_poller_task: Optional[asyncio.Task] = None
 
@@ -60,6 +78,22 @@ class DeribitRecorder:
             except Exception as e:
                 logger.error(f"Error in Deribit instrument poller: {e}", exc_info=True)
 
+    def _sort_options_chronological_atm(self, instruments: Set[str], limit: int = 60) -> List[str]:
+        """Sort instruments chronologically by expiry date, then by moneyness relative to underlying."""
+        def sort_key(x: str):
+            parts = x.split("-")
+            cur = parts[0] if parts else "BTC"
+            expiry_ts = parse_deribit_expiry_timestamp(x)
+            try:
+                strike = float(parts[2]) if len(parts) > 2 else 0.0
+            except (ValueError, IndexError):
+                strike = 0.0
+            underlying = self.underlying_prices.get(cur, 65000.0 if cur == "BTC" else 3500.0)
+            moneyness = abs(strike - underlying) if underlying > 0 else strike
+            return (expiry_ts, moneyness)
+
+        return sorted(list(instruments), key=sort_key)[:limit]
+
     async def _discover_instruments(self) -> None:
         """Query Deribit REST API for active options matching RAW SCOPE v0."""
         if not self._session:
@@ -88,10 +122,43 @@ class DeribitRecorder:
                     if name:
                         selected.add(name)
 
+            new_instruments = selected - self.active_instruments
             self.active_instruments = selected
-            logger.info(f"Deribit discovered {len(self.active_instruments)} options within 60-day expiry scope.")
+            logger.info(f"Deribit discovered {len(self.active_instruments)} options within 60-day expiry scope ({len(new_instruments)} new).")
+
+            # Dynamic resubscription if WS is already connected and new instruments discovered
+            if new_instruments and self._ws and not getattr(self._ws, "closed", False):
+                await self._resubscribe_dynamic()
         except Exception as e:
             logger.error(f"Failed to discover Deribit instruments: {e}", exc_info=True)
+
+    async def _resubscribe_dynamic(self) -> None:
+        """Resubscribe WS to new instruments dynamically after periodic discovery."""
+        if not self._ws or getattr(self._ws, "closed", False):
+            return
+        try:
+            sample_options = self._sort_options_chronological_atm(self.active_instruments, limit=60)
+            new_channels: List[str] = []
+            for name in sample_options:
+                t_ch = f"ticker.{name}.100ms"
+                b_ch = f"book.{name}.10.100ms"
+                if t_ch not in self._subscribed_channels:
+                    new_channels.append(t_ch)
+                if b_ch not in self._subscribed_channels:
+                    new_channels.append(b_ch)
+
+            if new_channels:
+                sub_payload = {
+                    "jsonrpc": "2.0",
+                    "id": int(time.time()),
+                    "method": "public/subscribe",
+                    "params": {"channels": new_channels},
+                }
+                await self._ws.send(json.dumps(sub_payload))
+                self._subscribed_channels.update(new_channels)
+                logger.info(f"Dynamically subscribed to {len(new_channels)} new Deribit channels.")
+        except Exception as e:
+            logger.warning(f"Failed dynamic Deribit resubscription: {e}")
 
     async def _ws_listener_loop(self) -> None:
         """Main WebSocket loop for Deribit JSON-RPC 2.0 with auto-reconnect."""
@@ -105,6 +172,8 @@ class DeribitRecorder:
                     ping_timeout=10,
                     close_timeout=5.0,
                 ) as ws:
+                    self._ws = ws
+                    self._subscribed_channels.clear()
                     backoff = 1.0
                     logger.info("Connected to Deribit WS.")
 
@@ -120,12 +189,8 @@ class DeribitRecorder:
                     # Subscribe to index, DVOL and trade channels
                     channels = list(self.config.index_channels) + list(self.config.trade_channels)
                     
-                    # Select options sorted by nearest expiry and ATM moneyness
-                    # (to ensure we capture the most active trading options)
-                    sample_options = sorted(
-                        list(self.active_instruments),
-                        key=lambda x: (x.split("-")[1], abs(float(x.split("-")[2]) - self.underlying_prices.get("BTC", 65000.0)))
-                    )[:60]
+                    # Select options sorted chronologically by nearest expiry and ATM moneyness
+                    sample_options = self._sort_options_chronological_atm(self.active_instruments, limit=60)
 
                     for name in sample_options:
                         channels.append(f"ticker.{name}.100ms")
@@ -138,6 +203,7 @@ class DeribitRecorder:
                         "params": {"channels": channels},
                     }
                     await ws.send(json.dumps(sub_payload))
+                    self._subscribed_channels.update(channels)
                     logger.info(f"Subscribed to {len(channels)} Deribit channels (indices, DVOL, trades, tickers).")
 
                     async for msg in ws:
