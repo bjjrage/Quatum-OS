@@ -333,6 +333,51 @@ class BtcStateClassifier:
 
         return BtcState.FLAT
 
+    @classmethod
+    def classify_horizon(
+        cls,
+        ret: Optional[float],
+        btc_realized_vol_5m: Optional[float],
+        horizon_minutes: int = 5,
+        vol_ratio: Optional[float] = 1.0,
+    ) -> BtcState:
+        """Classify BTC state for a specific horizon with square-root-of-time volatility scaling.
+        
+        Fail-Closed Invariants:
+        - If inputs are None, NaN, Inf, or volatility <= 0 -> STATE_UNKNOWN.
+        """
+        if (
+            ret is None
+            or math.isnan(ret)
+            or math.isinf(ret)
+            or btc_realized_vol_5m is None
+            or math.isnan(btc_realized_vol_5m)
+            or math.isinf(btc_realized_vol_5m)
+            or btc_realized_vol_5m <= 0.0
+            or vol_ratio is None
+            or math.isnan(vol_ratio)
+            or math.isinf(vol_ratio)
+        ):
+            return BtcState.STATE_UNKNOWN
+
+        # Scale 5m volatility to target horizon: sigma_h = sigma_5m * sqrt(h / 5.0)
+        scale_factor = math.sqrt(horizon_minutes / 5.0)
+        sigma = max(1e-5, btc_realized_vol_5m * scale_factor)
+
+        if ret <= -3.0 * sigma or (ret <= -2.0 * sigma and vol_ratio > 2.0):
+            return BtcState.RUNNING_HARD_DOWN
+
+        if ret >= 3.0 * sigma or (ret >= 2.0 * sigma and vol_ratio > 2.0):
+            return BtcState.RUNNING_HARD_UP
+
+        if ret <= -1.0 * sigma:
+            return BtcState.DOWN
+
+        if ret >= 1.0 * sigma:
+            return BtcState.UP
+
+        return BtcState.FLAT
+
     @staticmethod
     def evaluate_decision_matrix(
         btc_state: BtcState,
@@ -440,6 +485,7 @@ class ShockStateMachine:
         self.bars_waiting: int = 0
         self.bars_cooldown: int = 0
         self.signal_emitted_for_shock: bool = False
+        self.invalidation_reason: Optional[str] = None
 
     def step(
         self,
@@ -462,10 +508,12 @@ class ShockStateMachine:
                 self.state = ShockState.IDLE
                 self.active_shock_id = None
                 self.signal_emitted_for_shock = False
+                self.invalidation_reason = None
             return False
 
         # 2. Idle state: monitor for initial shock breach
         if self.state == ShockState.IDLE:
+            self.invalidation_reason = None
             if z_score <= -3.0 and btc_state_allowed:
                 self.state = ShockState.SHOCK_DETECTED
                 self.active_shock_id = f"shock_{bar_index}"
@@ -488,6 +536,13 @@ class ShockStateMachine:
 
         # 3. Waiting for reversal confirmation
         if self.state == ShockState.WAITING_FOR_REVERSAL:
+            # BTC regime must remain valid through entry; fail closed immediately if invalidated
+            if not btc_state_allowed:
+                self.state = ShockState.COOLDOWN
+                self.bars_cooldown = self.cooldown_bars
+                self.invalidation_reason = "BTC_STATE_INVALIDATED_BEFORE_ENTRY"
+                return False
+
             # Track lowest price observed during liquidation plunge
             self.shock_bottom_price = min(self.shock_bottom_price, current_price)
 
@@ -586,7 +641,7 @@ class Str002V2Strategy:
         max_holding_seconds: int = 900,  # 15 minutes max
         max_wait_bars: int = 5,
         cooldown_bars: int = 10,
-        default_allowed_risk_usd: float = 100.0,
+        default_allowed_risk_usd: Optional[float] = None,
     ):
         self.z_score_threshold = z_score_threshold
         self.max_holding_seconds = max_holding_seconds
@@ -739,7 +794,10 @@ class Str002V2Strategy:
 
         # Handle non-emitting states
         if not should_emit:
-            if sm.state == ShockState.COOLDOWN:
+            if sm.invalidation_reason == "BTC_STATE_INVALIDATED_BEFORE_ENTRY":
+                decision_state = "BLOCKED"
+                reason_str = "BTC_STATE_INVALIDATED_BEFORE_ENTRY: BTC regime became blocked while waiting for reversal confirmation"
+            elif sm.state == ShockState.COOLDOWN:
                 decision_state = "COOLDOWN"
                 reason_str = f"In cooldown ({sm.bars_cooldown} bars remaining) following shock {sm.active_shock_id}"
             elif sm.state == ShockState.WAITING_FOR_REVERSAL:
@@ -766,6 +824,7 @@ class Str002V2Strategy:
                 "state_machine_state": sm.state.value,
                 "shock_id": sm.active_shock_id,
                 "replenishment_ratio": replenishment_ratio,
+                "invalidation_reason": sm.invalidation_reason,
             }
             return False, None, diagnostics
 
@@ -778,7 +837,20 @@ class Str002V2Strategy:
         )
 
         # 6. Risk-budget position sizing
-        risk_budget = allowed_risk_usd if allowed_risk_usd is not None else self.default_allowed_risk_usd
+        # Require explicit risk budget from upstream authority (no internally invented default)
+        if allowed_risk_usd is None or allowed_risk_usd <= 0.0:
+            diagnostics = {
+                "decision": "BLOCKED",
+                "reason": "RISK_BUDGET_NOT_PROVIDED: Explicit positive allowed_risk_usd required from risk authority.",
+                "btc_state": btc_state.value,
+                "z_score": z_score,
+                "state_machine_state": sm.state.value,
+                "shock_id": sm.active_shock_id,
+                "risk_budget_provided": False,
+            }
+            return False, None, diagnostics
+
+        risk_budget = allowed_risk_usd
         risk_dist = exit_targets["risk_distance"]
         if risk_dist <= 0:
             diagnostics = {
@@ -795,9 +867,19 @@ class Str002V2Strategy:
         snapshot = RegimeSnapshot(
             timestamp_ns=timestamp_ns,
             regime_snapshot_id=f"regime_{timestamp_ns}_{symbol}",
-            btc_state_1m=self.btc_classifier.classify(btc_returns_1m_5m_15m[0], btc_returns_1m_5m_15m[0], btc_returns_1m_5m_15m[0], btc_realized_vol_5m).value,
+            btc_state_1m=self.btc_classifier.classify_horizon(
+                btc_returns_1m_5m_15m[0],
+                btc_realized_vol_5m,
+                horizon_minutes=1,
+                vol_ratio=btc_vol_5m_ratio,
+            ).value,
             btc_state_5m=btc_state.value,
-            btc_state_15m=self.btc_classifier.classify(btc_returns_1m_5m_15m[2], btc_returns_1m_5m_15m[2], btc_returns_1m_5m_15m[2], btc_realized_vol_5m).value,
+            btc_state_15m=self.btc_classifier.classify_horizon(
+                btc_returns_1m_5m_15m[2],
+                btc_realized_vol_5m,
+                horizon_minutes=15,
+                vol_ratio=btc_vol_5m_ratio,
+            ).value,
             btc_realized_vol_1h=btc_realized_vol_5m * math.sqrt(12.0),
             market_regime="NORMAL",
             symbol=symbol,

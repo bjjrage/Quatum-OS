@@ -4,6 +4,7 @@ from src.strategies.str002_v2 import (
     BtcState,
     FirstReversalType,
     ExitTargetType,
+    ShockState,
     RegimeSnapshot,
     TwoFactorResidualEstimator,
     BtcStateClassifier,
@@ -240,6 +241,7 @@ def test_complete_str002_v2_signal_and_regime_snapshot():
         bid_depth_0_5pct=60_000.0,
         pre_shock_median_depth=100_000.0,  # 60% replenishment
         recent_1s_lows=[0.148, 0.147, 0.149],
+        allowed_risk_usd=100.0,
     )
 
     assert should_exec is True
@@ -504,6 +506,7 @@ def test_controlled_shock_scenario_1_clean_downward_shock():
         bid_depth_0_5pct=60000.0,
         pre_shock_median_depth=100000.0,
         recent_1s_lows=[9.8, 9.7, 9.9],
+        allowed_risk_usd=100.0,
     )
     assert should_exec is True
     assert diag["decision"] == "EXECUTE_LONG"
@@ -758,6 +761,7 @@ def test_controlled_shock_scenario_7_delayed_reversal():
         bid_depth_0_5pct=70000.0,  # 70% replenishment!
         pre_shock_median_depth=100000.0,
         recent_1s_lows=[9.9, 9.8, 10.1],  # Higher low!
+        allowed_risk_usd=100.0,
     )
     assert exec2 is True
     assert diag2["decision"] == "EXECUTE_LONG"
@@ -789,6 +793,7 @@ def test_controlled_shock_scenario_8_independent_consecutive_shocks():
         bid_depth_0_5pct=60000.0,
         pre_shock_median_depth=100000.0,
         recent_1s_lows=[9.8, 9.7, 9.9],
+        allowed_risk_usd=100.0,
     )
     assert exec1 is True
     shock1_id = diag1["shock_id"]
@@ -829,6 +834,7 @@ def test_controlled_shock_scenario_8_independent_consecutive_shocks():
         bid_depth_0_5pct=70000.0,
         pre_shock_median_depth=100000.0,
         recent_1s_lows=[8.9, 8.8, 9.0],
+        allowed_risk_usd=100.0,
     )
     assert exec2 is True
     shock2_id = diag2["shock_id"]
@@ -925,3 +931,269 @@ def test_hard_stop_loss_and_risk_budget_sizing():
     assert diag["notional_usd"] == expected_qty * 50.0
     assert snapshot.stop_price == diag["stop_loss"]
     assert snapshot.risk_distance == diag["risk_distance"]
+
+
+# =============================================================================
+# HARDENING 02B: RESIDUAL GAP CLOSURE TESTS
+# =============================================================================
+
+def test_str002_part_a_btc_state_invalidated_before_entry_adversarial():
+    """Part A Adversarial: BTC state invalidation during WAITING_FOR_REVERSAL must fail closed.
+    
+    1. t0: qualifying residual shock with BTC allowed -> WAITING_FOR_REVERSAL.
+    2. t1: BTC state becomes RUNNING_HARD_DOWN (or blocked) while reversal detector confirms.
+    3. Expected:
+       - should_exec is False
+       - diag["decision"] == "BLOCKED"
+       - diag["invalidation_reason"] == "BTC_STATE_INVALIDATED_BEFORE_ENTRY"
+       - state_machine enters COOLDOWN (not emitting)
+       - NO position sizing, NO EXECUTE_LONG.
+    4. Second branch: If BTC stays allowed at t1 -> reversal confirmed -> EXECUTE_LONG works.
+    """
+    strat = Str002V2Strategy(max_wait_bars=5, cooldown_bars=5)
+    r_btc = [0.0002 + 0.00005 * ((i % 3) - 1) for i in range(40)]
+    r_eth = [0.0002 + 0.00005 * ((i % 3) - 1) for i in range(40)]
+    r_alt_shock = [0.0002 + 0.00005 * ((i % 3) - 1) for i in range(39)] + [-0.08]
+
+    # Bar 0 (t0): Shock detected, BTC flat (allowed), no reversal yet -> WAITING_CONFIRMATION
+    exec0, snap0, diag0 = strat.generate_signal(
+        symbol="ADVERSARIAL_BTC",
+        timestamp_ns=1700000000_000000000,
+        r_alt_series=r_alt_shock,
+        r_btc_series=r_btc,
+        r_eth_series=r_eth,
+        btc_returns_1m_5m_15m=(0.0, 0.0, 0.0),
+        btc_vol_5m_ratio=1.0,
+        current_price=10.0,
+        pre_shock_origin=12.0,
+        pre_shock_vwap=11.9,
+        delta_5s=-500.0,  # Selling continues
+        bid_depth_0_5pct=10000.0,  # 10%
+        pre_shock_median_depth=100000.0,
+        recent_1s_lows=[10.5, 10.2, 9.9],
+        allowed_risk_usd=100.0,
+    )
+    assert exec0 is False
+    assert diag0["decision"] == "WAITING_CONFIRMATION"
+    assert diag0["state_machine_state"] == ShockState.WAITING_FOR_REVERSAL.value
+
+    # Bar 1 (t1): Reversal triggers (flow flips positive, book replenishes), BUT BTC drops hard into RUNNING_HARD_DOWN (-0.010)
+    exec1, snap1, diag1 = strat.generate_signal(
+        symbol="ADVERSARIAL_BTC",
+        timestamp_ns=1700000000_000000000 + 60_000_000_000,
+        r_alt_series=r_alt_shock,
+        r_btc_series=r_btc,
+        r_eth_series=r_eth,
+        btc_returns_1m_5m_15m=(-0.005, -0.010, -0.015),  # RUNNING_HARD_DOWN
+        btc_vol_5m_ratio=2.5,
+        current_price=10.1,
+        pre_shock_origin=12.0,
+        pre_shock_vwap=11.9,
+        delta_5s=500.0,  # Reversal confirmed!
+        bid_depth_0_5pct=70000.0,  # 70% replenishment!
+        pre_shock_median_depth=100000.0,
+        recent_1s_lows=[9.9, 9.8, 10.1],  # Higher low!
+        allowed_risk_usd=100.0,
+    )
+    assert exec1 is False
+    assert snap1 is None
+    assert diag1["decision"] == "BLOCKED"
+    assert diag1["invalidation_reason"] == "BTC_STATE_INVALIDATED_BEFORE_ENTRY"
+    assert "BTC_STATE_INVALIDATED_BEFORE_ENTRY" in diag1["reason"]
+    assert diag1["state_machine_state"] == ShockState.COOLDOWN.value
+
+    # Contrast: Control run where BTC stays allowed at t1 -> signal successfully emits
+    strat_control = Str002V2Strategy(max_wait_bars=5, cooldown_bars=5)
+    exec_c0, _, _ = strat_control.generate_signal(
+        symbol="CONTROL_BTC",
+        timestamp_ns=1700000000_000000000,
+        r_alt_series=r_alt_shock,
+        r_btc_series=r_btc,
+        r_eth_series=r_eth,
+        btc_returns_1m_5m_15m=(0.0, 0.0, 0.0),
+        btc_vol_5m_ratio=1.0,
+        current_price=10.0,
+        pre_shock_origin=12.0,
+        pre_shock_vwap=11.9,
+        delta_5s=-500.0,
+        bid_depth_0_5pct=10000.0,
+        pre_shock_median_depth=100000.0,
+        recent_1s_lows=[10.5, 10.2, 9.9],
+        allowed_risk_usd=100.0,
+    )
+    assert exec_c0 is False
+
+    exec_c1, snap_c1, diag_c1 = strat_control.generate_signal(
+        symbol="CONTROL_BTC",
+        timestamp_ns=1700000000_000000000 + 60_000_000_000,
+        r_alt_series=r_alt_shock,
+        r_btc_series=r_btc,
+        r_eth_series=r_eth,
+        btc_returns_1m_5m_15m=(0.0001, 0.0001, 0.0001),  # Stays FLAT
+        btc_vol_5m_ratio=1.0,
+        current_price=10.1,
+        pre_shock_origin=12.0,
+        pre_shock_vwap=11.9,
+        delta_5s=500.0,
+        bid_depth_0_5pct=70000.0,
+        pre_shock_median_depth=100000.0,
+        recent_1s_lows=[9.9, 9.8, 10.1],
+        allowed_risk_usd=100.0,
+    )
+    assert exec_c1 is True
+    assert snap_c1 is not None
+    assert diag_c1["decision"] == "EXECUTE_LONG"
+
+
+def test_str002_part_b_explicit_risk_budget_required_fail_closed():
+    """Part B: Strategy must NEVER invent an internal risk budget; explicit budget is mandatory."""
+    strat = Str002V2Strategy()
+    r_btc = [0.0002 + 0.00005 * ((i % 3) - 1) for i in range(40)]
+    r_eth = [0.0002 + 0.00005 * ((i % 3) - 1) for i in range(40)]
+    r_alt = [0.0002 + 0.00005 * ((i % 3) - 1) for i in range(39)] + [-0.07]
+
+    kwargs = dict(
+        symbol="NO_BUDGET",
+        timestamp_ns=1700000000_000000000,
+        r_alt_series=r_alt,
+        r_btc_series=r_btc,
+        r_eth_series=r_eth,
+        btc_returns_1m_5m_15m=(0.0001, 0.0001, 0.0001),
+        btc_vol_5m_ratio=1.0,
+        current_price=10.0,
+        pre_shock_origin=11.0,
+        pre_shock_vwap=10.9,
+        delta_5s=500.0,
+        bid_depth_0_5pct=60000.0,
+        pre_shock_median_depth=100000.0,
+        recent_1s_lows=[9.8, 9.7, 9.9],
+    )
+
+    # 1. Omitted / None
+    exec_none, snap_none, diag_none = strat.generate_signal(**kwargs)
+    assert exec_none is False
+    assert snap_none is None
+    assert diag_none["decision"] == "BLOCKED"
+    assert "RISK_BUDGET_NOT_PROVIDED" in diag_none["reason"]
+    assert "position_quantity" not in diag_none
+
+    # 2. Zero risk budget
+    strat.reset_state("NO_BUDGET")
+    exec_zero, snap_zero, diag_zero = strat.generate_signal(**kwargs, allowed_risk_usd=0.0)
+    assert exec_zero is False
+    assert snap_zero is None
+    assert diag_zero["decision"] == "BLOCKED"
+    assert "RISK_BUDGET_NOT_PROVIDED" in diag_zero["reason"]
+
+    # 3. Negative risk budget
+    strat.reset_state("NO_BUDGET")
+    exec_neg, snap_neg, diag_neg = strat.generate_signal(**kwargs, allowed_risk_usd=-100.0)
+    assert exec_neg is False
+    assert snap_neg is None
+    assert diag_neg["decision"] == "BLOCKED"
+    assert "RISK_BUDGET_NOT_PROVIDED" in diag_neg["reason"]
+
+
+def test_str002_part_c_multi_horizon_volatility_scaling():
+    """Part C: Verify square-root-of-time volatility scaling across 1m, 5m, 15m horizons."""
+    classifier = BtcStateClassifier()
+    vol_5m = 0.0020
+
+    # 1. Horizon 1m: sigma = 0.0020 / sqrt(5) ~= 0.0008944
+    # ret = +0.0010 > 1.0 * sigma -> UP
+    # ret = +0.0005 < 1.0 * sigma -> FLAT
+    state_1m_up = classifier.classify_horizon(0.0010, btc_realized_vol_5m=vol_5m, horizon_minutes=1)
+    state_1m_flat = classifier.classify_horizon(0.0005, btc_realized_vol_5m=vol_5m, horizon_minutes=1)
+    assert state_1m_up == BtcState.UP
+    assert state_1m_flat == BtcState.FLAT
+
+    # 2. Horizon 5m: sigma = 0.0020
+    # ret = +0.0010 < 1.0 * sigma (0.0020) -> FLAT
+    state_5m_flat = classifier.classify_horizon(0.0010, btc_realized_vol_5m=vol_5m, horizon_minutes=5)
+    assert state_5m_flat == BtcState.FLAT
+
+    # 3. Horizon 15m: sigma = 0.0020 * sqrt(3) ~= 0.003464
+    # ret = -0.0040 <= -1.0 * sigma -> DOWN
+    # ret = -0.0020 > -1.0 * sigma -> FLAT
+    state_15m_down = classifier.classify_horizon(-0.0040, btc_realized_vol_5m=vol_5m, horizon_minutes=15)
+    state_15m_flat = classifier.classify_horizon(-0.0020, btc_realized_vol_5m=vol_5m, horizon_minutes=15)
+    assert state_15m_down == BtcState.DOWN
+    assert state_15m_flat == BtcState.FLAT
+
+    # 4. Fail-closed inputs
+    assert classifier.classify_horizon(None, vol_5m, 5) == BtcState.STATE_UNKNOWN
+    assert classifier.classify_horizon(float("nan"), vol_5m, 5) == BtcState.STATE_UNKNOWN
+    assert classifier.classify_horizon(0.0010, None, 5) == BtcState.STATE_UNKNOWN
+    assert classifier.classify_horizon(0.0010, -0.001, 5) == BtcState.STATE_UNKNOWN
+
+
+def test_str002_part_d_and_e_causal_event_study():
+    """Part D & E: Verify causal path dependency and research-only classification for SHORT side."""
+    from src.strategies.str002_event_study import STR002EventStudyAlpha, MoveClassification
+    from src.research.events import PriceImpulseEvent, ShockDirection
+    from src.strategies.factory import SignalDirection
+
+    alpha = STR002EventStudyAlpha(min_z_score=2.5, min_retracement_target_pct=0.35, fee_and_slippage_bps=8.0)
+
+    # Shock event: price expands down from 100 to 90 (10% drop, liquidation cascade)
+    down_event = PriceImpulseEvent(
+        event_id="causal_down_1",
+        symbol="ETHUSDT",
+        venue="binance_perp",
+        ts_start_ns=1_000_000_000_000_000,
+        ts_peak_ns=1_000_001_000_000_000,
+        start_price=100.0,
+        peak_price=90.0,
+        impulse_return=-0.10,
+        prior_volatility=0.01,
+        z_score=-4.5,
+        direction=ShockDirection.EXPANSION_DOWN,
+        has_forced_liquidations=True,
+        forced_liquidation_volume=5_000_000.0,
+    )
+
+    # Case 1: Stopped out early on adverse excursion before peak retracement
+    # Impulse = 10.0. stop_dist = max(90 * 0.005, 10 * 0.10) = 1.0 (stop price = 89.0)
+    # Trajectory: dips to 88.5 (-1.5 adverse -> triggers STOP LOSS at 89.0), then later rallies to 98.0
+    post_prices_stopped = [88.5, 92.0, 95.0, 98.0]
+    post_ts_stopped = [down_event.ts_peak_ns + (i + 1) * 60_000_000_000 for i in range(len(post_prices_stopped))]
+
+    obs_stopped = alpha.analyze_event_trajectory(down_event, post_prices_stopped, post_ts_stopped)
+    assert obs_stopped.is_stopped_out is True
+    assert obs_stopped.exit_reason == "STOP_LOSS"
+    assert obs_stopped.exit_price == 89.0
+    assert obs_stopped.retracement_ratio == 0.0  # Does NOT falsely claim 98.0 rebound
+    assert obs_stopped.net_edge_bps < 0.0
+
+    # Case 2: Clean favorable retracement without stop out
+    post_prices_clean = [91.0, 93.0, 95.0]
+    post_ts_clean = [down_event.ts_peak_ns + (i + 1) * 60_000_000_000 for i in range(len(post_prices_clean))]
+
+    obs_clean = alpha.analyze_event_trajectory(down_event, post_prices_clean, post_ts_clean)
+    assert obs_clean.is_stopped_out is False
+    assert obs_clean.exit_reason == "TARGET_REACHED"
+    assert obs_clean.retracement_ratio == 0.50  # 95 - 90 = 5 / 10 = 50%
+    assert obs_clean.net_edge_bps > 0.0
+
+    # Case 3: SHORT side hypothesis is strictly marked research-only
+    up_event = PriceImpulseEvent(
+        event_id="causal_up_1",
+        symbol="ETHUSDT",
+        venue="binance_perp",
+        ts_start_ns=1_000_000_000_000_000,
+        ts_peak_ns=1_000_001_000_000_000,
+        start_price=90.0,
+        peak_price=100.0,
+        impulse_return=0.111,
+        prior_volatility=0.01,
+        z_score=4.5,
+        direction=ShockDirection.EXPANSION_UP,
+        has_forced_liquidations=True,
+        forced_liquidation_volume=5_000_000.0,
+    )
+    sig_short = alpha.generate_signal({"impulse_event": up_event, "is_fundamental_news": False}, current_ts_ns=100)
+    assert sig_short is not None
+    assert sig_short.direction == SignalDirection.SHORT
+    assert sig_short.metadata["is_research_only"] is True
+    assert sig_short.metadata["is_executable"] is False
+    assert "research-only" in sig_short.metadata["research_note"]
