@@ -26,6 +26,8 @@ class PolymarketRecorder:
         self.market_metadata_cache: Dict[str, Dict[str, Any]] = {}
         self._running = False
         self._session: Optional[aiohttp.ClientSession] = None
+        self._ws: Optional[Any] = None
+        self._subscribed_asset_ids: Set[str] = set()
         self._ws_task: Optional[asyncio.Task] = None
         self._discovery_task: Optional[asyncio.Task] = None
 
@@ -144,6 +146,21 @@ class PolymarketRecorder:
                 logger.info(f"Discovered {len(diff)} new crypto tokens to record. Total: {len(new_tokens)}")
                 self.active_asset_ids.update(new_tokens)
 
+                # Dynamically subscribe active WS to newly discovered tokens
+                if self._ws and not getattr(self._ws, "closed", False):
+                    unsubscribed = list(diff - self._subscribed_asset_ids)
+                    batch_size = 100
+                    for i in range(0, len(unsubscribed), batch_size):
+                        chunk = unsubscribed[i : i + batch_size]
+                        payload = {
+                            "assets_ids": chunk,
+                            "type": "market",
+                            "custom_feature_enabled": self.config.custom_feature_enabled,
+                        }
+                        await self._ws.send(json.dumps(payload))
+                        self._subscribed_asset_ids.update(chunk)
+                    logger.info(f"Dynamically subscribed {len(unsubscribed)} new tokens to active WS.")
+
         except Exception as e:
             logger.error(f"Error discovering Polymarket markets: {e}", exc_info=True)
 
@@ -158,6 +175,8 @@ class PolymarketRecorder:
                     ping_interval=None,  # We manage manual PING every 10s as specified
                     close_timeout=5.0,
                 ) as ws:
+                    self._ws = ws
+                    self._subscribed_asset_ids.clear()
                     backoff = 1.0
                     logger.info("Connected to Polymarket CLOB WS.")
 
@@ -201,20 +220,23 @@ class PolymarketRecorder:
                 break
 
     async def _subscribe(self, ws: Any) -> None:
-        """Send subscription payload for all discovered assets."""
+        """Send subscription payload for all discovered assets in batches of 100."""
         token_list = list(self.active_asset_ids)
         if not token_list:
             logger.warning("No tokens to subscribe to yet; using fallback asset list.")
             token_list = ["fallback_asset_monitoring"]
 
-        # Subscribe payload according to official Polymarket CLOB WS specification
-        payload = {
-            "assets_ids": token_list[:100],  # batch first 100
-            "type": "market",
-            "custom_feature_enabled": self.config.custom_feature_enabled,
-        }
-        await ws.send(json.dumps(payload))
-        logger.info(f"Subscribed to {len(payload['assets_ids'])} Polymarket assets with custom_feature_enabled=True.")
+        batch_size = 100
+        for i in range(0, len(token_list), batch_size):
+            chunk = token_list[i : i + batch_size]
+            payload = {
+                "assets_ids": chunk,
+                "type": "market",
+                "custom_feature_enabled": self.config.custom_feature_enabled,
+            }
+            await ws.send(json.dumps(payload))
+            self._subscribed_asset_ids.update(chunk)
+        logger.info(f"Subscribed to {len(self._subscribed_asset_ids)} Polymarket assets with custom_feature_enabled=True.")
 
     async def _handle_message(self, raw_msg: str, ts_recv_utc: int, ts_recv_mono: int) -> None:
         """Parse incoming event without destructive reinterpretation."""
@@ -290,9 +312,17 @@ class PolymarketRecorder:
                     await self.sink.append(Venue.POLYMARKET.value, "bbo_ticks", bbo_row)
 
             # 2. Standard event: last_trade_price
-            elif event_type in ("last_trade_price", "price_change"):
-                price = float(event.get("price", 0.0))
-                size = float(event.get("size", 0.0))
+            elif event_type == "last_trade_price":
+                try:
+                    price = float(event.get("price", 0.0))
+                    size = float(event.get("size", 0.0))
+                except (ValueError, TypeError):
+                    continue
+
+                if price <= 0.0:
+                    logger.debug(f"Discarding zero/negative price trade tick for {asset_id}: price={price}")
+                    continue
+
                 side = str(event.get("side", "UNKNOWN")).upper()
                 trade_id = str(event.get("trade_id") or f"{ts_recv_utc}_{asset_id}")
 

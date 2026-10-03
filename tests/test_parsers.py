@@ -64,3 +64,42 @@ async def test_binance_message_parser(tmp_path: Path) -> None:
     liq_row = sink._buffers[("binance_perp", "forced_liquidations")][0]
     assert liq_row["is_partial_proxy"] is True
     assert liq_row["symbol_type"] == 1
+
+
+def test_deribit_chronological_expiry_sorting(tmp_path: Path) -> None:
+    from src.collectors.deribit_recorder import parse_deribit_expiry_timestamp
+
+    ts_2025 = parse_deribit_expiry_timestamp("BTC-26DEC25-65000-C")
+    ts_2026 = parse_deribit_expiry_timestamp("BTC-1OCT26-65000-C")
+    assert ts_2025 < ts_2026, "26DEC25 must precede 1OCT26 chronologically"
+
+    sink = StorageSink(base_path=tmp_path, flush_interval_sec=100.0)
+    recorder = DeribitRecorder(sink)
+    recorder.underlying_prices["BTC"] = 65000.0
+    sorted_opts = recorder._sort_options_chronological_atm({"BTC-1OCT26-65000-C", "BTC-26DEC25-65000-C"})
+    assert sorted_opts[0] == "BTC-26DEC25-65000-C"
+    assert sorted_opts[1] == "BTC-1OCT26-65000-C"
+
+
+@pytest.mark.asyncio
+async def test_polymarket_drops_zero_price_and_price_change(tmp_path: Path) -> None:
+    sink = StorageSink(base_path=tmp_path, flush_interval_sec=100.0)
+    recorder = PolymarketRecorder(sink)
+    now_utc = time.time_ns()
+    now_mono = time.monotonic_ns()
+
+    # 1. price_change event must NOT create a trade tick
+    price_change_json = '{"event_type": "price_change", "asset_id": "tok_1", "price": 0.0, "size": 0.0}'
+    await recorder._handle_message(price_change_json, now_utc, now_mono)
+    assert len(sink._buffers.get(("polymarket", "trade_ticks"), [])) == 0
+
+    # 2. last_trade_price with price 0.0 must be dropped
+    zero_trade = '{"event_type": "last_trade_price", "asset_id": "tok_1", "price": 0.0, "size": 10.0}'
+    await recorder._handle_message(zero_trade, now_utc, now_mono)
+    assert len(sink._buffers.get(("polymarket", "trade_ticks"), [])) == 0
+
+    # 3. last_trade_price with valid price > 0 must be recorded
+    valid_trade = '{"event_type": "last_trade_price", "asset_id": "tok_1", "price": 0.45, "size": 10.0, "side": "BUY"}'
+    await recorder._handle_message(valid_trade, now_utc, now_mono)
+    assert len(sink._buffers[("polymarket", "trade_ticks")]) == 1
+    assert sink._buffers[("polymarket", "trade_ticks")][0]["price"] == 0.45
