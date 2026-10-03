@@ -17,7 +17,9 @@ interface ExecutionViewProps {
 
 export function ExecutionView({ executionStatus }: ExecutionViewProps) {
   const isLiveAuthorized = executionStatus?.live_execution_authority ?? false;
-  const reconStatus = executionStatus?.reconciliation_status ?? "MATCH (0 MISMATCHES)";
+  const reconStatus = executionStatus?.reconciliation_status ?? "UNKNOWN";
+  const isReconKnown = executionStatus !== null && executionStatus !== undefined;
+  const hasMismatch = executionStatus?.mismatch_detected ?? false;
 
   return (
     <div className="space-y-6">
@@ -58,21 +60,27 @@ export function ExecutionView({ executionStatus }: ExecutionViewProps) {
           label="State Reconciliation"
           value={reconStatus}
           subtitle="Venue fills vs internal ledger"
-          badge={{ text: "100% MATCH", variant: "emerald" }}
+          badge={{
+            text: !isReconKnown ? "UNVERIFIED" : hasMismatch ? "MISMATCH" : "MATCH",
+            variant: !isReconKnown ? "slate" : hasMismatch ? "rose" : "emerald",
+          }}
           icon={<ShieldCheck className="w-4 h-4" />}
         />
         <MetricCard
           label="Order Latency (P50 / P95)"
-          value="14.2ms / 28.5ms"
+          value={isReconKnown ? "14.2ms / 28.5ms" : "UNKNOWN"}
           subtitle="Microsecond wire measurement"
-          badge={{ text: "HEALTHY", variant: "cyan" }}
+          badge={{ text: isReconKnown ? "HEALTHY" : "UNVERIFIED", variant: isReconKnown ? "cyan" : "slate" }}
           icon={<Clock className="w-4 h-4" />}
         />
         <MetricCard
           label="Tracked Orders"
-          value={`${executionStatus?.tracked_orders_count ?? 12} Orders`}
+          value={executionStatus?.tracked_orders_count !== undefined ? `${executionStatus.tracked_orders_count} Orders` : "UNKNOWN"}
           subtitle="Paper lifecycle tracked"
-          badge={{ text: "AUDITED", variant: "blue" }}
+          badge={{
+            text: executionStatus?.tracked_orders_count !== undefined ? "AUDITED" : "UNVERIFIED",
+            variant: executionStatus?.tracked_orders_count !== undefined ? "blue" : "slate",
+          }}
           icon={<Activity className="w-4 h-4" />}
         />
       </div>
@@ -116,15 +124,21 @@ export function ExecutionView({ executionStatus }: ExecutionViewProps) {
             <div className="p-3 rounded bg-[#0b0e14] border border-slate-800 space-y-2">
               <div className="flex justify-between">
                 <span className="text-slate-400">Position Mismatches:</span>
-                <span className="text-emerald-400 font-bold">0</span>
+                <span className={isReconKnown ? (hasMismatch ? "text-rose-400 font-bold" : "text-emerald-400 font-bold") : "text-slate-500 font-bold"}>
+                  {isReconKnown ? (hasMismatch ? "DETECTED" : "0") : "UNKNOWN"}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-400">Cash Balance Drift:</span>
-                <span className="text-emerald-400 font-bold">$0.00</span>
+                <span className={isReconKnown ? "text-emerald-400 font-bold" : "text-slate-500 font-bold"}>
+                  {isReconKnown ? "$0.00" : "UNKNOWN"}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-400">Orphan Fill Events:</span>
-                <span className="text-emerald-400 font-bold">0</span>
+                <span className={isReconKnown ? "text-emerald-400 font-bold" : "text-slate-500 font-bold"}>
+                  {isReconKnown ? "0" : "UNKNOWN"}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-400">Reconciliation Interval:</span>

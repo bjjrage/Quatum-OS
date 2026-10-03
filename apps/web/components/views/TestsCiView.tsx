@@ -4,17 +4,30 @@ import { Card } from "../common/Card";
 import { Badge } from "../common/Badge";
 import { MetricCard } from "../common/MetricCard";
 
-export function TestsCiView() {
+import { SystemStatus } from "../../types";
+
+interface TestsCiViewProps {
+  status?: SystemStatus | null;
+}
+
+export function TestsCiView({ status }: TestsCiViewProps) {
+  const isCiRun = status?.tests_passing !== undefined && status.tests_passing !== null;
+  const testsPassing = status?.tests_passing;
+  const testsFailing = status?.tests_failing ?? 0;
+  const gitShaShort = status?.git_sha_short || "UNKNOWN";
+  const branch = status?.branch || "UNKNOWN";
+
   const testSuites = [
-    { name: "test_api_endpoints.py", domain: "FASTAPI / REST API", passed: 17, failed: 0, duration: "0.24s", coverage: "100%" },
-    { name: "test_recorder.py & test_recorder_robustness.py", domain: "DATA INGESTION / PARQUET", passed: 32, failed: 0, duration: "0.48s", coverage: "98%" },
-    { name: "test_acceptance.py & test_manifest.py", domain: "24H/72H ACCEPTANCE GATES", passed: 18, failed: 0, duration: "0.28s", coverage: "100%" },
-    { name: "test_tradability.py", domain: "LIQUIDITY TIER POLICY", passed: 14, failed: 0, duration: "0.15s", coverage: "100%" },
-    { name: "test_str002_v2.py & test_registry.py", domain: "STRATEGY REGISTRY / M0-M7", passed: 28, failed: 0, duration: "0.35s", coverage: "96%" },
-    { name: "test_holdout.py & test_experiments.py", domain: "RESEARCH / ANTI-LEAKAGE", passed: 22, failed: 0, duration: "0.26s", coverage: "100%" },
-    { name: "test_gates.py & test_deflated_sharpe.py", domain: "SELECTION GATES A/B/C/D", passed: 20, failed: 0, duration: "0.22s", coverage: "98%" },
-    { name: "test_risk_engine.py & test_capital_pockets.py", domain: "RISK & CAPITAL POCKETS", passed: 24, failed: 0, duration: "0.29s", coverage: "100%" },
-    { name: "test_broker.py & test_reconciliation.py", domain: "PAPER BROKER & RECON", passed: 26, failed: 0, duration: "0.31s", coverage: "99%" },
+    { name: "test_api_endpoints.py", domain: "FASTAPI / REST API", coverage: "100%" },
+    { name: "test_recorder.py & test_recorder_robustness.py", domain: "DATA INGESTION / PARQUET", coverage: "98%" },
+    { name: "test_acceptance.py & test_manifest.py", domain: "24H/72H ACCEPTANCE GATES", coverage: "100%" },
+    { name: "test_tradability.py", domain: "LIQUIDITY TIER POLICY", coverage: "100%" },
+    { name: "test_str002_v2.py & test_registry.py", domain: "STRATEGY REGISTRY / M0-M7", coverage: "96%" },
+    { name: "test_holdout.py & test_experiments.py", domain: "RESEARCH / ANTI-LEAKAGE", coverage: "100%" },
+    { name: "test_gates.py & test_deflated_sharpe.py", domain: "SELECTION GATES A/B/C/D", coverage: "98%" },
+    { name: "test_risk_engine.py & test_capital_pockets.py", domain: "RISK & CAPITAL POCKETS", coverage: "100%" },
+    { name: "test_broker.py & test_reconciliation.py", domain: "PAPER BROKER & RECON", coverage: "99%" },
+    { name: "test_execution_authority.py & test_order_security.py", domain: "RISK AUTHORITY & ANTI-REPLAY", coverage: "100%" },
   ];
 
   return (
@@ -34,30 +47,33 @@ export function TestsCiView() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard
           label="Total Pytest Status"
-          value="225 Passed / 0 Failed"
+          value={isCiRun ? `${testsPassing} Passed / ${testsFailing} Failed` : "UNVERIFIED (OFFLINE)"}
           subtitle="Full test suite execution"
-          badge={{ text: "100% PASS", variant: "emerald" }}
+          badge={{
+            text: !isCiRun ? "UNVERIFIED" : testsFailing === 0 ? "100% PASS" : "FAILURES",
+            variant: !isCiRun ? "slate" : testsFailing === 0 ? "emerald" : "rose",
+          }}
           icon={<CheckCircle2 className="w-4 h-4" />}
         />
         <MetricCard
-          label="Suite Execution Time"
-          value="2.63 seconds"
-          subtitle="High-performance async tests"
-          badge={{ text: "OPTIMAL", variant: "cyan" }}
+          label="Suite Execution State"
+          value={isCiRun ? "COMPLETED" : "NOT RUN"}
+          subtitle="Local automated test runner"
+          badge={{ text: isCiRun ? "OPTIMAL" : "OFFLINE", variant: isCiRun ? "cyan" : "slate" }}
           icon={<Clock className="w-4 h-4" />}
         />
         <MetricCard
           label="Git HEAD Commit"
-          value="1d883a1"
-          subtitle="Branch: main (Clean tree)"
-          badge={{ text: "COMMITTED", variant: "blue" }}
+          value={gitShaShort}
+          subtitle={`Branch: ${branch}`}
+          badge={{ text: gitShaShort !== "UNKNOWN" ? "COMMITTED" : "UNVERIFIED", variant: gitShaShort !== "UNKNOWN" ? "blue" : "slate" }}
           icon={<GitCommit className="w-4 h-4" />}
         />
         <MetricCard
           label="Zero Live Risk Tests"
-          value="VERIFIED"
+          value="ENFORCED"
           subtitle="Strict $0 live capital assertions"
-          badge={{ text: "SECURE", variant: "emerald" }}
+          badge={{ text: "LOCKED", variant: "rose" }}
           icon={<ShieldCheck className="w-4 h-4" />}
         />
       </div>
@@ -74,11 +90,8 @@ export function TestsCiView() {
               <tr>
                 <th className="py-2.5 px-3">Test File / Module</th>
                 <th className="py-2.5 px-3">Architectural Domain</th>
-                <th className="py-2.5 px-3">Passed</th>
-                <th className="py-2.5 px-3">Failed</th>
-                <th className="py-2.5 px-3">Duration</th>
-                <th className="py-2.5 px-3">Coverage</th>
-                <th className="py-2.5 px-3 text-right">Result</th>
+                <th className="py-2.5 px-3">Target Coverage</th>
+                <th className="py-2.5 px-3 text-right">Suite State</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/80">
@@ -86,13 +99,10 @@ export function TestsCiView() {
                 <tr key={i} className="hover:bg-[#121622]/50 transition">
                   <td className="py-2.5 px-3 font-semibold text-slate-100">{ts.name}</td>
                   <td className="py-2.5 px-3 text-cyan-400">{ts.domain}</td>
-                  <td className="py-2.5 px-3 font-bold text-emerald-400">{ts.passed}</td>
-                  <td className="py-2.5 px-3 text-slate-400">{ts.failed}</td>
-                  <td className="py-2.5 px-3 text-slate-400">{ts.duration}</td>
                   <td className="py-2.5 px-3 text-slate-200">{ts.coverage}</td>
                   <td className="py-2.5 px-3 text-right">
-                    <Badge variant="emerald" size="xs">
-                      PASSED
+                    <Badge variant={isCiRun ? "emerald" : "slate"} size="xs">
+                      {isCiRun ? "SUITE PASS" : "REGISTERED"}
                     </Badge>
                   </td>
                 </tr>

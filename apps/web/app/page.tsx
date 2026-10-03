@@ -170,8 +170,10 @@ export default function QuantCockpitPage() {
         <SidebarNavigation
           activeTab={activeTab}
           onSelectTab={setActiveTab}
-          unvalidatedStrategiesCount={1}
-          failedGatesCount={0}
+          strategiesCount={strategies.length > 0 ? strategies.length : undefined}
+          holdoutsStatus={holdoutsData?.status}
+          killSwitchActive={riskStatus?.kill_switch_active}
+          testsPassing={systemStatus?.tests_passing}
         />
 
         {/* SCROLLABLE MAIN CONTENT AREA */}
@@ -293,12 +295,17 @@ export default function QuantCockpitPage() {
               <AuditTrailView auditEvents={auditEvents} />
             )}
 
-            {activeTab === "tests-ci" && <TestsCiView />}
+            {activeTab === "tests-ci" && <TestsCiView status={systemStatus} />}
 
-            {activeTab === "configuration" && <ConfigurationView />}
+            {activeTab === "configuration" && (
+              <ConfigurationView status={systemStatus} holdoutsData={holdoutsData} />
+            )}
 
             {activeTab === "blueprint" && (
-              <BlueprintView onNavigate={handleNavigate} />
+              <BlueprintView
+                onNavigate={handleNavigate}
+                testsPassing={systemStatus?.tests_passing}
+              />
             )}
           </div>
         </main>

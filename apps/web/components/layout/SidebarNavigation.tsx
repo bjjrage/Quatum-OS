@@ -32,8 +32,10 @@ import {
 interface SidebarProps {
   activeTab: NavTabId;
   onSelectTab: (tab: NavTabId) => void;
-  unvalidatedStrategiesCount?: number;
-  failedGatesCount?: number;
+  strategiesCount?: number;
+  holdoutsStatus?: string;
+  killSwitchActive?: boolean;
+  testsPassing?: number;
 }
 
 interface NavSection {
@@ -50,7 +52,27 @@ interface NavSection {
 export const SidebarNavigation: React.FC<SidebarProps> = ({
   activeTab,
   onSelectTab,
+  strategiesCount,
+  holdoutsStatus,
+  killSwitchActive,
+  testsPassing,
 }) => {
+  const holdoutBadge = !holdoutsStatus || holdoutsStatus === "UNKNOWN"
+    ? { badge: "UNKNOWN", badgeColor: "bg-slate-900 text-slate-400 border-slate-700" }
+    : holdoutsStatus === "SEALED"
+    ? { badge: "SEALED", badgeColor: "bg-amber-950 text-amber-400 border-amber-800" }
+    : { badge: holdoutsStatus, badgeColor: "bg-red-950 text-red-400 border-red-800" };
+
+  const killSwitchBadge = killSwitchActive === undefined
+    ? { badge: "UNKNOWN", badgeColor: "bg-slate-900 text-slate-400 border-slate-700" }
+    : killSwitchActive
+    ? { badge: "TRIPPED", badgeColor: "bg-red-950 text-red-400 border-red-800" }
+    : { badge: "ARMED", badgeColor: "bg-emerald-950 text-emerald-400 border-emerald-800" };
+
+  const testsBadge = testsPassing === undefined || testsPassing === null
+    ? { badge: "UNKNOWN", badgeColor: "bg-slate-900 text-slate-400 border-slate-700" }
+    : { badge: `${testsPassing} PASS`, badgeColor: "bg-emerald-950 text-emerald-400 border-emerald-800" };
+
   const sections: NavSection[] = [
     {
       title: "OVERVIEW",
@@ -91,7 +113,8 @@ export const SidebarNavigation: React.FC<SidebarProps> = ({
           id: "strategy-registry",
           label: "Strategy Registry",
           icon: Boxes,
-          badge: "4",
+          badge: strategiesCount !== undefined ? String(strategiesCount) : undefined,
+          badgeColor: "bg-graphite-800 text-slate-300 border-graphite-700",
         },
         {
           id: "str002-specialized",
@@ -114,8 +137,8 @@ export const SidebarNavigation: React.FC<SidebarProps> = ({
           id: "holdouts",
           label: "Cryptographic Holdouts",
           icon: Lock,
-          badge: "SEALED",
-          badgeColor: "bg-amber-950 text-amber-400 border-amber-800",
+          badge: holdoutBadge.badge,
+          badgeColor: holdoutBadge.badgeColor,
         },
       ],
     },
@@ -186,8 +209,8 @@ export const SidebarNavigation: React.FC<SidebarProps> = ({
           id: "kill-switches",
           label: "Kill Switches",
           icon: ShieldAlert,
-          badge: "ARMED",
-          badgeColor: "bg-red-950 text-red-400 border-red-800",
+          badge: killSwitchBadge.badge,
+          badgeColor: killSwitchBadge.badgeColor,
         },
       ],
     },
@@ -228,8 +251,8 @@ export const SidebarNavigation: React.FC<SidebarProps> = ({
           id: "tests-ci",
           label: "Tests & Red-Team CI",
           icon: CheckSquare,
-          badge: "225 PASS",
-          badgeColor: "bg-emerald-950 text-emerald-400 border-emerald-800",
+          badge: testsBadge.badge,
+          badgeColor: testsBadge.badgeColor,
         },
         {
           id: "blueprint",

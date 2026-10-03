@@ -20,15 +20,16 @@ interface RiskEngineViewProps {
 }
 
 export function RiskEngineView({ riskStatus }: RiskEngineViewProps) {
+  const isRiskKnown = riskStatus !== null && riskStatus !== undefined;
   const killSwitchActive = riskStatus?.kill_switch_active ?? false;
-  const currentDrawdown = riskStatus?.current_drawdown_pct ?? 0.0;
+  const currentDrawdown = riskStatus?.current_drawdown_pct;
 
   const killSwitches = riskStatus?.kill_switches ?? {
-    global_emergency: { active: false, status: "READY (UNTRIPPED)" },
-    clock_skew_violation: { active: false, status: "READY (UNTRIPPED)" },
-    daily_drawdown_limit: { active: false, status: "READY (UNTRIPPED)" },
-    exchange_disconnect: { active: false, status: "READY (UNTRIPPED)" },
-    volatility_shock: { active: false, status: "READY (UNTRIPPED)" },
+    global_emergency: { active: false, status: isRiskKnown ? "READY (UNTRIPPED)" : "UNVERIFIED" },
+    clock_skew_violation: { active: false, status: isRiskKnown ? "READY (UNTRIPPED)" : "UNVERIFIED" },
+    daily_drawdown_limit: { active: false, status: isRiskKnown ? "READY (UNTRIPPED)" : "UNVERIFIED" },
+    exchange_disconnect: { active: false, status: isRiskKnown ? "READY (UNTRIPPED)" : "UNVERIFIED" },
+    volatility_shock: { active: false, status: isRiskKnown ? "READY (UNTRIPPED)" : "UNVERIFIED" },
   };
 
   return (
@@ -62,16 +63,22 @@ export function RiskEngineView({ riskStatus }: RiskEngineViewProps) {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard
           label="Emergency Kill Switch"
-          value={killSwitchActive ? "ENGAGED" : "NOMINAL / ARMED"}
+          value={!isRiskKnown ? "UNKNOWN" : killSwitchActive ? "ENGAGED" : "NOMINAL / ARMED"}
           subtitle="Autonomous circuit breakers ready"
-          badge={{ text: killSwitchActive ? "ENGAGED" : "ARMED", variant: killSwitchActive ? "rose" : "emerald" }}
+          badge={{
+            text: !isRiskKnown ? "UNVERIFIED" : killSwitchActive ? "ENGAGED" : "ARMED",
+            variant: !isRiskKnown ? "slate" : killSwitchActive ? "rose" : "emerald",
+          }}
           icon={<AlertOctagon className="w-4 h-4" />}
         />
         <MetricCard
           label="Current Drawdown"
-          value={`${currentDrawdown.toFixed(2)}%`}
+          value={currentDrawdown !== undefined ? `${currentDrawdown.toFixed(2)}%` : "UNKNOWN"}
           subtitle="Max Intraday Limit: 4.5%"
-          badge={{ text: "WITHIN LIMITS", variant: "emerald" }}
+          badge={{
+            text: currentDrawdown !== undefined ? "WITHIN LIMITS" : "UNVERIFIED",
+            variant: currentDrawdown !== undefined ? "emerald" : "slate",
+          }}
         />
         <MetricCard
           label="Authorized Live Capital"
@@ -82,9 +89,9 @@ export function RiskEngineView({ riskStatus }: RiskEngineViewProps) {
         />
         <MetricCard
           label="Pre-Trade Filter State"
-          value="ALL PASSING"
+          value={isRiskKnown ? "ALL PASSING" : "UNVERIFIED"}
           subtitle="100% orders verified"
-          badge={{ text: "ACTIVE", variant: "cyan" }}
+          badge={{ text: isRiskKnown ? "ACTIVE" : "PENDING", variant: isRiskKnown ? "cyan" : "slate" }}
         />
       </div>
 
@@ -104,8 +111,8 @@ export function RiskEngineView({ riskStatus }: RiskEngineViewProps) {
                 <span className="font-bold text-slate-200 truncate uppercase">
                   {key.replace(/_/g, " ")}
                 </span>
-                <Badge variant={ks.active ? "rose" : "emerald"} size="xs">
-                  {ks.active ? "TRIPPED" : "ARMED"}
+                <Badge variant={!isRiskKnown ? "slate" : ks.active ? "rose" : "emerald"} size="xs">
+                  {!isRiskKnown ? "UNVERIFIED" : ks.active ? "TRIPPED" : "ARMED"}
                 </Badge>
               </div>
               <div className="text-[11px] text-slate-400">

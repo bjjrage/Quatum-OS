@@ -38,6 +38,8 @@ Thumbs.db
 node_modules/
 .next/
 out/
+*.tsbuildinfo
+
 
 # Control plane local DB
 data/control_plane/

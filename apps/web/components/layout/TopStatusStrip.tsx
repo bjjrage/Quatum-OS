@@ -22,13 +22,13 @@ interface TopStatusStripProps {
 export const TopStatusStrip: React.FC<TopStatusStripProps> = ({ status, recorder, onRefresh }) => {
   const [copied, setCopied] = useState(false);
 
-  const gitShaShort = status?.git_sha_short || recorder?.git_sha?.slice(0, 7) || "1d883a1";
-  const gitShaFull = status?.git_sha || recorder?.git_sha || "1d883a152bb55333f28cf69e900913926f7435f4";
-  const env = status?.environment || "LOCAL_PAPER_ONLY";
-  const recorderStatus = recorder?.status || status?.recorder_status || "RUNNING";
-  const gate24h = recorder?.gate_24h_status || status?.gate_24h?.status || "PENDING";
-  const gate72h = recorder?.gate_72h_status || status?.gate_72h?.status || "PENDING";
-  const testsPassing = status?.tests_passing ?? 225;
+  const gitShaShort = status?.git_sha_short || recorder?.git_sha?.slice(0, 7) || "UNKNOWN";
+  const gitShaFull = status?.git_sha || recorder?.git_sha || "UNKNOWN";
+  const env = status?.environment || "UNKNOWN";
+  const recorderStatus = recorder?.status || status?.recorder_status || "UNKNOWN";
+  const gate24h = recorder?.gate_24h_status || status?.gate_24h?.status || "UNKNOWN";
+  const gate72h = recorder?.gate_72h_status || status?.gate_72h?.status || "UNKNOWN";
+  const testsPassing = status?.tests_passing ?? null;
 
   const copySha = () => {
     navigator.clipboard.writeText(gitShaFull);
@@ -49,6 +49,19 @@ export const TopStatusStrip: React.FC<TopStatusStripProps> = ({ status, recorder
     }
   };
 
+  const getGateColor = (st: string) => {
+    switch (st) {
+      case "PASS":
+        return "text-emerald-400 bg-emerald-950/60 border-emerald-800";
+      case "PENDING":
+        return "text-amber-400 bg-amber-950/60 border-amber-800";
+      case "FAIL":
+        return "text-red-400 bg-red-950/60 border-red-800";
+      default:
+        return "text-slate-400 bg-slate-900 border-slate-700";
+    }
+  };
+
   return (
     <header className="sticky top-0 z-50 flex items-center justify-between border-b border-graphite-700 bg-graphite-950 px-4 py-2 text-xs font-mono select-none">
       {/* Brand & Environment */}
@@ -57,9 +70,6 @@ export const TopStatusStrip: React.FC<TopStatusStripProps> = ({ status, recorder
           <Server className="h-4 w-4 text-sky-400" />
           <span className="text-sm tracking-tight font-extrabold text-sky-400">
             QUANT OS
-          </span>
-          <span className="rounded bg-sky-950/70 border border-sky-800 px-1.5 py-0.5 text-[10px] text-sky-300">
-            v1.4.1
           </span>
         </div>
 
@@ -113,11 +123,9 @@ export const TopStatusStrip: React.FC<TopStatusStripProps> = ({ status, recorder
         <div className="flex items-center gap-1.5">
           <span className="text-slate-500">24H:</span>
           <span
-            className={`rounded border px-2 py-0.5 text-[11px] font-semibold ${
-              gate24h === "PASS"
-                ? "text-emerald-400 bg-emerald-950/60 border-emerald-800"
-                : "text-amber-400 bg-amber-950/60 border-amber-800"
-            }`}
+            className={`rounded border px-2 py-0.5 text-[11px] font-semibold ${getGateColor(
+              gate24h
+            )}`}
           >
             {gate24h}
           </span>
@@ -127,11 +135,9 @@ export const TopStatusStrip: React.FC<TopStatusStripProps> = ({ status, recorder
         <div className="flex items-center gap-1.5">
           <span className="text-slate-500">72H:</span>
           <span
-            className={`rounded border px-2 py-0.5 text-[11px] font-semibold ${
-              gate72h === "PASS"
-                ? "text-emerald-400 bg-emerald-950/60 border-emerald-800"
-                : "text-amber-400 bg-amber-950/60 border-amber-800"
-            }`}
+            className={`rounded border px-2 py-0.5 text-[11px] font-semibold ${getGateColor(
+              gate72h
+            )}`}
           >
             {gate72h}
           </span>
@@ -140,10 +146,16 @@ export const TopStatusStrip: React.FC<TopStatusStripProps> = ({ status, recorder
         {/* CI Status */}
         <div className="flex items-center gap-1.5">
           <span className="text-slate-500">TESTS:</span>
-          <span className="flex items-center gap-1 rounded border border-emerald-900 bg-emerald-950/50 px-2 py-0.5 text-[11px] text-emerald-300">
-            <CheckCircle2 className="h-3 w-3 text-emerald-400" />
-            {testsPassing}/225 PASS
-          </span>
+          {testsPassing !== null ? (
+            <span className="flex items-center gap-1 rounded border border-emerald-900 bg-emerald-950/50 px-2 py-0.5 text-[11px] text-emerald-300">
+              <CheckCircle2 className="h-3 w-3 text-emerald-400" />
+              {testsPassing} PASS
+            </span>
+          ) : (
+            <span className="flex items-center gap-1 rounded border border-slate-700 bg-slate-900 px-2 py-0.5 text-[11px] text-slate-400">
+              UNKNOWN
+            </span>
+          )}
         </div>
 
         {/* PROMINENT LIVE CAPITAL LOCK BADGE */}

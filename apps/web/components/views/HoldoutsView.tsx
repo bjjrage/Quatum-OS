@@ -14,8 +14,10 @@ interface HoldoutsViewProps {
 }
 
 export function HoldoutsView({ holdoutsData }: HoldoutsViewProps) {
-  const isSealed = (holdoutsData?.status || "SEALED") === "SEALED";
-  const openings = holdoutsData?.total_openings ?? 0;
+  const status = holdoutsData?.status || "UNKNOWN";
+  const isKnown = Boolean(holdoutsData && holdoutsData.status !== "UNKNOWN");
+  const isSealed = status === "SEALED";
+  const openings = holdoutsData?.total_openings;
 
   return (
     <div className="space-y-6">
@@ -41,7 +43,9 @@ export function HoldoutsView({ holdoutsData }: HoldoutsViewProps) {
               <span className="text-sm font-bold text-rose-100 tracking-wider uppercase font-mono-code">
                 CRITICAL PROTOCOL: ZERO LEAKAGE HOLDOUT ENFORCEMENT
               </span>
-              <Badge variant="rose" size="xs">SEALED</Badge>
+              <Badge variant={isSealed ? "rose" : isKnown ? "amber" : "slate"} size="xs">
+                {status}
+              </Badge>
             </div>
             <p className="text-xs text-rose-200/90 mt-1 leading-relaxed font-mono-code">
               Holdout partitions must remain strictly unobserved during model hyperparameter selection and exploratory data analysis.
@@ -55,16 +59,22 @@ export function HoldoutsView({ holdoutsData }: HoldoutsViewProps) {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard
           label="Holdout Partition State"
-          value={holdoutsData?.status || "STRICTLY SEALED"}
+          value={status}
           subtitle="SHA-256 integrity locked"
-          badge={{ text: isSealed ? "SEALED" : "COMPROMISED", variant: isSealed ? "emerald" : "rose" }}
+          badge={{
+            text: !isKnown ? "UNVERIFIED" : isSealed ? "SEALED" : "COMPROMISED",
+            variant: !isKnown ? "slate" : isSealed ? "emerald" : "rose",
+          }}
           icon={<Lock className="w-4 h-4" />}
         />
         <MetricCard
           label="Total Historical Openings"
-          value={`${openings} Openings`}
+          value={openings !== undefined ? `${openings} Openings` : "UNKNOWN"}
           subtitle="Zero unauthorized leaks"
-          badge={{ text: openings === 0 ? "UNTOUCHED" : "OPENED", variant: openings === 0 ? "emerald" : "amber" }}
+          badge={{
+            text: openings === undefined ? "UNVERIFIED" : openings === 0 ? "UNTOUCHED" : "OPENED",
+            variant: openings === undefined ? "slate" : openings === 0 ? "emerald" : "amber",
+          }}
           icon={<History className="w-4 h-4" />}
         />
         <MetricCard

@@ -79,11 +79,23 @@ export function CommandCenterView({
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard
           label="Recorder Status"
-          value={recorder?.status || status?.recorder_status || "OFFLINE"}
+          value={recorder?.status || status?.recorder_status || "UNKNOWN"}
           subtitle={`Continuity: ${recorder?.continuity_state || status?.recorder_continuity || "UNKNOWN"}`}
           badge={{
-            text: recorder?.status === "RUNNING" ? "HEALTHY" : "PENDING",
-            variant: recorder?.status === "RUNNING" ? "emerald" : "amber",
+            text: (recorder?.status || status?.recorder_status) === "RUNNING"
+              ? "RUNNING"
+              : (recorder?.status || status?.recorder_status) === "DEGRADED"
+              ? "DEGRADED"
+              : (recorder?.status || status?.recorder_status) === "STOPPED"
+              ? "STOPPED"
+              : "UNKNOWN",
+            variant: (recorder?.status || status?.recorder_status) === "RUNNING"
+              ? "emerald"
+              : (recorder?.status || status?.recorder_status) === "DEGRADED"
+              ? "amber"
+              : (recorder?.status || status?.recorder_status) === "STOPPED"
+              ? "rose"
+              : "slate",
           }}
           icon={<Activity className="w-4 h-4" />}
           onClick={() => onNavigate("recorder")}
@@ -100,18 +112,21 @@ export function CommandCenterView({
 
         <MetricCard
           label="Strategy Catalog"
-          value={`${status?.strategies_total || 4} Strategies`}
-          subtitle={`Paper: ${status?.strategies_by_stage?.PAPER_ELIGIBLE ?? 0} | Research: ${status?.strategies_by_stage?.RESEARCH ?? 4}`}
-          badge={{ text: "CATALOG ACTIVE", variant: "blue" }}
+          value={status?.strategies_total !== undefined ? `${status.strategies_total} Strategies` : "UNKNOWN"}
+          subtitle={status?.strategies_by_stage ? `Paper: ${status.strategies_by_stage.PAPER_ELIGIBLE ?? 0} | Research: ${status.strategies_by_stage.RESEARCH ?? 0}` : "Catalog uninitialized"}
+          badge={{ text: status?.strategies_total !== undefined ? "CATALOG ACTIVE" : "UNINITIALIZED", variant: status?.strategies_total !== undefined ? "blue" : "slate" }}
           icon={<Layers className="w-4 h-4" />}
           onClick={() => onNavigate("strategy-registry")}
         />
 
         <MetricCard
           label="CI & Pytest Status"
-          value={`${status?.tests_passing || 225} Passed / 0 Failed`}
+          value={status?.tests_passing !== undefined ? `${status.tests_passing} Passed / ${status.tests_failing ?? 0} Failed` : "CI Status UNKNOWN"}
           subtitle="Coverage: Unit + Integration + API"
-          badge={{ text: "100% GREEN", variant: "emerald" }}
+          badge={{
+            text: status?.tests_passing !== undefined ? (status.tests_failing === 0 ? "PASS" : "FAILURES") : "UNKNOWN",
+            variant: status?.tests_passing !== undefined ? (status.tests_failing === 0 ? "emerald" : "rose") : "slate",
+          }}
           icon={<CheckCircle2 className="w-4 h-4" />}
           onClick={() => onNavigate("tests-ci")}
         />
@@ -394,19 +409,21 @@ export function CommandCenterView({
               </div>
               <div className="flex justify-between border-b border-slate-800/80 pb-1">
                 <span>Git HEAD SHA:</span>
-                <span className="text-cyan-400 font-semibold">{status?.git_sha_short || "1d883a1"}</span>
+                <span className="text-cyan-400 font-semibold">{status?.git_sha_short || "UNKNOWN"}</span>
               </div>
               <div className="flex justify-between border-b border-slate-800/80 pb-1">
                 <span>Active Branch:</span>
-                <span className="text-slate-200">{status?.branch || "main"}</span>
+                <span className="text-slate-200">{status?.branch || "UNKNOWN"}</span>
               </div>
               <div className="flex justify-between border-b border-slate-800/80 pb-1">
                 <span>Paper Broker Mode:</span>
-                <span className="text-emerald-400 font-semibold">INTERNAL SIMULATED</span>
+                <span className="text-emerald-400 font-semibold">{status ? "INTERNAL SIMULATED" : "UNKNOWN"}</span>
               </div>
               <div className="flex justify-between">
                 <span>Reconciliation Status:</span>
-                <span className="text-emerald-400">MATCH (0 DISCREPANCIES)</span>
+                <span className={status?.recorder_continuity === "CLEAN" ? "text-emerald-400" : "text-amber-400"}>
+                  {status?.recorder_continuity ? `CONTINUITY: ${status.recorder_continuity}` : "UNVERIFIED"}
+                </span>
               </div>
             </div>
           </div>

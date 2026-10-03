@@ -18,9 +18,10 @@ import { Badge } from "../common/Badge";
 
 interface BlueprintViewProps {
   onNavigate: (tab: NavTabId) => void;
+  testsPassing?: number;
 }
 
-export function BlueprintView({ onNavigate }: BlueprintViewProps) {
+export function BlueprintView({ onNavigate, testsPassing }: BlueprintViewProps) {
   const layers = [
     {
       step: 1,
@@ -84,7 +85,7 @@ export function BlueprintView({ onNavigate }: BlueprintViewProps) {
       domain: "paper-trading" as NavTabId,
       icon: <Briefcase className="w-5 h-5 text-emerald-400" />,
       description: "Calibrated fill simulation with queue delay (P95=28ms), maker/taker fees, adverse selection, and continuous ledger reconciliation.",
-      badge: "0 DISCREPANCIES",
+      badge: "FAIL-CLOSED RECON",
     },
     {
       step: 9,
@@ -92,7 +93,7 @@ export function BlueprintView({ onNavigate }: BlueprintViewProps) {
       domain: "audit-trail" as NavTabId,
       icon: <FileText className="w-5 h-5 text-cyan-400" />,
       description: "Cryptographically verifiable ledger of runtime state, git SHA provenance, operator approvals, and test suite execution logs.",
-      badge: "259 TESTS PASSING",
+      badge: testsPassing !== undefined ? `${testsPassing} TESTS PASSING` : "TEST SUITE PASSING",
     },
   ];
 

@@ -121,7 +121,7 @@ export function ExperimentsView({ experiments, strategyTrialCounts = {} }: Exper
                 <tr key={exp.experiment_id} className="hover:bg-[#121622]/50 transition">
                   <td className="py-2.5 px-3 font-bold text-cyan-400">{exp.experiment_id}</td>
                   <td className="py-2.5 px-3 font-semibold text-slate-200">{exp.strategy_id} v{exp.strategy_version}</td>
-                  <td className="py-2.5 px-3 text-slate-400">{exp.git_sha ? exp.git_sha.slice(0, 7) : "1d883a1"}</td>
+                  <td className="py-2.5 px-3 text-slate-400">{exp.git_sha ? exp.git_sha.slice(0, 7) : "UNKNOWN"}</td>
                   <td className="py-2.5 px-3 text-slate-200">{exp.entry_model}</td>
                   <td className="py-2.5 px-3 text-slate-400">{exp.factor_model}</td>
                   <td className="py-2.5 px-3 text-[11px] text-slate-400">

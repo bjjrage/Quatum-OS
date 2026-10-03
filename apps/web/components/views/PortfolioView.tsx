@@ -10,61 +10,8 @@ interface PortfolioViewProps {
 }
 
 export function PortfolioView({ portfolio }: PortfolioViewProps) {
-  const allocations = portfolio?.allocations ?? [
-    {
-      strategy_id: "STR-001",
-      stage: "RESEARCH",
-      base_budget_usd: 0,
-      allocated_capital_usd: 0,
-      allocation_pct: 0,
-      is_live_eligible: false,
-      authorized_live_budget: 0,
-      paper_budget_usd: 25000,
-      action: "HOLD_RESEARCH",
-      capacity_cap_usd: 100000,
-      notes: "Awaiting Gate A re-validation with reduced coin universe",
-    },
-    {
-      strategy_id: "STR-002",
-      stage: "PAPER_ELIGIBLE",
-      base_budget_usd: 50000,
-      allocated_capital_usd: 0,
-      allocation_pct: 0,
-      is_live_eligible: false,
-      authorized_live_budget: 0,
-      paper_budget_usd: 50000,
-      action: "PAPER_RUN",
-      capacity_cap_usd: 250000,
-      notes: "M3 multi-horizon variant paper trading; live capital locked",
-    },
-    {
-      strategy_id: "STR-003",
-      stage: "RESEARCH",
-      base_budget_usd: 0,
-      allocated_capital_usd: 0,
-      allocation_pct: 0,
-      is_live_eligible: false,
-      authorized_live_budget: 0,
-      paper_budget_usd: 10000,
-      action: "HOLD_RESEARCH",
-      capacity_cap_usd: 500000,
-      notes: "Cross-exchange basis carry model parameter tuning",
-    },
-    {
-      strategy_id: "STR-004",
-      stage: "RESEARCH",
-      base_budget_usd: 0,
-      allocated_capital_usd: 0,
-      allocation_pct: 0,
-      is_live_eligible: false,
-      authorized_live_budget: 0,
-      paper_budget_usd: 15000,
-      action: "HOLD_RESEARCH",
-      capacity_cap_usd: 300000,
-      notes: "Deribit DVol term structure mispricing model",
-    },
-  ];
-
+  const isLoaded = portfolio !== null && portfolio !== undefined;
+  const allocations = portfolio?.allocations ?? [];
   const totalPaperBudget = allocations.reduce((acc, a) => acc + (a.paper_budget_usd || 0), 0);
 
   return (
@@ -104,9 +51,9 @@ export function PortfolioView({ portfolio }: PortfolioViewProps) {
         />
         <MetricCard
           label="Simulated Paper Budget"
-          value={`$${totalPaperBudget.toLocaleString()} USD`}
-          subtitle="Distributed across 4 strategies"
-          badge={{ text: "SIMULATED", variant: "cyan" }}
+          value={isLoaded ? `$${totalPaperBudget.toLocaleString()} USD` : "NOT LOADED"}
+          subtitle={isLoaded ? `Distributed across ${allocations.length} strategies` : "Allocation uninitialized"}
+          badge={{ text: isLoaded ? "SIMULATED" : "UNINITIALIZED", variant: isLoaded ? "cyan" : "slate" }}
         />
         <MetricCard
           label="Active Event Clusters"
@@ -143,37 +90,45 @@ export function PortfolioView({ portfolio }: PortfolioViewProps) {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/80">
-              {allocations.map((a) => (
-                <tr key={a.strategy_id} className="hover:bg-[#121622]/50 transition">
-                  <td className="py-2.5 px-3 font-bold text-slate-100">{a.strategy_id}</td>
-                  <td className="py-2.5 px-3">
-                    <Badge
-                      variant={a.stage === "PAPER_ELIGIBLE" ? "emerald" : "amber"}
-                      size="xs"
-                    >
-                      {a.stage}
-                    </Badge>
-                  </td>
-                  <td className="py-2.5 px-3 text-cyan-400 font-semibold">
-                    ${a.paper_budget_usd?.toLocaleString()} USD
-                  </td>
-                  <td className="py-2.5 px-3 font-bold text-rose-400">
-                    $0.00 (LOCKED)
-                  </td>
-                  <td className="py-2.5 px-3">
-                    <Badge variant="rose" size="xs">
-                      {a.is_live_eligible ? "YES" : "NO (LOCK)"}
-                    </Badge>
-                  </td>
-                  <td className="py-2.5 px-3 text-slate-300">
-                    ${a.capacity_cap_usd?.toLocaleString()} USD
-                  </td>
-                  <td className="py-2.5 px-3 text-slate-300 font-semibold">{a.action}</td>
-                  <td className="py-2.5 px-3 text-slate-400 max-w-xs truncate" title={a.notes}>
-                    {a.notes}
+              {allocations.length > 0 ? (
+                allocations.map((a) => (
+                  <tr key={a.strategy_id} className="hover:bg-[#121622]/50 transition">
+                    <td className="py-2.5 px-3 font-bold text-slate-100">{a.strategy_id}</td>
+                    <td className="py-2.5 px-3">
+                      <Badge
+                        variant={a.stage === "PAPER_ELIGIBLE" ? "emerald" : "amber"}
+                        size="xs"
+                      >
+                        {a.stage}
+                      </Badge>
+                    </td>
+                    <td className="py-2.5 px-3 text-cyan-400 font-semibold">
+                      ${a.paper_budget_usd?.toLocaleString()} USD
+                    </td>
+                    <td className="py-2.5 px-3 font-bold text-rose-400">
+                      $0.00 (LOCKED)
+                    </td>
+                    <td className="py-2.5 px-3">
+                      <Badge variant="rose" size="xs">
+                        {a.is_live_eligible ? "YES" : "NO (LOCK)"}
+                      </Badge>
+                    </td>
+                    <td className="py-2.5 px-3 text-slate-300">
+                      ${a.capacity_cap_usd?.toLocaleString()} USD
+                    </td>
+                    <td className="py-2.5 px-3 text-slate-300 font-semibold">{a.action}</td>
+                    <td className="py-2.5 px-3 text-slate-400 max-w-xs truncate" title={a.notes}>
+                      {a.notes}
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={8} className="py-6 text-center text-slate-500 italic">
+                    No active portfolio allocations loaded from backend.
                   </td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>

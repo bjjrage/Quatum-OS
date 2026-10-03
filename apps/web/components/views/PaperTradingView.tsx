@@ -13,10 +13,11 @@ interface PaperTradingViewProps {
 export function PaperTradingView({ paperAccount, onRefresh }: PaperTradingViewProps) {
   const [activeTab, setActiveTab] = useState<"POSITIONS" | "ORDERS" | "FILLS">("POSITIONS");
 
-  const equity = paperAccount?.equity_usd ?? 100000;
-  const cash = paperAccount?.cash_usd ?? 100000;
-  const realizedPnl = paperAccount?.realized_pnl_usd ?? 0;
-  const unrealizedPnl = paperAccount?.unrealized_pnl_usd ?? 0;
+  const isAccountActive = paperAccount !== null && paperAccount !== undefined;
+  const equity = paperAccount?.equity_usd;
+  const cash = paperAccount?.cash_usd;
+  const realizedPnl = paperAccount?.realized_pnl_usd;
+  const unrealizedPnl = paperAccount?.unrealized_pnl_usd;
 
   const positions = paperAccount?.positions ?? [];
   const orders = paperAccount?.orders ?? [];
@@ -36,8 +37,8 @@ export function PaperTradingView({ paperAccount, onRefresh }: PaperTradingViewPr
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Badge variant="cyan" size="sm">
-            BROKER MODE: SIMULATED
+          <Badge variant={isAccountActive ? "cyan" : "slate"} size="sm">
+            {isAccountActive ? "BROKER MODE: SIMULATED" : "BROKER: NOT STARTED"}
           </Badge>
           <Badge variant="rose" size="sm">
             LIVE: LOCKED ($0)
@@ -49,29 +50,32 @@ export function PaperTradingView({ paperAccount, onRefresh }: PaperTradingViewPr
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard
           label="Account Equity"
-          value={`$${equity.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-          subtitle={`Cash: $${cash.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
-          badge={{ text: "SIMULATED", variant: "emerald" }}
+          value={equity !== undefined ? `$${equity.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "NOT INITIALIZED"}
+          subtitle={cash !== undefined ? `Cash: $${cash.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : "Paper account unallocated"}
+          badge={{ text: isAccountActive ? "SIMULATED" : "NOT STARTED", variant: isAccountActive ? "emerald" : "slate" }}
           icon={<DollarSign className="w-4 h-4" />}
         />
         <MetricCard
           label="Realized PnL"
-          value={`$${realizedPnl >= 0 ? "+" : ""}${realizedPnl.toFixed(2)}`}
+          value={realizedPnl !== undefined ? `$${realizedPnl >= 0 ? "+" : ""}${realizedPnl.toFixed(2)}` : "—"}
           subtitle="Net of exchange fees"
-          badge={{ text: realizedPnl >= 0 ? "PROFIT" : "LOSS", variant: realizedPnl >= 0 ? "emerald" : "rose" }}
-          trend={{ direction: realizedPnl >= 0 ? "up" : "down", value: `$${Math.abs(realizedPnl).toFixed(2)}` }}
+          badge={{
+            text: !isAccountActive ? "NOT STARTED" : realizedPnl !== undefined && realizedPnl >= 0 ? "PROFIT" : "LOSS",
+            variant: !isAccountActive ? "slate" : realizedPnl !== undefined && realizedPnl >= 0 ? "emerald" : "rose",
+          }}
+          trend={realizedPnl !== undefined ? { direction: realizedPnl >= 0 ? "up" : "down", value: `$${Math.abs(realizedPnl).toFixed(2)}` } : undefined}
         />
         <MetricCard
           label="Unrealized MTM PnL"
-          value={`$${unrealizedPnl >= 0 ? "+" : ""}${unrealizedPnl.toFixed(2)}`}
+          value={unrealizedPnl !== undefined ? `$${unrealizedPnl >= 0 ? "+" : ""}${unrealizedPnl.toFixed(2)}` : "—"}
           subtitle="Marked to market via socket"
-          badge={{ text: "LIVE MTM", variant: "cyan" }}
+          badge={{ text: isAccountActive ? "LIVE MTM" : "NOT STARTED", variant: isAccountActive ? "cyan" : "slate" }}
         />
         <MetricCard
           label="Simulated Latency"
-          value={`${paperAccount?.simulated_latency_ms ?? 25} ms`}
+          value={paperAccount?.simulated_latency_ms !== undefined ? `${paperAccount.simulated_latency_ms} ms` : "—"}
           subtitle="Taker: 5.0 bps | Maker: 2.0 bps"
-          badge={{ text: "REALISTIC", variant: "purple" }}
+          badge={{ text: isAccountActive ? "REALISTIC" : "UNINITIALIZED", variant: isAccountActive ? "purple" : "slate" }}
           icon={<Clock className="w-4 h-4" />}
         />
       </div>

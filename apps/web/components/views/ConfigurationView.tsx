@@ -4,15 +4,26 @@ import { Card } from "../common/Card";
 import { Badge } from "../common/Badge";
 import { MetricCard } from "../common/MetricCard";
 
-export function ConfigurationView() {
+import { SystemStatus } from "../../types";
+
+interface ConfigurationViewProps {
+  status?: SystemStatus | null;
+  holdoutsData?: any;
+}
+
+export function ConfigurationView({ status, holdoutsData }: ConfigurationViewProps) {
+  const gitShaShort = status?.git_sha_short || "UNKNOWN";
+  const branch = status?.branch || "UNKNOWN";
+  const holdoutStatus = holdoutsData?.status || "UNKNOWN";
+
   const configs = [
-    { key: "ENVIRONMENT", value: "OPERATIONAL_STAGING", status: "VERIFIED" },
+    { key: "ENVIRONMENT", value: status?.environment || "UNKNOWN", status: status ? "VERIFIED" : "UNVERIFIED" },
     { key: "AUTHORIZED_LIVE_CAPITAL_USD", value: "0.00 (HARD INVARIANT)", status: "LOCKED" },
     { key: "LIVE_ORDER_ROUTING", value: "DISABLED (No API Keys Loaded)", status: "LOCKED" },
     { key: "DATA_RAW_DIR", value: "data/raw", status: "ONLINE" },
     { key: "RUNTIME_MANIFEST_PATH", value: "data/runtime/current_run.json", status: "ONLINE" },
     { key: "PYTHON_RUNTIME", value: "Python 3.12 (uv package manager)", status: "VERIFIED" },
-    { key: "SEALED_HOLDOUT_DIR", value: "data/holdout (Encrypted/Sealed)", status: "SEALED" },
+    { key: "SEALED_HOLDOUT_DIR", value: "data/holdout (Encrypted/Sealed)", status: holdoutStatus },
     { key: "CLOCK_SYNC_NTP_THRESHOLD_MS", value: "50.0 ms", status: "ACTIVE" },
   ];
 
@@ -47,15 +58,18 @@ export function ConfigurationView() {
         />
         <MetricCard
           label="Holdout Partition"
-          value="SEALED"
+          value={holdoutStatus}
           subtitle="Zero leakage isolation"
-          badge={{ text: "SEALED", variant: "emerald" }}
+          badge={{
+            text: holdoutStatus === "SEALED" ? "SEALED" : holdoutStatus === "UNKNOWN" ? "UNVERIFIED" : "COMPROMISED",
+            variant: holdoutStatus === "SEALED" ? "emerald" : holdoutStatus === "UNKNOWN" ? "slate" : "rose",
+          }}
         />
         <MetricCard
           label="Git Provenance"
-          value="1d883a1 (main)"
-          subtitle="Fully synchronized"
-          badge={{ text: "CLEAN", variant: "blue" }}
+          value={`${gitShaShort} (${branch})`}
+          subtitle={gitShaShort !== "UNKNOWN" ? "Synchronized HEAD" : "Provenance unverified"}
+          badge={{ text: gitShaShort !== "UNKNOWN" ? "COMMITTED" : "UNVERIFIED", variant: gitShaShort !== "UNKNOWN" ? "blue" : "slate" }}
           icon={<GitCommit className="w-4 h-4" />}
         />
       </div>

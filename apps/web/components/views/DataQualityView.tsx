@@ -31,33 +31,39 @@ export function DataQualityView({ dataQuality }: DataQualityViewProps) {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard
           label="Manifest Status"
-          value={storage?.manifest_valid ? "VALID" : "PENDING"}
-          subtitle={`${storage?.orphan_tmp_files ?? 0} Orphan tmp files detected`}
-          badge={{ text: storage?.manifest_valid ? "VALIDATED" : "PENDING", variant: storage?.manifest_valid ? "emerald" : "amber" }}
+          value={storage !== undefined && storage !== null ? (storage.manifest_valid ? "VALID" : "PENDING") : "UNKNOWN"}
+          subtitle={storage !== undefined && storage !== null ? `${storage.orphan_tmp_files} Orphan tmp files detected` : "Scan uninitialized"}
+          badge={{
+            text: storage !== undefined && storage !== null ? (storage.manifest_valid ? "VALIDATED" : "PENDING") : "UNVERIFIED",
+            variant: storage !== undefined && storage !== null ? (storage.manifest_valid ? "emerald" : "amber") : "slate",
+          }}
           icon={<FileCheck className="w-4 h-4" />}
         />
         <MetricCard
           label="Clock Skew Detected"
-          value={timing?.is_host_clock_skew_detected ? "DETECTED" : "NOMINAL"}
-          subtitle={`Offset: ${timing?.estimated_clock_offset_ms !== undefined ? timing.estimated_clock_offset_ms.toFixed(1) : "0.0"} ms`}
+          value={timing !== undefined && timing !== null ? (timing.is_host_clock_skew_detected ? "DETECTED" : "NOMINAL") : "UNKNOWN"}
+          subtitle={`Offset: ${timing !== undefined && timing !== null ? `${timing.estimated_clock_offset_ms.toFixed(1)} ms` : "UNKNOWN"}`}
           badge={{
-            text: timing?.is_host_clock_skew_detected ? "CALIBRATED" : "SYNCHRONIZED",
-            variant: timing?.is_host_clock_skew_detected ? "amber" : "emerald",
+            text: timing !== undefined && timing !== null ? (timing.is_host_clock_skew_detected ? "CALIBRATED" : "SYNCHRONIZED") : "UNVERIFIED",
+            variant: timing !== undefined && timing !== null ? (timing.is_host_clock_skew_detected ? "amber" : "emerald") : "slate",
           }}
           icon={<Clock className="w-4 h-4" />}
         />
         <MetricCard
           label="True Causal Violations"
-          value={timing?.true_causal_violations ?? 0}
+          value={timing?.true_causal_violations !== undefined ? timing.true_causal_violations : "UNKNOWN"}
           subtitle="Monotonic event sequence test"
-          badge={{ text: timing?.true_causal_violations === 0 ? "ZERO VIOLATIONS" : "VIOLATIONS DETECTED", variant: timing?.true_causal_violations === 0 ? "emerald" : "rose" }}
+          badge={{
+            text: timing?.true_causal_violations !== undefined ? (timing.true_causal_violations === 0 ? "ZERO VIOLATIONS" : "VIOLATIONS DETECTED") : "UNVERIFIED",
+            variant: timing?.true_causal_violations !== undefined ? (timing.true_causal_violations === 0 ? "emerald" : "rose") : "slate",
+          }}
           icon={<ShieldCheck className="w-4 h-4" />}
         />
         <MetricCard
           label="Lakehouse Volume"
-          value={storage?.total_compressed_bytes !== undefined ? `${(storage.total_compressed_bytes / 1024 / 1024).toFixed(1)} MB` : "0.0 MB"}
-          subtitle={`Projected: ${storage?.projected_gb_per_day !== undefined ? storage.projected_gb_per_day.toFixed(1) : "0.0"} GB / day`}
-          badge={{ text: "SNAPPY PARQUET", variant: "blue" }}
+          value={storage?.total_compressed_bytes !== undefined ? `${(storage.total_compressed_bytes / 1024 / 1024).toFixed(1)} MB` : "UNKNOWN"}
+          subtitle={storage?.projected_gb_per_day !== undefined ? `Projected: ${storage.projected_gb_per_day.toFixed(1)} GB / day` : "Projected: UNKNOWN"}
+          badge={{ text: storage ? "SNAPPY PARQUET" : "UNINITIALIZED", variant: storage ? "blue" : "slate" }}
           icon={<HardDrive className="w-4 h-4" />}
         />
       </div>

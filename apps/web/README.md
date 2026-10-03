@@ -87,7 +87,7 @@ TRADING OS/
 │   ├── risk/                    # Risk engine, capital pockets & prop rules
 │   ├── paper/                   # Simulated paper broker matching engine
 │   └── execution/               # Fill reconciliation & order lifecycle
-└── tests/                       # Complete pytest suite (225 passing tests)
+└── tests/                       # Complete pytest suite (unit, integration, adversarial, red-team)
     └── test_api_endpoints.py    # 17 comprehensive FastAPI endpoint tests
 ```
 
@@ -120,7 +120,7 @@ TRADING OS/
 | **Monte Carlo Simulator** | `prop-simulator` | Non-parametric bootstrap exam pass simulator requiring $N \ge 30$ empirical trades (zero Gaussian fallback). |
 | **Multi-Account Compliance**| `multi-account` | Cross-account isolation, order arrival jitter buffers, anti-copy trading validation, and correlation limits. |
 | **Audit Trail** | `audit-trail` | Cryptographically verifiable ledger of runtime state, git SHA provenance, operator actions, and checksums. |
-| **Tests & Red-Team CI** | `tests-ci` | Real-time test suite health (225 passing tests, 0 failures), coverage metrics, and execution latency. |
+| **Tests & Red-Team CI** | `tests-ci` | Real-time test suite health, coverage metrics, and execution latency. |
 | **Runtime Configuration**| `configuration` | System environment settings, lakehouse directories, and immutable security parameters. |
 | **Master Blueprint** | `blueprint` | End-to-end interactive architecture pipeline tracing data ingestion through execution and audit. |
 
@@ -158,10 +158,10 @@ The web application will be accessible at `http://localhost:3000`. The Next.js r
 ### 4.4 Running Automated Verification Tests
 From the project root:
 ```bash
-# Run the complete test suite (225 tests)
+# Run the complete test suite
 uv run pytest -v
 
 # Run FastAPI endpoint validation tests
 uv run pytest tests/test_api_endpoints.py -v
 ```
-All 225 unit, integration, adversarial, red-team, and API tests will execute in ~2.6 seconds.
+All unit, integration, adversarial, red-team, and API tests will execute in the local offline workstation.

@@ -84,7 +84,7 @@ export const api = {
       total: number;
       strategy_trial_counts: Record<string, number>;
       experiments: ExperimentRecord[];
-    }>("/api/experiments", { status: "LOADING", total: 0, strategy_trial_counts: {}, experiments: [] }),
+    }>("/api/experiments", { status: "UNKNOWN", total: 0, strategy_trial_counts: {}, experiments: [] }),
 
   getHoldouts: () =>
     fetchJson<{
@@ -92,14 +92,14 @@ export const api = {
       warning: string;
       total_openings: number;
       audits: any[];
-    }>("/api/holdouts", { status: "SEALED", warning: "HOLDOUT SEALED", total_openings: 0, audits: [] }),
+    }>("/api/holdouts", { status: "UNKNOWN", warning: "NOT_AVAILABLE", total_openings: 0, audits: [] }),
 
   getGates: () =>
     fetchJson<{
       status: string;
       provenance_invariant: string;
       gates: GatePanel[];
-    }>("/api/gates", { status: "PENDING", provenance_invariant: "", gates: [] }),
+    }>("/api/gates", { status: "UNKNOWN", provenance_invariant: "", gates: [] }),
 
   getPortfolio: () =>
     fetchJson<PortfolioState | null>("/api/portfolio", null),
