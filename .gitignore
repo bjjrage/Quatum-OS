@@ -38,3 +38,6 @@ Thumbs.db
 node_modules/
 .next/
 out/
+
+# Control plane local DB
+data/control_plane/

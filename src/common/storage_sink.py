@@ -34,6 +34,8 @@ class StorageSink:
         self.compression = compression
         self.compression_level = compression_level
         self.manifest_enabled = manifest_enabled
+        # Optional callback(path, sha256) invoked after a part is finalized; failures are ignored.
+        self.on_part_finalized = None
 
         # Staging temp directory
         self.tmp_dir = self.base_path / ".tmp"
@@ -184,6 +186,12 @@ class StorageSink:
             logger.info(
                 f"Wrote immutable part: {venue}/{table_name} -> {filename} ({len(rows)} rows, {byte_size} bytes)"
             )
+            hook = getattr(self, "on_part_finalized", None)
+            if hook is not None:
+                try:
+                    hook(dest_file, sha256_hash)
+                except Exception as hook_err:  # local capture must never depend on the control plane
+                    logger.warning(f"on_part_finalized hook failed (ignored): {hook_err}")
         except Exception as e:
             logger.error(f"Failed to write parquet part for {venue}/{table_name}: {e}", exc_info=True)
             if tmp_file.exists():
