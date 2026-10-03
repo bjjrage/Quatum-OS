@@ -71,7 +71,7 @@ VALID_TRANSITIONS: Dict[OrderState, Set[OrderState]] = {
     S.CANCEL_PENDING: {S.CANCELED, S.FILLED, S.PARTIALLY_FILLED, S.ACKNOWLEDGED, S.RECONCILIATION_REQUIRED,
                        S.UNKNOWN_OUTCOME},
     # Never treated as rejected/canceled: only reconciliation (venue truth) may resolve it.
-    S.UNKNOWN_OUTCOME: {S.ACKNOWLEDGED, S.PARTIALLY_FILLED, S.FILLED, S.CANCELED, S.REJECTED, S.EXPIRED,
+    S.UNKNOWN_OUTCOME: {S.ROUTING, S.ACKNOWLEDGED, S.PARTIALLY_FILLED, S.FILLED, S.CANCELED, S.REJECTED, S.EXPIRED,
                         S.RECONCILIATION_REQUIRED, S.CANCEL_PENDING},
     S.RECONCILIATION_REQUIRED: {S.ACKNOWLEDGED, S.PARTIALLY_FILLED, S.FILLED, S.CANCELED, S.REJECTED,
                                 S.EXPIRED, S.UNKNOWN_OUTCOME},
@@ -263,6 +263,7 @@ class OrderRecord(BaseModel):
     fills: List[ExecFill] = Field(default_factory=list)
     attempts: int = 0
     cancel_requested: bool = False
+    venue_absent_confirmed: bool = False
     prior_state: Optional[OrderState] = None  # state before CANCEL_PENDING
     updated_at_ns: int = 0
 
