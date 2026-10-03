@@ -10,7 +10,7 @@ Core Governance Rules:
 
 from enum import Enum
 import time
-from typing import Dict, Any, List, Optional, Set
+from typing import Dict, Any, List, Optional, Set, Union
 from pydantic import BaseModel, Field, ConfigDict, computed_field, model_validator
 
 
@@ -212,6 +212,35 @@ VALID_STAGE_TRANSITIONS: Dict[StrategyStage, Set[StrategyStage]] = {
     },
     StrategyStage.ARCHIVED: set(),  # Terminal state: no outbound transitions permitted
 }
+
+
+class PromotionEvidenceBundle(BaseModel):
+    """Immutable evidence bundle binding research artifacts, gate evaluations, and holdout records."""
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    strategy_id: str
+    strategy_version: str = "1.0.0"
+    source_stage: StrategyStage
+    target_stage: StrategyStage
+    dataset_fingerprint: str
+    config_fingerprint: str
+    parameter_set_fingerprint: str
+    git_sha: str
+    gate_bundle: Optional[Union[Dict[str, Any], List[Any]]] = None
+    holdout_preregistration_id: Optional[str] = None
+    holdout_access_id: Optional[str] = None
+    holdout_result_id: Optional[str] = None
+    created_at_utc: str = Field(default_factory=lambda: time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()))
+
+    @model_validator(mode="before")
+    @classmethod
+    def _validate_bundle_provenance(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            for field in ("strategy_id", "dataset_fingerprint", "config_fingerprint", "parameter_set_fingerprint", "git_sha"):
+                v = data.get(field, "")
+                if not str(v).strip():
+                    raise ValueError(f"PromotionEvidenceBundle requires non-empty '{field}'.")
+        return data
 
 
 class StrategySpec(BaseModel):

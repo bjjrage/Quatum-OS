@@ -17,7 +17,7 @@ import os
 from pathlib import Path
 import time
 from typing import Dict, Any, List, Optional, Tuple
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, model_validator
 
 
 class RegistryIntegrityStatus(str, Enum):
@@ -55,9 +55,40 @@ class ExperimentRecord(BaseModel):
     random_seed: int = 42
     result_metrics: Dict[str, Any] = Field(default_factory=dict)
     gate_result: str = "PENDING"  # PASS, FAIL, PENDING
+    raw_p_value: Optional[float] = None
     created_at: str = Field(default_factory=lambda: time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()))
     falsification_evidence: Optional[str] = None
     reasons: List[str] = Field(default_factory=list)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _validate_raw_p_value(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            p = data.get("raw_p_value")
+            if p is not None:
+                if not isinstance(p, (int, float)) or isinstance(p, bool):
+                    raise ValueError(f"raw_p_value must be float, got {type(p).__name__}")
+                import math
+                if math.isnan(p) or math.isinf(p) or not (0.0 <= float(p) <= 1.0):
+                    raise ValueError(f"raw_p_value must be finite float in [0.0, 1.0], got {p}")
+        return data
+
+
+class MultipleTestingContext(BaseModel):
+    """Immutable context for multiple testing corrections across a strategy's search path."""
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    strategy_id: str
+    trial_count: int = Field(ge=0)
+    experiment_ids: List[str] = Field(default_factory=list)
+    registry_integrity_status: RegistryIntegrityStatus = RegistryIntegrityStatus.HEALTHY
+    raw_p_values: List[float] = Field(default_factory=list)
+    candidate_raw_p_value: Optional[float] = None
+
+    @property
+    def is_complete(self) -> bool:
+        """Whether raw p-values are available for all recorded trials and candidate."""
+        return len(self.raw_p_values) >= self.trial_count and self.candidate_raw_p_value is not None
 
 
 class ExperimentRegistry:
@@ -167,6 +198,39 @@ class ExperimentRegistry:
                 f"Cannot list experiments: registry integrity status is {self.status.value}."
             )
         return [exp for exp in self._experiments.values() if exp.strategy_id == strategy_id]
+
+    def get_multiple_testing_context(
+        self,
+        strategy_id: str,
+        candidate_raw_p_value: Optional[float] = None,
+    ) -> MultipleTestingContext:
+        """
+        Return the immutable MultipleTestingContext for a strategy,
+        fail-closed if the registry status is not HEALTHY.
+        """
+        if self.status != RegistryIntegrityStatus.HEALTHY:
+            return MultipleTestingContext(
+                strategy_id=strategy_id,
+                trial_count=0,
+                experiment_ids=[],
+                registry_integrity_status=self.status,
+                raw_p_values=[],
+                candidate_raw_p_value=candidate_raw_p_value,
+            )
+
+        experiments = [exp for exp in self._experiments.values() if exp.strategy_id == strategy_id]
+        trial_count = len(experiments)
+        exp_ids = [e.experiment_id for e in experiments]
+        p_vals = [e.raw_p_value for e in experiments if e.raw_p_value is not None]
+
+        return MultipleTestingContext(
+            strategy_id=strategy_id,
+            trial_count=trial_count,
+            experiment_ids=exp_ids,
+            registry_integrity_status=self.status,
+            raw_p_values=p_vals,
+            candidate_raw_p_value=candidate_raw_p_value,
+        )
 
     def delete_experiment(self, experiment_id: str) -> None:
         """Non-negotiable Invariant: Deletion of experiments is strictly forbidden."""

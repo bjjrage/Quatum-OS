@@ -8,7 +8,7 @@ Core Governance Rules:
 5. RESEARCH -> VALIDATION requires a complete, validated CounterpartyThesis.
 """
 
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 from src.strategies.models import (
     StrategySpec,
     StrategyStage,
@@ -18,8 +18,11 @@ from src.strategies.models import (
     CounterpartyThesisStatus,
     StrategyRuleEvidence,
     StrategyRuleEvidenceStatus,
+    PromotionEvidenceBundle,
     VALID_STAGE_TRANSITIONS,
 )
+from src.portfolio.gates import validate_gate_bundle
+from src.research.holdout import HoldoutStatus
 
 
 class DuplicateStrategyError(Exception):
@@ -61,19 +64,12 @@ class StrategyRegistry:
                 f"Strategy with ID '{spec.strategy_id}' is already registered."
             )
 
-        # Invariant: registering directly as ACTIVE or SMALL_LIVE without validated economic edge is rejected
+        # Invariant: registering directly as ACTIVE or SMALL_LIVE is forbidden under USD 0 live capital
         if spec.stage in (StrategyStage.ACTIVE, StrategyStage.SMALL_LIVE):
-            if not spec.economic_edge_validated:
-                raise ValueError(
-                    f"Cannot register strategy '{spec.strategy_id}' as {spec.stage.value}: "
-                    "economic_edge_validated is False. Promotion requires passing portfolio evidence gates."
-                )
-            else:
-                raise ValueError(
-                    f"Cannot register strategy '{spec.strategy_id}' directly as {spec.stage.value}. "
-                    "All candidates must enter at IDEA or RESEARCH and progress through evidence gates."
-                )
-
+            raise ValueError(
+                f"Cannot register strategy '{spec.strategy_id}' directly as {spec.stage.value}. "
+                "Authorized live capital is USD 0. Real capital allocation is permanently disabled."
+            )
 
         # Invariant: registering past RESEARCH stage requires complete CounterpartyThesis
         if spec.stage not in (StrategyStage.IDEA, StrategyStage.RESEARCH):
@@ -107,7 +103,13 @@ class StrategyRegistry:
         """Filter strategies by origin."""
         return [s for s in self._strategies.values() if s.origin == origin]
 
-    def update_stage(self, strategy_id: str, new_stage: StrategyStage) -> None:
+    def update_stage(
+        self,
+        strategy_id: str,
+        new_stage: StrategyStage,
+        evidence_bundle: Optional[PromotionEvidenceBundle] = None,
+        holdout_manager: Optional[Any] = None,
+    ) -> None:
         """Update the lifecycle stage of a registered strategy, enforcing evidence-gated transitions.
 
         Raises:
@@ -127,7 +129,7 @@ class StrategyRegistry:
                 f"cannot transition from {current_stage.value} to {new_stage.value}."
             )
 
-        # Governance Gate: RESEARCH -> VALIDATION requires complete CounterpartyThesis
+        # 1. RESEARCH -> VALIDATION requires complete CounterpartyThesis
         if current_stage == StrategyStage.RESEARCH and new_stage == StrategyStage.VALIDATION:
             if spec.counterparty_thesis is None or not spec.counterparty_thesis.is_complete_for_validation():
                 raise InvalidStageTransitionError(
@@ -135,13 +137,104 @@ class StrategyRegistry:
                     "Counterparty thesis is missing, incomplete, or lacks falsification conditions."
                 )
 
-        # Governance Gate: Transitions to SMALL_LIVE or ACTIVE require validated economic edge
-        if new_stage in (StrategyStage.SMALL_LIVE, StrategyStage.ACTIVE):
-            if not spec.economic_edge_validated:
+        # 2. VALIDATION -> HOLDOUT requires PromotionEvidenceBundle with valid preregistration
+        elif current_stage == StrategyStage.VALIDATION and new_stage == StrategyStage.HOLDOUT:
+            if evidence_bundle is None:
                 raise InvalidStageTransitionError(
-                    f"Strategy '{strategy_id}' cannot transition to {new_stage.value}: "
-                    "economic_edge_validated is False. Real capital allocation requires passing portfolio evidence gates."
+                    f"Strategy '{strategy_id}' cannot transition from VALIDATION to HOLDOUT: "
+                    "PromotionEvidenceBundle is required."
                 )
+            if evidence_bundle.strategy_id != strategy_id:
+                raise InvalidStageTransitionError(
+                    f"Strategy ID mismatch in evidence bundle: '{evidence_bundle.strategy_id}' != '{strategy_id}'."
+                )
+            if not evidence_bundle.holdout_preregistration_id:
+                raise InvalidStageTransitionError(
+                    f"Strategy '{strategy_id}' cannot transition to HOLDOUT: "
+                    "Evidence bundle lacks holdout_preregistration_id. Preregistration must exist before promotion."
+                )
+            if holdout_manager is not None:
+                if holdout_manager.is_corrupted:
+                    raise InvalidStageTransitionError(
+                        f"Cannot promote strategy '{strategy_id}' to HOLDOUT: "
+                        "Holdout governance storage is corrupted (GOVERNANCE_LOCKED)."
+                    )
+                prereg = holdout_manager.get_preregistration(evidence_bundle.holdout_preregistration_id)
+                if not prereg:
+                    raise InvalidStageTransitionError(
+                        f"Preregistration '{evidence_bundle.holdout_preregistration_id}' not found in holdout manager."
+                    )
+                if prereg.status not in (HoldoutStatus.PREREGISTERED, HoldoutStatus.UNOPENED):
+                    raise InvalidStageTransitionError(
+                        f"Cannot promote to HOLDOUT: holdout preregistration is already {prereg.status.value}. "
+                        "Holdout must remain unopened during promotion."
+                    )
+                if (
+                    prereg.strategy_id != strategy_id
+                    or prereg.dataset_fingerprint != evidence_bundle.dataset_fingerprint
+                    or prereg.config_fingerprint != evidence_bundle.config_fingerprint
+                ):
+                    raise InvalidStageTransitionError("Provenance mismatch between holdout preregistration and promotion evidence bundle.")
+
+        # 3. HOLDOUT -> PAPER requires verified PromotionEvidenceBundle with valid gate bundle and holdout evaluation
+        elif current_stage == StrategyStage.HOLDOUT and new_stage == StrategyStage.PAPER:
+            if evidence_bundle is None:
+                raise InvalidStageTransitionError(
+                    f"Strategy '{strategy_id}' cannot transition from HOLDOUT to PAPER: "
+                    "PromotionEvidenceBundle is required."
+                )
+            if evidence_bundle.strategy_id != strategy_id:
+                raise InvalidStageTransitionError(
+                    f"Strategy ID mismatch in evidence bundle: '{evidence_bundle.strategy_id}' != '{strategy_id}'."
+                )
+            if not evidence_bundle.holdout_preregistration_id or not evidence_bundle.holdout_access_id or not evidence_bundle.holdout_result_id:
+                raise InvalidStageTransitionError(
+                    f"Strategy '{strategy_id}' cannot transition to PAPER: "
+                    "Evidence bundle must contain holdout_preregistration_id, holdout_access_id, and holdout_result_id."
+                )
+            if not evidence_bundle.gate_bundle:
+                raise InvalidStageTransitionError(
+                    f"Strategy '{strategy_id}' cannot transition to PAPER: "
+                    "Evidence bundle must contain a complete 4-gate bundle."
+                )
+            is_valid, reasons = validate_gate_bundle(evidence_bundle.gate_bundle)
+            if not is_valid:
+                raise InvalidStageTransitionError(
+                    f"Strategy '{strategy_id}' cannot transition to PAPER: "
+                    f"Gate bundle failed strict validation: {reasons}"
+                )
+            gate_list = list(evidence_bundle.gate_bundle.values()) if isinstance(evidence_bundle.gate_bundle, dict) else list(evidence_bundle.gate_bundle)
+            first_gate = gate_list[0]
+            if (
+                first_gate.strategy_id != strategy_id
+                or first_gate.dataset_fingerprint != evidence_bundle.dataset_fingerprint
+                or first_gate.config_fingerprint != evidence_bundle.config_fingerprint
+            ):
+                raise InvalidStageTransitionError(
+                    "Provenance mismatch between Gate Bundle and PromotionEvidenceBundle."
+                )
+
+            if holdout_manager is not None:
+                if holdout_manager.is_corrupted:
+                    raise InvalidStageTransitionError(
+                        f"Cannot promote strategy '{strategy_id}' to PAPER: "
+                        "Holdout governance storage is corrupted (GOVERNANCE_LOCKED)."
+                    )
+                acc = holdout_manager.get_access_record(evidence_bundle.holdout_access_id)
+                if not acc:
+                    raise InvalidStageTransitionError(f"Access record '{evidence_bundle.holdout_access_id}' not found.")
+                eval_res = holdout_manager.get_evaluation_result(evidence_bundle.holdout_result_id)
+                if not eval_res:
+                    raise InvalidStageTransitionError(f"Evaluation result '{evidence_bundle.holdout_result_id}' not found.")
+                if not eval_res.passed:
+                    raise InvalidStageTransitionError(f"Holdout evaluation result did not pass: {eval_res.reasons}.")
+
+        # 4. Transitions to SMALL_LIVE or ACTIVE are permanently BLOCKED under USD 0 live capital invariant
+        elif new_stage in (StrategyStage.SMALL_LIVE, StrategyStage.ACTIVE):
+            raise InvalidStageTransitionError(
+                f"Strategy '{strategy_id}' cannot transition to {new_stage.value}: "
+                "Authorized live capital is USD 0. Real order routing is permanently disabled."
+            )
 
         updated = spec.model_copy(update={"stage": new_stage})
         self._strategies[strategy_id] = updated

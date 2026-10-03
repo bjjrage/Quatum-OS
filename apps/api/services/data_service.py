@@ -58,6 +58,7 @@ from src.research.experiments import (
 from src.research.holdout import (
     SealedHoldoutManager,
     HoldoutAuditRecord,
+    HoldoutStatus,
 )
 from src.portfolio.gates import (
     GateStatus,
@@ -1034,19 +1035,29 @@ class QuantOSDataService:
     def get_holdouts(self) -> Dict[str, Any]:
         audit_path = self.data_dir / "research" / "holdout_audits.json"
         try:
-            manager = SealedHoldoutManager(audit_storage_path=audit_path)
+            manager = SealedHoldoutManager(audit_storage_path=audit_path, raise_on_corruption=False)
             audits = manager._audits
+            gov_status = manager.get_status()
+            status = "SEALED" if gov_status in (HoldoutStatus.UNOPENED.value, HoldoutStatus.PREREGISTERED.value) else gov_status
+            warning_msg = (
+                "HOLDOUT GOVERNANCE LOCKED: Storage integrity issue detected."
+                if gov_status == "GOVERNANCE_LOCKED"
+                else "HOLDOUT SEALED / GOVERNANCE: Once accessed, holdout partition is burned for that strategy lineage."
+            )
             return {
-                "status": "SEALED",
-                "warning": "HOLDOUT SEALED: Once evaluated for a strategy version, re-tuning is strictly BLOCKED.",
+                "status": status,
+                "governance_status": gov_status,
+                "warning": warning_msg,
                 "total_openings": len(audits),
                 "audits": [a.model_dump() for a in audits],
             }
         except Exception as e:
             return {
-                "status": "NOT_AVAILABLE",
-                "warning": "HOLDOUT SEALED",
+                "status": "GOVERNANCE_LOCKED",
+                "governance_status": "GOVERNANCE_LOCKED",
+                "warning": "HOLDOUT GOVERNANCE LOCKED",
                 "reason": str(e),
+                "total_openings": 0,
                 "audits": [],
             }
 

@@ -126,17 +126,29 @@ def test_sealed_holdout_manager_prevents_retuning_and_logs_audit(tmp_path: Path)
             metrics={"net_sharpe": 2.10},
         )
 
-    # 3. Evaluating a properly BUMPED strategy version succeeds
-    record_bumped = manager.evaluate_holdout(
+    # 3. Evaluating a bumped strategy version on the SAME holdout dataset is forbidden (dataset reuse)
+    with pytest.raises(HoldoutViolationError, match="Dataset reuse across strategy iterations is forbidden"):
+        manager.evaluate_holdout(
+            strategy_id="STR-002",
+            strategy_version="2.1.0",
+            git_sha="git_sha_def456",
+            parameter_set_fingerprint="fp_params_v2_tweaked",
+            hypothesis_description="Version bump with orthogonalized factor model",
+            holdout_dataset_bytes_or_hash="dataset_raw_bytes_or_hash_content",
+            metrics={"net_sharpe": 1.92},
+        )
+
+    # 4. Evaluating on a fresh holdout partition succeeds
+    record_fresh = manager.evaluate_holdout(
         strategy_id="STR-002",
         strategy_version="2.1.0",
         git_sha="git_sha_def456",
         parameter_set_fingerprint="fp_params_v2_tweaked",
-        hypothesis_description="Version bump with orthogonalized factor model",
-        holdout_dataset_bytes_or_hash="dataset_raw_bytes_or_hash_content",
+        hypothesis_description="Version bump with orthogonalized factor model on fresh partition",
+        holdout_dataset_bytes_or_hash="dataset_raw_bytes_or_hash_content_fresh_v2",
         metrics={"net_sharpe": 1.92},
     )
-    assert record_bumped.strategy_version == "2.1.0"
+    assert record_fresh.strategy_version == "2.1.0"
     assert len(manager.list_audits_for_strategy("STR-002")) == 2
 
 

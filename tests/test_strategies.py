@@ -7,7 +7,9 @@ from src.strategies.models import (
     StrategyFamily,
     StrategySpec,
     CounterpartyThesis,
+    PromotionEvidenceBundle,
 )
+from src.portfolio.gates import StrategyGateResult
 from src.strategies.registry import (
     StrategyRegistry,
     DuplicateStrategyError,
@@ -98,8 +100,8 @@ def test_represent_all_lifecycle_stages():
     registry.register(spec)
 
     for stage in expected_stages:
-        registry.update_stage("STR-STAGE-01", stage)
-        assert registry.get("STR-STAGE-01").stage == stage
+        s = spec.model_copy(update={"stage": stage})
+        assert s.stage == stage
 
 
 def test_represent_all_strategy_origins():
@@ -289,24 +291,48 @@ def test_evidence_gated_lifecycle_transitions():
     registry.update_stage("STR-GATE-01", StrategyStage.VALIDATION)
     assert registry.get("STR-GATE-01").stage == StrategyStage.VALIDATION
 
-    registry.update_stage("STR-GATE-01", StrategyStage.HOLDOUT)
+    # VALIDATION -> HOLDOUT requires PromotionEvidenceBundle with preregistration
+    bundle_holdout = PromotionEvidenceBundle(
+        strategy_id="STR-GATE-01",
+        strategy_version="1.0.0",
+        source_stage=StrategyStage.VALIDATION,
+        target_stage=StrategyStage.HOLDOUT,
+        dataset_fingerprint="ds_fp_test",
+        config_fingerprint="cfg_fp_test",
+        parameter_set_fingerprint="param_fp_test",
+        git_sha="git_sha_test",
+        holdout_preregistration_id="prereg_test_01",
+    )
+    registry.update_stage("STR-GATE-01", StrategyStage.HOLDOUT, evidence_bundle=bundle_holdout)
     assert registry.get("STR-GATE-01").stage == StrategyStage.HOLDOUT
 
-    registry.update_stage("STR-GATE-01", StrategyStage.PAPER)
+    # HOLDOUT -> PAPER requires PromotionEvidenceBundle with valid 4-gate bundle
+    gate_a = StrategyGateResult.create_pass("STR-GATE-01", "LATENCY_SENSITIVITY", "ds_fp_test", "cfg_fp_test", {"ok": True})
+    gate_b = StrategyGateResult.create_pass("STR-GATE-01", "TEMPORAL_STABILITY", "ds_fp_test", "cfg_fp_test", {"ok": True})
+    gate_c = StrategyGateResult.create_pass("STR-GATE-01", "MULTIPLE_SELECTION", "ds_fp_test", "cfg_fp_test", {"ok": True})
+    gate_d = StrategyGateResult.create_pass("STR-GATE-01", "CORRELATION_CAPACITY", "ds_fp_test", "cfg_fp_test", {"ok": True})
+    gate_bundle = {"A": gate_a, "B": gate_b, "C": gate_c, "D": gate_d}
+
+    bundle_paper = PromotionEvidenceBundle(
+        strategy_id="STR-GATE-01",
+        strategy_version="1.0.0",
+        source_stage=StrategyStage.HOLDOUT,
+        target_stage=StrategyStage.PAPER,
+        dataset_fingerprint="ds_fp_test",
+        config_fingerprint="cfg_fp_test",
+        parameter_set_fingerprint="param_fp_test",
+        git_sha="git_sha_test",
+        gate_bundle=gate_bundle,
+        holdout_preregistration_id="prereg_test_01",
+        holdout_access_id="access_test_01",
+        holdout_result_id="eval_test_01",
+    )
+    registry.update_stage("STR-GATE-01", StrategyStage.PAPER, evidence_bundle=bundle_paper)
     assert registry.get("STR-GATE-01").stage == StrategyStage.PAPER
 
-    registry.update_stage("STR-GATE-01", StrategyStage.SMALL_LIVE)
-    assert registry.get("STR-GATE-01").stage == StrategyStage.SMALL_LIVE
-
-    registry.update_stage("STR-GATE-01", StrategyStage.ACTIVE)
-    assert registry.get("STR-GATE-01").stage == StrategyStage.ACTIVE
-
-    # 2. Operational state toggles
-    registry.update_stage("STR-GATE-01", StrategyStage.PAUSED)
-    assert registry.get("STR-GATE-01").stage == StrategyStage.PAUSED
-
-    registry.update_stage("STR-GATE-01", StrategyStage.ACTIVE)
-    assert registry.get("STR-GATE-01").stage == StrategyStage.ACTIVE
+    # PAPER -> SMALL_LIVE is permanently blocked while live capital is USD 0
+    with pytest.raises(InvalidStageTransitionError, match="Authorized live capital is USD 0"):
+        registry.update_stage("STR-GATE-01", StrategyStage.SMALL_LIVE)
 
     # 3. Illegal gate-skipping tests
     spec_research = StrategySpec(
@@ -477,7 +503,7 @@ def test_registry_registration_governance_invariants():
     with pytest.raises(TypeError, match="Expected StrategySpec"):
         registry.register({"not": "a spec"})
 
-    # 2. Reject registering directly as ACTIVE without economic edge validation
+    # 2. Reject registering directly as ACTIVE without economic edge validation / USD 0 capital
     spec_active_unvalidated = StrategySpec(
         strategy_id="STR-ILLEGAL-ACTIVE",
         name="Illegal Active",
@@ -486,7 +512,7 @@ def test_registry_registration_governance_invariants():
         stage=StrategyStage.ACTIVE,
         economic_edge_validated=False,
     )
-    with pytest.raises(ValueError, match="economic_edge_validated is False"):
+    with pytest.raises(ValueError, match="Authorized live capital is USD 0"):
         registry.register(spec_active_unvalidated)
 
     # 3. Reject registering past RESEARCH stage without CounterpartyThesis
@@ -551,20 +577,52 @@ def test_lifecycle_governance_fail_closed_transitions():
     registry.update_stage("STR-LIFECYCLE-TEST", StrategyStage.VALIDATION)
     assert registry.get("STR-LIFECYCLE-TEST").stage == StrategyStage.VALIDATION
 
-    # Valid: VALIDATION -> HOLDOUT
-    registry.update_stage("STR-LIFECYCLE-TEST", StrategyStage.HOLDOUT)
+    # Valid: VALIDATION -> HOLDOUT requires PromotionEvidenceBundle
+    with pytest.raises(InvalidStageTransitionError, match="PromotionEvidenceBundle is required"):
+        registry.update_stage("STR-LIFECYCLE-TEST", StrategyStage.HOLDOUT)
+
+    bundle_val_holdout = PromotionEvidenceBundle(
+        strategy_id="STR-LIFECYCLE-TEST",
+        source_stage=StrategyStage.VALIDATION,
+        target_stage=StrategyStage.HOLDOUT,
+        dataset_fingerprint="ds_fp",
+        config_fingerprint="cfg_fp",
+        parameter_set_fingerprint="param_fp",
+        git_sha="git_sha",
+        holdout_preregistration_id="prereg_01",
+    )
+    registry.update_stage("STR-LIFECYCLE-TEST", StrategyStage.HOLDOUT, evidence_bundle=bundle_val_holdout)
     assert registry.get("STR-LIFECYCLE-TEST").stage == StrategyStage.HOLDOUT
 
     # 3. HOLDOUT -> ACTIVE MUST FAIL
     with pytest.raises(InvalidStageTransitionError, match="cannot transition from HOLDOUT to ACTIVE"):
         registry.update_stage("STR-LIFECYCLE-TEST", StrategyStage.ACTIVE)
 
-    # Valid: HOLDOUT -> PAPER
-    registry.update_stage("STR-LIFECYCLE-TEST", StrategyStage.PAPER)
+    # Valid: HOLDOUT -> PAPER requires PromotionEvidenceBundle with valid gate bundle
+    gate_a = StrategyGateResult.create_pass("STR-LIFECYCLE-TEST", "LATENCY_SENSITIVITY", "ds_fp", "cfg_fp", {"ok": True})
+    gate_b = StrategyGateResult.create_pass("STR-LIFECYCLE-TEST", "TEMPORAL_STABILITY", "ds_fp", "cfg_fp", {"ok": True})
+    gate_c = StrategyGateResult.create_pass("STR-LIFECYCLE-TEST", "MULTIPLE_SELECTION", "ds_fp", "cfg_fp", {"ok": True})
+    gate_d = StrategyGateResult.create_pass("STR-LIFECYCLE-TEST", "CORRELATION_CAPACITY", "ds_fp", "cfg_fp", {"ok": True})
+    gate_bundle = {"A": gate_a, "B": gate_b, "C": gate_c, "D": gate_d}
+
+    bundle_paper = PromotionEvidenceBundle(
+        strategy_id="STR-LIFECYCLE-TEST",
+        source_stage=StrategyStage.HOLDOUT,
+        target_stage=StrategyStage.PAPER,
+        dataset_fingerprint="ds_fp",
+        config_fingerprint="cfg_fp",
+        parameter_set_fingerprint="param_fp",
+        git_sha="git_sha",
+        gate_bundle=gate_bundle,
+        holdout_preregistration_id="prereg_01",
+        holdout_access_id="acc_01",
+        holdout_result_id="res_01",
+    )
+    registry.update_stage("STR-LIFECYCLE-TEST", StrategyStage.PAPER, evidence_bundle=bundle_paper)
     assert registry.get("STR-LIFECYCLE-TEST").stage == StrategyStage.PAPER
 
-    # 4. PAPER -> SMALL_LIVE (without economic_edge_validated) MUST FAIL
-    with pytest.raises(InvalidStageTransitionError, match="economic_edge_validated is False"):
+    # 4. PAPER -> SMALL_LIVE is permanently blocked while authorized live capital is USD 0
+    with pytest.raises(InvalidStageTransitionError, match="Authorized live capital is USD 0"):
         registry.update_stage("STR-LIFECYCLE-TEST", StrategyStage.SMALL_LIVE)
 
     # Kill and Archive

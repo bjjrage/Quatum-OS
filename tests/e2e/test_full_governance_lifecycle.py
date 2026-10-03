@@ -41,6 +41,7 @@ from src.strategies.models import (
     StrategyOrigin,
     StrategyRuleEvidence,
     StrategyParameterSet,
+    PromotionEvidenceBundle,
 )
 from src.strategies.registry import StrategyRegistry
 from src.research.experiments import ExperimentRegistry, ExperimentRecord
@@ -51,6 +52,9 @@ from src.portfolio.gates import (
     GateStatus,
     LatencySensitivityGate,
     TemporalStabilityGate,
+    MultipleSelectionGate,
+    CorrelationCapacityGate,
+    validate_gate_bundle,
 )
 from src.portfolio.regime import RegimeSnapshot
 from src.strategies.str002_v2 import BtcState
@@ -147,12 +151,14 @@ def test_full_governance_lifecycle_end_to_end():
         # -------------------------------------------------------------
         # STEP 3: Portfolio Gates Auditing (Provisional research thresholds)
         # -------------------------------------------------------------
+        ds_hash = "dataset-sha256-btc-sample-202610"
         lat_gate = LatencySensitivityGate()
         lat_result = lat_gate.evaluate(
             sharpes_by_delay={0.0: 2.1, 1.0: 2.05, 5.0: 2.0, 30.0: 1.8},
             strategy_id=spec.strategy_id,
             strategy_version="1.0.0",
             config_fingerprint=param_set.fingerprint,
+            dataset_fingerprint=ds_hash,
         )
         assert lat_result.status == GateStatus.PASS
         assert lat_result.threshold_is_provisional is True
@@ -165,47 +171,132 @@ def test_full_governance_lifecycle_end_to_end():
             strategy_id=spec.strategy_id,
             strategy_version="1.0.0",
             config_fingerprint=param_set.fingerprint,
+            dataset_fingerprint=ds_hash,
         )
         assert temp_result.status == GateStatus.PASS
 
-        # Promote stage to VALIDATION
+        # Promote stage to VALIDATION (requires complete counterparty thesis)
         registry.update_stage(spec.strategy_id, StrategyStage.VALIDATION)
         val_spec = registry.get(spec.strategy_id)
         assert val_spec.stage == StrategyStage.VALIDATION
 
         # -------------------------------------------------------------
-        # STEP 4: Sealed Holdout Evaluation
+        # STEP 4: Sealed Holdout Preregistration, Access & Evaluation
         # -------------------------------------------------------------
         holdout_mgr = SealedHoldoutManager(audit_storage_path=holdout_audit_file)
-        audit_record = holdout_mgr.evaluate_holdout(
+        prereg = holdout_mgr.create_preregistration(
             strategy_id=spec.strategy_id,
             strategy_version="1.0.0",
             git_sha="git-test-commit-sha",
+            dataset_fingerprint=ds_hash,
+            config_fingerprint=param_set.fingerprint,
             parameter_set_fingerprint=param_set.fingerprint,
             hypothesis_description="Out of sample holdout validation across September 2026",
-            holdout_dataset_bytes_or_hash="dataset-sha256-btc-sample-202610",
-            metrics={"sharpe": 1.85, "max_drawdown": 0.05, "total_return": 0.12},
+            falsification_criteria=["Sharpe < 1.0", "Max drawdown > 10%"],
         )
-        assert audit_record.audit_id is not None
-        assert audit_record.result_metrics["sharpe"] == 1.85
+        assert prereg.strategy_id == spec.strategy_id
 
-        # Re-tuning with the same holdout is strictly forbidden
+        # Promote stage to HOLDOUT using preregistration evidence
+        bundle_holdout = PromotionEvidenceBundle(
+            strategy_id=spec.strategy_id,
+            strategy_version="1.0.0",
+            source_stage=StrategyStage.VALIDATION,
+            target_stage=StrategyStage.HOLDOUT,
+            dataset_fingerprint=ds_hash,
+            config_fingerprint=param_set.fingerprint,
+            parameter_set_fingerprint=param_set.fingerprint,
+            git_sha="git-test-commit-sha",
+            holdout_preregistration_id=prereg.preregistration_id,
+        )
+        registry.update_stage(spec.strategy_id, StrategyStage.HOLDOUT, evidence_bundle=bundle_holdout, holdout_manager=holdout_mgr)
+        holdout_spec = registry.get(spec.strategy_id)
+        assert holdout_spec.stage == StrategyStage.HOLDOUT
+
+        # Now open holdout for authorized evaluation
+        access_rec = holdout_mgr.open_holdout(
+            preregistration_id=prereg.preregistration_id,
+            strategy_id=spec.strategy_id,
+            strategy_version="1.0.0",
+            git_sha="git-test-commit-sha",
+            config_fingerprint=param_set.fingerprint,
+            parameter_set_fingerprint=param_set.fingerprint,
+            opened_by="CI_GOVERNANCE_SYSTEM",
+        )
+        assert access_rec.access_id is not None
+
+        # Re-accessing with same preregistration is forbidden (burn policy)
         with pytest.raises(HoldoutViolationError):
-            holdout_mgr.evaluate_holdout(
+            holdout_mgr.open_holdout(
+                preregistration_id=prereg.preregistration_id,
                 strategy_id=spec.strategy_id,
                 strategy_version="1.0.0",
                 git_sha="git-test-commit-sha",
-                parameter_set_fingerprint="different_tuned_fingerprint",
-                hypothesis_description="Tuned parameters on same holdout",
-                holdout_dataset_bytes_or_hash="dataset-sha256-btc-sample-202610",
-                metrics={"sharpe": 2.5},
+                config_fingerprint=param_set.fingerprint,
+                parameter_set_fingerprint=param_set.fingerprint,
+                opened_by="ATTEMPT_REACCESS",
             )
+
+        # Record evaluation result
+        eval_res = holdout_mgr.record_evaluation_result(
+            access_id=access_rec.access_id,
+            result_metrics={"sharpe": 1.85, "max_drawdown": 0.05, "total_return": 0.12},
+            passed=True,
+            reasons=["All holdout criteria satisfied"],
+        )
+        assert eval_res.result_metrics["sharpe"] == 1.85
 
         # -------------------------------------------------------------
         # STEP 5: Promotion to PAPER Stage (Capital = $0 live, virtual paper only)
         # -------------------------------------------------------------
-        registry.update_stage(spec.strategy_id, StrategyStage.HOLDOUT)
-        registry.update_stage(spec.strategy_id, StrategyStage.PAPER)
+        # Build 4-gate bundle
+        ms_gate = MultipleSelectionGate()
+        ms_result = ms_gate.evaluate(
+            sharpe_ratio=2.5,
+            trial_count=3,
+            sample_length=100,
+            strategy_id=spec.strategy_id,
+            strategy_version="1.0.0",
+            config_fingerprint=param_set.fingerprint,
+            dataset_fingerprint=ds_hash,
+            raw_p_value=0.01,
+            all_raw_p_values=[0.01, 0.02, 0.03],
+        )
+        assert ms_result.status == GateStatus.PASS
+
+        cap_gate = CorrelationCapacityGate()
+        cap_result = cap_gate.evaluate(
+            candidate_returns=daily_returns,
+            active_returns_by_strategy={},
+            avg_5m_volume_usd=2_000_000.0,
+            proposed_allocation_usd=10_000.0,
+            regimes=["BULL"] * 50 + ["BEAR"] * 50,
+            strategy_id=spec.strategy_id,
+            strategy_version="1.0.0",
+            config_fingerprint=param_set.fingerprint,
+            dataset_fingerprint=ds_hash,
+        )
+        assert cap_result.status == GateStatus.PASS
+
+        gate_bundle = [lat_result, temp_result, ms_result, cap_result]
+        is_valid, reasons = validate_gate_bundle(gate_bundle)
+        assert is_valid is True, f"Gate bundle failed: {reasons}"
+
+        bundle_paper = PromotionEvidenceBundle(
+            strategy_id=spec.strategy_id,
+            strategy_version="1.0.0",
+            source_stage=StrategyStage.HOLDOUT,
+            target_stage=StrategyStage.PAPER,
+            dataset_fingerprint=ds_hash,
+            config_fingerprint=param_set.fingerprint,
+            parameter_set_fingerprint=param_set.fingerprint,
+            git_sha="git-test-commit-sha",
+            holdout_preregistration_id=prereg.preregistration_id,
+            holdout_access_id=access_rec.access_id,
+            holdout_result_id=eval_res.result_id,
+            gate_bundle=gate_bundle,
+        )
+
+        registry.update_stage(spec.strategy_id, StrategyStage.PAPER, evidence_bundle=bundle_paper, holdout_manager=holdout_mgr)
         paper_spec = registry.get(spec.strategy_id)
         assert paper_spec.stage == StrategyStage.PAPER
         assert paper_spec.economic_edge_validated is False

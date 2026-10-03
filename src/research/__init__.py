@@ -7,6 +7,7 @@ from .experiments import (
     ExperimentRegistry,
     RegistryIntegrityStatus,
     ExperimentRegistryIntegrityError,
+    MultipleTestingContext,
 )
 from .parameters import (
     ResearchParameterSet,
@@ -15,6 +16,10 @@ from .parameters import (
 )
 from .holdout import (
     SealedHoldoutManager,
+    HoldoutStatus,
+    HoldoutPreRegistration,
+    HoldoutAccessRecord,
+    HoldoutEvaluationResult,
     HoldoutAuditRecord,
     HoldoutViolationError,
     HoldoutAuditIntegrityError,
@@ -31,10 +36,15 @@ __all__ = [
     "ExperimentRegistry",
     "RegistryIntegrityStatus",
     "ExperimentRegistryIntegrityError",
+    "MultipleTestingContext",
     "ResearchParameterSet",
     "ParameterSetStatus",
     "compute_parameter_fingerprint",
     "SealedHoldoutManager",
+    "HoldoutStatus",
+    "HoldoutPreRegistration",
+    "HoldoutAccessRecord",
+    "HoldoutEvaluationResult",
     "HoldoutAuditRecord",
     "HoldoutViolationError",
     "HoldoutAuditIntegrityError",

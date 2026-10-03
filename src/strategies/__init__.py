@@ -5,6 +5,7 @@ from src.strategies.models import (
     StrategyStage,
     StrategyFamily,
     StrategySpec,
+    PromotionEvidenceBundle,
     VALID_STAGE_TRANSITIONS,
 )
 from src.strategies.registry import (
@@ -22,6 +23,7 @@ __all__ = [
     "StrategyStage",
     "StrategyFamily",
     "StrategySpec",
+    "PromotionEvidenceBundle",
     "VALID_STAGE_TRANSITIONS",
     "StrategyRegistry",
     "DuplicateStrategyError",

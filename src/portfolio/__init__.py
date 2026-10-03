@@ -14,6 +14,10 @@ from src.portfolio.gates import (
     MultipleSelectionGate,
     CorrelationCapacityGate,
     all_gates_pass,
+    validate_gate_bundle,
+    benjamini_hochberg,
+    expected_max_sharpe,
+    deflated_sharpe_ratio,
 )
 from src.portfolio.regime import RegimeSnapshot
 
@@ -29,5 +33,9 @@ __all__ = [
     "MultipleSelectionGate",
     "CorrelationCapacityGate",
     "all_gates_pass",
+    "validate_gate_bundle",
+    "benjamini_hochberg",
+    "expected_max_sharpe",
+    "deflated_sharpe_ratio",
     "RegimeSnapshot",
 ]
