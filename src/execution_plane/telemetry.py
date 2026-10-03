@@ -146,16 +146,18 @@ def percentile(values: List[float], q: float) -> Optional[float]:
     """Nearest-rank percentile; None for no data."""
     if not values:
         return None
+    if 0 < q <= 1.0:
+        q = q * 100.0
     s = sorted(values)
     k = max(1, math.ceil(q / 100.0 * len(s)))
     return s[k - 1]
 
 
 def aggregate_latency(samples: List[Dict[str, Any]]) -> Dict[str, Any]:
-    out: Dict[str, Any] = {}
+    metrics: Dict[str, Any] = {}
     for name in _DUR:
         vals = [s["durations_ms"][name] for s in samples
                 if s.get("durations_ms", {}).get(name) is not None]
-        out[name] = {"n": len(vals), "p50": percentile(vals, 50), "p95": percentile(vals, 95),
-                     "p99": percentile(vals, 99)}
-    return out
+        metrics[name] = {"n": len(vals), "p50": percentile(vals, 50), "p95": percentile(vals, 95),
+                         "p99": percentile(vals, 99)}
+    return {"samples_count": len(samples), "metrics": metrics}
