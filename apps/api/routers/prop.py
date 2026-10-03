@@ -33,6 +33,8 @@ def get_multi_account_compliance():
     """Multi-Account Compliance status per provider."""
     return [
         {
+            "data_source": "MOCK",
+            "is_fixture": True,
             "provider_name": "AlphaFunding",
             "multiple_accounts_allowed": True,
             "same_bot_allowed": True,
@@ -40,11 +42,13 @@ def get_multi_account_compliance():
             "same_bot_considered_copy_trading": False,
             "shared_account_restrictions": "MAX_3_ACCOUNTS_PER_USER",
             "cross_account_hedging_policy": "ALLOWED_ACROSS_DISTINCT_POCKETS",
-            "written_evidence_status": "VERIFIED",
-            "second_account_status": "PASS",
+            "written_evidence_status": "MOCK_UNVERIFIED",
+            "second_account_status": "UNKNOWN",
             "verified_contract_ref": "AF_TERMS_2026_SEC4",
         },
         {
+            "data_source": "MOCK",
+            "is_fixture": True,
             "provider_name": "GammaProp",
             "multiple_accounts_allowed": False,
             "same_bot_allowed": False,

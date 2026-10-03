@@ -452,10 +452,10 @@ class QuantOSDataService:
                     "message": "Live risk locked ($0 Live Capital). Dry-run and paper execution active.",
                 }
             ],
-            "last_heartbeat": rec_status.get("heartbeat_at_utc", time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())),
+            "last_heartbeat": rec_status.get("heartbeat_at_utc") or "UNKNOWN",
             "ci_state": "LOCAL_OFFLINE_VERIFIED",
-            "tests_passing": 225,
-            "tests_failing": 0,
+            "tests_passing": None,
+            "tests_failing": None,
         }
 
     # --------------------------------------------------------------------------
@@ -891,7 +891,7 @@ class QuantOSDataService:
                 "horizon_1m": "ret >= 1.0 sigma",
                 "horizon_5m": "ret >= 1.0 sigma",
                 "decision": "ALLOWED_EXTENDED_RUNNER",
-                "sizing": "120%",
+                "sizing": "100% (capped; no above-100% sizing permitted)",
                 "action": "Proceed with candidate trade, allow trail runner when systemic market is supportive",
             },
             {

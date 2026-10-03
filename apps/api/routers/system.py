@@ -31,11 +31,11 @@ def get_git():
 def get_ci_status():
     svc = QuantOSDataService.get_instance()
     return {
-        "status": "LOCAL_VERIFIED",
+        "status": "UNKNOWN",
         "ci_provider": "OFFLINE_TEST_SUITE",
-        "passing_tests": 225,
-        "failing_tests": 0,
-        "duration_seconds": 2.63,
+        "passing_tests": None,
+        "failing_tests": None,
+        "duration_seconds": None,
         "github_actions_status": "UNKNOWN / NOT CONNECTED",
         "github_actions_reason": "No external CI credentials configured in offline operational workstation.",
     }

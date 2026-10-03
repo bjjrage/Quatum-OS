@@ -54,8 +54,10 @@ def test_system_git_and_ci():
     res_ci = client.get("/api/system/ci")
     assert res_ci.status_code == 200
     ci_data = res_ci.json()
-    assert ci_data["passing_tests"] >= 184
-    assert ci_data["failing_tests"] == 0
+    # No hardcoded counts: unverified CI/test results must be reported as UNKNOWN (None), never PASS/0.
+    assert ci_data["passing_tests"] is None
+    assert ci_data["failing_tests"] is None
+    assert ci_data["status"] == "UNKNOWN"
     assert "UNKNOWN" in ci_data["github_actions_status"]
 
 
