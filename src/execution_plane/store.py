@@ -137,19 +137,35 @@ class ExecutionStore:
         return sorted(rows, key=lambda r: r["snapshot_id"])[-1] if rows else None
 
 
-# ------------------------------------------------------------------ kill switch
+import threading
+
 SCOPES = ("GLOBAL", "VENUE", "ACCOUNT", "STRATEGY", "SYMBOL")
 
 
 class ExecutionKillSwitch:
     """Scoped kill switch, replayed from persisted events (survives restart). Never flattens positions."""
+    _last_ts: int = 0
+    _seq_lock: threading.Lock = threading.Lock()
+
+    @classmethod
+    def _next_eid(cls) -> str:
+        with cls._seq_lock:
+            now = time.time_ns()
+            if now <= cls._last_ts:
+                now = cls._last_ts + 1
+            cls._last_ts = now
+        return f"ks_{now:020d}_{uuid.uuid4().hex[:6]}"
 
     def __init__(self, backend: PersistenceBackend):
         self.backend = backend
         self._active: Dict[tuple, bool] = {}
         self._replay()
 
+    def refresh(self) -> None:
+        self._replay()
+
     def _replay(self) -> None:
+        self._active = {}
         rows = sorted(self.backend.list("kill_switch_events"), key=lambda r: r["event_id"])
         for r in rows:
             if r.get("target_kind") != "EXEC":
@@ -163,7 +179,7 @@ class ExecutionKillSwitch:
             raise ValueError("non-global scope requires a target")
         if not actor or not reason:
             raise ValueError("actor and reason required")
-        eid = f"ks_{time.time_ns()}_{uuid.uuid4().hex[:6]}"
+        eid = self._next_eid()
         self.backend.put("kill_switch_events", eid, {
             "event_id": eid, "action": action, "scope": scope, "target": target, "target_kind": "EXEC",
             "actor": actor, "reason": reason, "timestamp_utc": iso_from_ns(None)})
@@ -176,6 +192,7 @@ class ExecutionKillSwitch:
         self._record("RESET", scope, target, actor, reason)
 
     def blocking(self, intent: OrderIntent) -> Optional[str]:
+        self.refresh()
         checks = [("GLOBAL", ""), ("VENUE", intent.venue), ("ACCOUNT", intent.capital_pocket_id),
                   ("STRATEGY", intent.strategy_id), ("SYMBOL", intent.symbol)]
         for scope, target in checks:
@@ -184,6 +201,7 @@ class ExecutionKillSwitch:
         return None
 
     def active_scopes(self) -> List[str]:
+        self.refresh()
         return sorted(f"{s}:{t}" if t else s for (s, t), v in self._active.items() if v)
 
 

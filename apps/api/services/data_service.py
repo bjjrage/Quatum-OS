@@ -492,6 +492,12 @@ class QuantOSDataService:
         g24 = gates_info.get("gate_24h", {})
         g72 = gates_info.get("gate_72h", {})
 
+        g24_status = g24.get("status", rec_status.get("gate_24h_status", "PENDING"))
+        g24_passed = (g24_status == "PASS") and bool(g24.get("passed", False))
+
+        g72_status = g72.get("status", rec_status.get("gate_72h_status", "PENDING"))
+        g72_passed = (g72_status == "PASS") and bool(g72.get("passed", False))
+
         return {
             "status": "OPERATIONAL",
             "environment": "LOCAL_PAPER_ONLY",
@@ -504,17 +510,17 @@ class QuantOSDataService:
             "recorder_status": rec_status.get("status", "UNKNOWN"),
             "recorder_continuity": rec_status.get("continuity_state", "UNVERIFIED"),
             "gate_24h": {
-                "status": g24.get("status", "PENDING"),
+                "status": g24_status,
                 "elapsed_seconds": g24.get("elapsed_seconds", rec_status.get("elapsed_seconds", 0.0)),
                 "required_seconds": 86400.0,
-                "passed": False,
+                "passed": g24_passed,
                 "reasons": g24.get("reasons", ["Gate duration requirement not met (< 24h)."]),
             },
             "gate_72h": {
-                "status": g72.get("status", "PENDING"),
+                "status": g72_status,
                 "elapsed_seconds": g72.get("elapsed_seconds", rec_status.get("elapsed_seconds", 0.0)),
                 "required_seconds": 259200.0,
-                "passed": False,
+                "passed": g72_passed,
                 "reasons": g72.get("reasons", ["Gate duration requirement not met (< 72h)."]),
             },
             "strategies_total": len(strategies),
@@ -578,6 +584,15 @@ class QuantOSDataService:
             venue_feeds = latest_report.get("venue_feeds", {}) if latest_report else {}
             storage = latest_report.get("storage_metrics", {}) if latest_report else {}
             ts_integrity = latest_report.get("timestamp_integrity", {}) if latest_report else {}
+            stream_continuity = latest_report.get("stream_continuity", {}) if latest_report else {}
+            gates_info = latest_report.get("gates", {}) if latest_report else {}
+            g24_report = gates_info.get("gate_24h", {})
+            g72_report = gates_info.get("gate_72h", {})
+
+            # Authoritative gate statuses from quality report, NOT wall-clock ready
+            g24_st = g24_report.get("status") or ("PENDING" if is_alive else "UNKNOWN")
+            g72_st = g72_report.get("status") or ("PENDING" if is_alive else "UNKNOWN")
+            committed_data_span_s = stream_continuity.get("effective_data_span_seconds")
 
             # Timing and clock integrity (missing measurement is None, NOT 0.0)
             est_offset = ts_integrity.get("estimated_clock_offset_ms") if ts_integrity else None
@@ -704,11 +719,13 @@ class QuantOSDataService:
                 "continuity_state": data.get("continuity_state", "UNVERIFIED"),
                 "continuity_reason": data.get("continuity_reason", "NOT_REPORTED_BY_MANIFEST"),
                 "elapsed_seconds": elapsed_s,
+                "process_uptime_seconds": elapsed_s,
+                "committed_data_span_seconds": committed_data_span_s,
                 "elapsed_formatted": self._format_seconds(elapsed_s),
                 "progress_24h_pct": round(prog_24h, 2),
                 "progress_72h_pct": round(prog_72h, 2),
-                "gate_24h_status": "PENDING" if prog_24h < 100.0 else "READY",
-                "gate_72h_status": "PENDING" if prog_72h < 100.0 else "READY",
+                "gate_24h_status": g24_st,
+                "gate_72h_status": g72_st,
                 "venues": venues_out,
                 "required_feeds": feed_states,
             }
@@ -718,6 +735,10 @@ class QuantOSDataService:
                 "continuity_state": "BROKEN",
                 "error": str(e),
                 "elapsed_seconds": 0.0,
+                "process_uptime_seconds": 0.0,
+                "committed_data_span_seconds": None,
+                "gate_24h_status": "UNKNOWN",
+                "gate_72h_status": "UNKNOWN",
                 "venues": {},
                 "is_process_alive": False,
             }

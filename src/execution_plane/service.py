@@ -20,7 +20,7 @@ from src.execution_plane.models import (
     parse_mode,
 )
 from src.execution_plane.security import CONFIGURED, CredentialProvider
-from src.execution_plane.store import ExecutionStore
+from src.execution_plane.store import ExecutionKillSwitch, ExecutionStore
 from src.execution_plane.telemetry import aggregate_latency
 from src.persistence.backend import LocalPersistenceBackend, PersistenceBackend
 
@@ -35,6 +35,7 @@ class ExecutionPlaneService:
     ):
         self.backend = backend or LocalPersistenceBackend()
         self.store = ExecutionStore(self.backend)
+        self.killswitch = ExecutionKillSwitch(self.backend)
         self.credentials = credentials or CredentialProvider()
 
         # Build real adapters with transport=None (no network; safe for capabilities / metadata inspection)
@@ -171,3 +172,10 @@ class ExecutionPlaneService:
             return snap
         # Honest fallback: unconfigured account
         return not_configured_account(venue).model_dump()
+
+    # ------------------------------------------------------------- kill switches
+    def get_kill_switches(self) -> Dict[str, Any]:
+        return {
+            "active_scopes": self.killswitch.active_scopes(),
+            "data_source": "LOCAL_PERSISTED",
+        }

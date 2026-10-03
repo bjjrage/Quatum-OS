@@ -2,7 +2,7 @@
 from typing import Any, Dict
 from pydantic import BaseModel, Field
 from fastapi import APIRouter, Depends, HTTPException, status
-from apps.api.auth import require_operator_auth
+from apps.api.auth import OperatorPrincipal, require_operator_auth
 from apps.api.services.data_service import QuantOSDataService
 
 router = APIRouter(prefix="/api", tags=["Risk"])
@@ -36,14 +36,14 @@ def get_kill_switches():
 @router.post("/risk/kill-switch/activate")
 def activate_kill_switch(
     payload: KillSwitchActionRequest,
-    operator: str = Depends(require_operator_auth),
+    operator: OperatorPrincipal = Depends(require_operator_auth),
 ) -> Dict[str, Any]:
     """Privileged operator mutation: activate scoped kill switch with persistence."""
     svc = QuantOSDataService.get_instance()
     try:
         return svc.activate_kill_switch(
             scope=payload.scope,
-            actor=f"OPERATOR:{operator[:16]}",
+            actor=f"OPERATOR:{operator.principal_id}",
             reason=payload.reason,
             target=payload.target,
         )
@@ -54,14 +54,14 @@ def activate_kill_switch(
 @router.post("/risk/kill-switch/reset")
 def reset_kill_switch(
     payload: KillSwitchActionRequest,
-    operator: str = Depends(require_operator_auth),
+    operator: OperatorPrincipal = Depends(require_operator_auth),
 ) -> Dict[str, Any]:
     """Privileged operator mutation: reset scoped kill switch with persistence."""
     svc = QuantOSDataService.get_instance()
     try:
         return svc.reset_kill_switch(
             scope=payload.scope,
-            actor=f"OPERATOR:{operator[:16]}",
+            actor=f"OPERATOR:{operator.principal_id}",
             reason=payload.reason,
             target=payload.target,
         )
