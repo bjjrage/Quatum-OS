@@ -18,7 +18,7 @@ import { Badge } from "../common/Badge";
 
 interface BlueprintViewProps {
   onNavigate: (tab: NavTabId) => void;
-  testsPassing?: number;
+  testsPassing?: number | null;
 }
 
 export function BlueprintView({ onNavigate, testsPassing }: BlueprintViewProps) {

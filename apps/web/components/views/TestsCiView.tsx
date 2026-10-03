@@ -11,9 +11,13 @@ interface TestsCiViewProps {
 }
 
 export function TestsCiView({ status }: TestsCiViewProps) {
-  const isCiRun = status?.tests_passing !== undefined && status.tests_passing !== null;
+  const isCiRun =
+    status?.tests_passing !== undefined &&
+    status.tests_passing !== null &&
+    status?.tests_failing !== undefined &&
+    status.tests_failing !== null;
   const testsPassing = status?.tests_passing;
-  const testsFailing = status?.tests_failing ?? 0;
+  const testsFailing = status?.tests_failing;
   const gitShaShort = status?.git_sha_short || "UNKNOWN";
   const branch = status?.branch || "UNKNOWN";
 

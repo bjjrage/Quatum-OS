@@ -71,7 +71,7 @@ export function CommandCenterView({
               </Badge>
             </div>
             <p className="text-xs text-rose-300/80 mt-0.5">
-              Live exchange credentials: NONE | Real order routing: PERMANENTLY DISABLED | Prop purchases: BLOCKED
+              AUTHORIZED LIVE CAPITAL: $0.00 | LIVE ROUTING: CURRENTLY DISABLED
             </p>
           </div>
         </div>
@@ -129,17 +129,26 @@ export function CommandCenterView({
           onClick={() => onNavigate("strategy-registry")}
         />
 
-        <MetricCard
-          label="CI & Pytest Status"
-          value={status?.tests_passing !== undefined ? `${status.tests_passing} Passed / ${status.tests_failing ?? 0} Failed` : "CI Status UNKNOWN"}
-          subtitle="Coverage: Unit + Integration + API"
-          badge={{
-            text: status?.tests_passing !== undefined ? (status.tests_failing === 0 ? "PASS" : "FAILURES") : "UNKNOWN",
-            variant: status?.tests_passing !== undefined ? (status.tests_failing === 0 ? "emerald" : "rose") : "slate",
-          }}
-          icon={<CheckCircle2 className="w-4 h-4" />}
-          onClick={() => onNavigate("tests-ci")}
-        />
+        {(() => {
+          const hasCiResults =
+            status?.tests_passing !== undefined &&
+            status.tests_passing !== null &&
+            status?.tests_failing !== undefined &&
+            status.tests_failing !== null;
+          return (
+            <MetricCard
+              label="CI & Pytest Status"
+              value={hasCiResults ? `${status.tests_passing} Passed / ${status.tests_failing} Failed` : "CI Status UNKNOWN"}
+              subtitle="Coverage: Unit + Integration + API"
+              badge={{
+                text: hasCiResults ? (status.tests_failing === 0 ? "PASS" : "FAILURES") : "UNKNOWN",
+                variant: hasCiResults ? (status.tests_failing === 0 ? "emerald" : "rose") : "slate",
+              }}
+              icon={<CheckCircle2 className="w-4 h-4" />}
+              onClick={() => onNavigate("tests-ci")}
+            />
+          );
+        })()}
       </div>
 
       {/* ACCEPTANCE GATES SECTION */}
@@ -515,7 +524,13 @@ export function CommandCenterView({
               </div>
               <div className="flex justify-between border-b border-slate-800/80 pb-1">
                 <span>Paper Broker Mode:</span>
-                <span className="text-emerald-400 font-semibold">{status ? "INTERNAL SIMULATED" : "UNKNOWN"}</span>
+                <span className={status?.environment === "LOCAL_PAPER_ONLY" ? "text-emerald-400 font-semibold" : "text-slate-400 font-semibold"}>
+                  {status?.environment === "LOCAL_PAPER_ONLY"
+                    ? "INTERNAL SIMULATED (LOCAL_PAPER_ONLY)"
+                    : status?.environment
+                    ? `SIMULATED (${status.environment})`
+                    : "UNKNOWN"}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span>Reconciliation Status:</span>

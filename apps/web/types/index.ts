@@ -75,8 +75,8 @@ export interface SystemStatus {
   }>;
   last_heartbeat: string;
   ci_state: string;
-  tests_passing: number;
-  tests_failing: number;
+  tests_passing?: number | null;
+  tests_failing?: number | null;
 }
 
 export interface VenueInfo {

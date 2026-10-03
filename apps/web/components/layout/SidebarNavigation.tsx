@@ -35,7 +35,7 @@ interface SidebarProps {
   strategiesCount?: number;
   holdoutsStatus?: string;
   killSwitchActive?: boolean;
-  testsPassing?: number;
+  testsPassing?: number | null;
 }
 
 interface NavSection {
