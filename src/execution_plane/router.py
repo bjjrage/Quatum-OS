@@ -10,12 +10,13 @@ re-verify the live gates through the SubmitPermit.
 from __future__ import annotations
 
 import time
-import uuid
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from src.execution_plane.adapters.base import (AdapterError, AuthFailure, ExchangeAdapter, ExecutionAuthorization,
-                                               ExecutionAuthorizer, InvalidOrder, LiveLockedError, SubmitPermit,
-                                               TransportNotConfigured, UnknownOutcomeError, VenueUnavailable)
+from src.execution_plane.adapters.base import (AdapterError, AuthFailure, ExchangeAdapter, InvalidOrder,
+                                               LiveLockedError, TransportNotConfigured, UnknownOutcomeError,
+                                               VenueUnavailable)
+from src.execution_plane.authority import (ExecutionAuthorization, ExecutionAuthorizationSigner,
+                                           ExecutionAuthorizationVerifier, SubmitPermit)
 from src.execution_plane.models import (ExecFill, ExecutionMode, FailureClass, InstrumentMeta, OrderIntent,
                                         OrderRecord, OrderState, TERMINAL_STATES, VALID_TRANSITIONS)
 from src.execution_plane.security import CONFIGURED, CredentialProvider, scrub
@@ -51,15 +52,16 @@ class ExecutionRouter:
                  killswitch: Optional[ExecutionKillSwitch] = None, clock_monitor: Optional[ClockMonitor] = None,
                  audit=None, clock_ns: Callable[[], int] = time.time_ns, sleep: Callable[[float], None] = time.sleep,
                  max_rate_retries: int = 2, allow_test_adapters: bool = False,
-                 future_skew_ms: float = 1000.0, authorizer: Optional[ExecutionAuthorizer] = None):
+                 future_skew_ms: float = 1000.0, signer: Optional[ExecutionAuthorizationSigner] = None):
         self.store, self.risk, self.adapters, self.instruments = store, risk_engine, adapters, instruments
         self.mode = mode
         self.capital_authorizer = capital_authorizer
         self.credentials = credentials or CredentialProvider()
         self.paper_broker = paper_broker
-        self.authorizer = authorizer or ExecutionAuthorizer.get_default()
-        if self.paper_broker is not None and hasattr(self.paper_broker, "authorizer"):
-            self.paper_broker.authorizer = self.authorizer
+        self.signer = signer or ExecutionAuthorizationSigner()
+        self.verifier = self.signer.verifier
+        if self.paper_broker is not None and getattr(self.paper_broker, "verifier", None) is None:
+            self.paper_broker.verifier = self.verifier
         self.killswitch = killswitch or ExecutionKillSwitch(store.backend)
         self.clock_monitor = clock_monitor or ClockMonitor()
         self.audit = audit
@@ -90,7 +92,7 @@ class ExecutionRouter:
 
         if decision is None or not getattr(decision, "approved", False):
             raise PermissionError(f"Cannot mint authorization for intent {i.intent_id}: RiskDecision is missing or unapproved.")
-        return self.authorizer.mint(
+        return self.signer.mint(
             kind=kind,
             venue=i.venue,
             mode=self.mode,
@@ -290,6 +292,7 @@ class ExecutionRouter:
         except Exception:
             pass
         if not decision.approved:
+            rec.risk_decision = decision
             return self._reject(rec, f"RISK_VETO:{getattr(decision.violation_code, 'value', decision.violation_code)}",
                                 state=S.RISK_REJECTED)
         rec.risk_decision = decision
@@ -314,6 +317,11 @@ class ExecutionRouter:
     def _route_paper(self, rec: OrderRecord) -> OrderRecord:
         if self.paper_broker is None:
             return self._reject(rec, "PAPER_NOT_WIRED")
+        if getattr(self.paper_broker, "verifier", None) is None:
+            # Broker wired after router construction without a verifier: bind the
+            # router authority's verifier. A broker explicitly wired with a foreign
+            # verifier is left untouched and fails closed on signature mismatch.
+            self.paper_broker.verifier = self.verifier
         from src.paper.broker import PaperOrderSide, PaperOrderType
         i = rec.intent
         self._to(rec, S.ROUTING, "paper route")

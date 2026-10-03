@@ -53,6 +53,8 @@ from src.paper.broker import (
     PaperOrderStatus,
 )
 from src.attribution.engine import PerformanceAttributionEngine
+from src.execution_plane.authority import ExecutionAuthorizationSigner
+from src.execution_plane.models import ExecutionMode
 
 
 def test_end_to_end_replay_pipeline():
@@ -159,11 +161,13 @@ def test_end_to_end_replay_pipeline():
     assert risk_decision.approved is True
 
     # 8. Execution through Realistic Paper Broker
+    signer = ExecutionAuthorizationSigner()
     paper_broker = PaperBroker(
         initial_cash_usd=100_000.0,
         simulated_latency_ms=10.0,
         taker_fee_bps=5.0,
         base_slippage_bps=2.0,
+        verifier=signer.verifier,
     )
     bbo = {
         "best_bid": float(latest_tick["bid_price"]),
@@ -171,6 +175,15 @@ def test_end_to_end_replay_pipeline():
         "bid_size": float(latest_tick["bid_size"]),
         "ask_size": float(latest_tick["ask_size"]),
     }
+
+    auth = signer.mint(
+        kind="SUBMIT",
+        venue=proposed_order.venue,
+        symbol=proposed_order.symbol,
+        mode=ExecutionMode.PAPER,
+        risk_decision=risk_decision,
+        current_time_ns=int(latest_tick["ts_exchange_ns"]),
+    )
 
     paper_order = paper_broker.submit_order(
         symbol=proposed_order.symbol,
@@ -180,7 +193,7 @@ def test_end_to_end_replay_pipeline():
         venue=proposed_order.venue,
         current_time_ns=int(latest_tick["ts_exchange_ns"]),
         current_bbo=bbo,
-        permit=risk_decision,
+        permit=auth,
     )
 
     # Deliver order after transit latency

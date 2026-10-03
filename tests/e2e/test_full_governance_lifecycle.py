@@ -61,6 +61,8 @@ from src.execution.models import OrderIntent, OrderState, compute_idempotency_ke
 from src.execution.reconciliation import OrderLifecycleTracker
 from src.paper.broker import PaperBroker, PaperOrderSide, PaperOrderType, PaperOrderStatus
 from src.attribution.engine import PerformanceAttributionEngine
+from src.execution_plane.authority import ExecutionAuthorizationSigner
+from src.execution_plane.models import ExecutionMode
 
 
 def test_full_governance_lifecycle_end_to_end():
@@ -313,15 +315,26 @@ def test_full_governance_lifecycle_end_to_end():
         # -------------------------------------------------------------
         # STEP 9: Realistic Paper Broker Fill (Post-Latency Execution)
         # -------------------------------------------------------------
+        signer = ExecutionAuthorizationSigner()
         broker = PaperBroker(
             initial_cash_usd=100_000.0,
             simulated_latency_ms=20.0,  # 20ms transit latency
             taker_fee_bps=5.0,
             base_slippage_bps=2.0,
+            verifier=signer.verifier,
         )
 
         t0 = 1_000_000_000
         client_bbo = {"best_bid": 60_000.0, "best_ask": 60_010.0, "bid_size": 2.0, "ask_size": 2.0}
+
+        auth = signer.mint(
+            kind="SUBMIT",
+            venue=intent.venue,
+            symbol=intent.symbol,
+            mode=ExecutionMode.PAPER,
+            risk_decision=paper_decision,
+            current_time_ns=t0,
+        )
 
         order = broker.submit_order(
             symbol=intent.symbol,
@@ -331,7 +344,7 @@ def test_full_governance_lifecycle_end_to_end():
             venue=intent.venue,
             current_time_ns=t0,
             current_bbo=client_bbo,
-            permit=paper_decision,
+            permit=auth,
         )
 
         # INVARIANT: Market order does NOT fill using stale T0 quote!

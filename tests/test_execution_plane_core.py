@@ -116,7 +116,7 @@ def test_paper_never_real_submits(tmp_path):
 def test_paper_with_broker(tmp_path):
     from src.paper.broker import PaperBroker
     h = H(tmp_path, mode=M.PAPER)
-    h.router.paper_broker = PaperBroker()
+    h.router.paper_broker = PaperBroker(verifier=h.router.signer.verifier)
     r = h.router.submit(h.intent())
     assert h.fake.submit_calls == [] and r.state in (S.ACKNOWLEDGED, S.FILLED, S.PARTIALLY_FILLED)
 
@@ -136,7 +136,8 @@ def test_sandbox_cannot_fall_through_to_live(tmp_path):
     h = H(tmp_path, mode=M.SANDBOX)
     r = h.router.submit(h.intent())
     assert r.state is S.ACKNOWLEDGED
-    from src.execution_plane.adapters.base import issue_permit, LiveLockedError
+    from src.execution_plane.adapters.base import LiveLockedError
+    from tests.helpers.auth import issue_permit
     permit = issue_permit("SUBMIT", "fake_venue", "x", M.SANDBOX, 0.0, True, T0)
     from src.execution_plane.adapters.real import BinanceUSDMAdapter
     live = BinanceUSDMAdapter(environment="LIVE", credentials=CredentialProvider({}), transport=None)

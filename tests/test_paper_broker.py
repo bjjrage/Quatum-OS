@@ -324,18 +324,21 @@ def test_paper_broker_blocks_direct_order_without_risk_permit():
 
 def test_paper_broker_accepts_valid_permit():
     """PaperBroker accepts order when valid approved permit is provided."""
-    from src.execution_plane.adapters.base import issue_permit
+    from tests.helpers.auth import create_test_signer_and_verifier, issue_permit
     from src.execution_plane.models import ExecutionMode
 
-    broker = PaperBroker(simulated_latency_ms=0.0)
+    signer, verifier = create_test_signer_and_verifier()
+    broker = PaperBroker(simulated_latency_ms=0.0, verifier=verifier)
     permit = issue_permit(
         kind="SUBMIT",
         venue="paper",
         client_order_id="test_ord_1",
+        symbol="BTC-USDT",
         mode=ExecutionMode.PAPER,
         authorized_live_capital_usd=0.0,
         risk_approved=True,
         issued_ns=1_000_000_000,
+        signer=signer,
     )
     bbo = {"best_bid": 60_000.0, "best_ask": 60_010.0, "bid_size": 5.0, "ask_size": 5.0}
     order = broker.submit_order(

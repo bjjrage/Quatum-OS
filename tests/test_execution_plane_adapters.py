@@ -16,8 +16,8 @@ from src.execution_plane.adapters.base import (
     TransportNotConfigured,
     UnknownOutcomeError,
     VenueUnavailable,
-    issue_permit,
 )
+from tests.helpers.auth import issue_permit
 from src.execution_plane.adapters.real import (
     BinanceUSDMAdapter,
     BybitAdapter,
