@@ -1,4 +1,5 @@
 """System and environment metadata endpoints."""
+from pathlib import Path
 from fastapi import APIRouter
 from apps.api.services.data_service import QuantOSDataService
 
@@ -37,4 +38,23 @@ def get_ci_status():
         "duration_seconds": 2.63,
         "github_actions_status": "UNKNOWN / NOT CONNECTED",
         "github_actions_reason": "No external CI credentials configured in offline operational workstation.",
+    }
+
+
+@router.get("/persistence")
+def get_persistence_status():
+    """Honest control-plane read model. Never reports remote success it did not verify."""
+    from src.persistence.config import SupabaseConfig
+    from src.persistence.domain import OWN_CAPITAL_BASELINE_USD, AUTHORIZED_LIVE_CAPITAL_USD
+    cfg = SupabaseConfig.from_env()
+    local_db = Path("data/control_plane/control_plane.db")
+    local = {"status": "LOCAL_ONLY" if local_db.exists() else "NOT_AVAILABLE",
+             "source": "LOCAL_PERSISTED", "path": str(local_db)}
+    return {
+        "remote": cfg.status(),
+        "local": local,
+        "data_source": "LOCAL_RUNTIME",
+        "live_authorized_capital_usd": AUTHORIZED_LIVE_CAPITAL_USD,
+        "own_capital_baseline_usd": OWN_CAPITAL_BASELINE_USD,
+        "own_capital_state_kind": "HYPOTHETICAL",
     }

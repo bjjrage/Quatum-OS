@@ -1169,6 +1169,10 @@ class QuantOSDataService:
             })
 
         return {
+            "data_source": "LOCAL_RUNTIME",
+            "status": "LOCAL_ONLY",
+            "state_kind": "PAPER",
+            "persisted": False,
             "initial_cash_usd": self.paper_broker.initial_cash_usd,
             "cash_usd": self.paper_broker.cash_usd,
             "equity_usd": self.paper_broker.cash_usd,  # Mark prices can be integrated
@@ -1252,13 +1256,25 @@ class QuantOSDataService:
             })
         return {
             "isolation_invariant": "Zero risk transfer: Prop account losses never impact Own capital limits.",
+            "data_source": "MOCK",
+            "status": "MOCK",
+            "provenance_note": "Seeded demo pockets (placeholder equity). Real own-capital baseline is USD 2,000 (HYPOTHETICAL), live authorized USD 0.",
+            "own_capital_baseline_usd": 2000.0,
+            "own_capital_state_kind": "HYPOTHETICAL",
+            "authorized_live_capital_usd": 0.0,
             "pockets": pockets_out,
         }
 
     def get_prop_profiles(self) -> List[Dict[str, Any]]:
         out = []
         for p in self.prop_profiles.values():
-            out.append(p.model_dump())
+            row = p.model_dump()
+            # Seeded demo providers are fictional fixtures, never operational/verified production state.
+            row["data_source"] = "MOCK"
+            row["status"] = "MOCK"
+            row["is_fixture"] = True
+            row["provenance_note"] = "DEMO FIXTURE: fictional provider; verification_status is NOT real evidence"
+            out.append(row)
         return out
 
     def get_prop_simulator_result(self, strategy_id: str, provider_id: str) -> Dict[str, Any]:
