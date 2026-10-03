@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import sqlite3
 import threading
 import time
@@ -79,6 +80,10 @@ class LocalPersistenceBackend(PersistenceBackend):
     name = "LOCAL"
 
     def __init__(self, db_path: Union[str, Path] = "data/control_plane/control_plane.db", clock: Callable[[], float] = _now_ts):
+        # Test/ops isolation: the DEFAULT location may be redirected via env so automated tests
+        # never write kill-switch/governance state into the real control plane. Explicit paths win.
+        if str(db_path) == "data/control_plane/control_plane.db":
+            db_path = os.environ.get("QUANT_OS_CONTROL_PLANE_DB") or db_path
         self.db_path = str(db_path)
         self._clock = clock
         if self.db_path != ":memory:":

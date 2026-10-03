@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 
 MIN_24H_SECONDS: float = 24.0 * 3600.0  # 86,400 seconds
 MIN_72H_SECONDS: float = 72.0 * 3600.0  # 259,200 seconds
+RESUME_MAX_HEARTBEAT_AGE_SECONDS: float = 600.0  # longer outage => new run, never a silent resume
 
 # ==============================================================================
 # PROVISIONAL OPERATIONAL PRIORS — DATA CONTINUITY AND STREAM ACCEPTANCE
@@ -322,8 +323,27 @@ class RuntimeManifest(BaseModel):
                 broken_manifest.recovery_evidence = raw_content[:500]
                 return broken_manifest, False
 
-            # Case B: Fingerprint matches -> RESUME
+            # Case B: Fingerprint matches -> RESUME only if the previous heartbeat is fresh.
             if existing.config_fingerprint == config_fingerprint:
+                hb_ns = existing.last_heartbeat_timestamp_ns
+                hb_age_s = (time.time_ns() - hb_ns) / 1e9 if hb_ns else None
+                if hb_age_s is None or hb_age_s > RESUME_MAX_HEARTBEAT_AGE_SECONDS:
+                    # Recorder was down longer than a restart blip: wall-clock elapsed would
+                    # silently include the outage. Start a new identifiable continuity instead.
+                    new_manifest = cls.create_new(
+                        pid=pid,
+                        git_sha=git_sha,
+                        config_fingerprint=config_fingerprint,
+                        venues=venues,
+                    )
+                    new_manifest.continuity_state = AcceptanceContinuityState.NEW_RUN
+                    new_manifest.continuity_reason = (
+                        "CONTINUITY_GAP: previous heartbeat age "
+                        + (f"{hb_age_s:.0f}s" if hb_age_s is not None else "UNKNOWN")
+                        + f" > {RESUME_MAX_HEARTBEAT_AGE_SECONDS:.0f}s"
+                    )
+                    new_manifest.previous_run_id = existing.run_id
+                    return new_manifest, False
                 existing.pid = pid
                 existing.git_sha = git_sha
                 existing.status = AcceptanceState.RUNNING

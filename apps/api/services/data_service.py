@@ -361,7 +361,7 @@ class QuantOSDataService:
             self.audit_events = []
 
         # Persistent Control Plane & Scoped Kill Switch Authority
-        cp_db = self.data_dir / "control_plane" / "control_plane.db"
+        cp_db = Path(os.environ.get("QUANT_OS_CONTROL_PLANE_DB") or (self.data_dir / "control_plane" / "control_plane.db"))
         self.persistence_backend = LocalPersistenceBackend(db_path=cp_db)
         self.execution_kill_switch = ExecutionKillSwitch(self.persistence_backend)
 
