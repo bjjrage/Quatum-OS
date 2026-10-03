@@ -132,9 +132,13 @@ def test_adversarial_5_sixth_exam_purchase_after_5_failures():
 
     # Simulate 5 consecutive failures
     for _ in range(5):
-        simulator.record_attempt_result(strat_id, "AlphaEvaluation", passed=False)
+        simulator.record_attempt_result(
+            strat_id, "AlphaEvaluation", passed=False, strategy_version="v1.0", profile_version="v1"
+        )
 
-    assert simulator.is_strategy_eligible(strat_id, "AlphaEvaluation") is False
+    assert simulator.is_combination_eligible(
+        strat_id, "AlphaEvaluation", strategy_version="v1.0", profile_version="v1"
+    ) is False
 
     # Attempt to simulate 6th exam purchase
     res = simulator.simulate(strat_id, profile, daily_mean_ret=0.01, daily_vol_ret=0.01)

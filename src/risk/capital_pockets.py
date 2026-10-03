@@ -27,11 +27,12 @@ Architectural Invariants:
 
 from __future__ import annotations
 
+import hashlib
 import math
 import random
 from enum import Enum
 from typing import Dict, Any, List, Optional, Tuple, Set
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict, model_validator
 
 from src.risk.event_cluster import EventCluster
 
@@ -180,19 +181,30 @@ class MultiAccountEvidenceGate:
         return True, "Secondary account approved with verified manual evidence."
 
 
+class PropProfileVerificationStatus(str, Enum):
+    """Verification status for external prop firm rule profiles."""
+    PENDING = "PENDING"
+    VERIFIED = "VERIFIED"
+    REJECTED = "REJECTED"
+    STALE = "STALE"
+
+
 class PropRuleProfile(BaseModel):
     """
-    Authoritative 27-field versioned prop firm rule specification (v1.4.1 Section 16).
+    Authoritative 27-field versioned prop firm rule specification (v1.4.2 Fail-Closed).
+    Defaults strictly to UNKNOWN and PENDING.
     """
-    provider_id: str = "UNKNOWN_PROVIDER"
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    provider_id: str = "UNKNOWN"
     firm_name: Optional[str] = None
     version: str = "v1.0"
     effective_date: str = "2026-01-01"
-    verified_at: str = "2026-01-01T00:00:00Z"
+    verified_at: Optional[str] = None
 
-    evaluation_execution: str = "SIMULATED"  # SIMULATED | LIVE | UNKNOWN
-    funded_execution: str = "SIMULATED"      # SIMULATED | OPTIONAL_REPLICATION | LIVE | UNKNOWN
-    payout_type: str = "REAL"               # REAL | UNKNOWN
+    evaluation_execution: str = "UNKNOWN"  # SIMULATED | LIVE | UNKNOWN
+    funded_execution: str = "UNKNOWN"      # SIMULATED | OPTIONAL_REPLICATION | LIVE | UNKNOWN
+    payout_type: str = "UNKNOWN"           # REAL | UNKNOWN
     daily_loss_mode: str = "TRAILING_EQUITY" # FIXED | TRAILING_EQUITY
 
     daily_loss_limit_pct: float = 0.05
@@ -201,31 +213,73 @@ class PropRuleProfile(BaseModel):
     max_loss_per_trade_pct: Optional[float] = None
     profit_target_pct: float = 0.10
     min_trading_days: int = 5
-    consistency_rule: Optional[str] = "no single day > 30% of total profit"
+    consistency_rule: Optional[str] = None
     withdrawal_cap_usd: Optional[float] = None
 
     instrument_universe: List[str] = Field(default_factory=list)
     venue: str = "CRYPTO_FUTURES_DEX_OR_BROKER"
-    api_bot_policy: str = "ALLOWED"
-    tick_scalping_policy: str = "DISALLOWED"
-    minimum_holding_policy: str = "NO_RESTRICTION"
-    news_trading_policy: str = "ALLOWED"
-    weekend_policy: str = "ALLOWED"
-    multi_account_policy: str = "WRITTEN_CONSENT_REQUIRED"
-    copy_trading_policy: str = "SAME_STRATEGY_ACROSS_ACCOUNTS_RESTRICTED"
-    hedging_policy: str = "NO_CROSS_ACCOUNT_HEDGING"
-    country_eligibility: List[str] = Field(default_factory=lambda: ["US", "EU", "LATAM"])
-    verification_status: str = "EXTERNAL_VERIFIED"
+    api_bot_policy: str = "UNKNOWN"         # ALLOWED | DISALLOWED | UNKNOWN
+    tick_scalping_policy: str = "UNKNOWN"
+    minimum_holding_policy: str = "UNKNOWN"
+    news_trading_policy: str = "UNKNOWN"
+    weekend_policy: str = "UNKNOWN"
+    multi_account_policy: str = "UNKNOWN"
+    copy_trading_policy: str = "UNKNOWN"
+    hedging_policy: str = "UNKNOWN"
+    country_eligibility: List[str] = Field(default_factory=list)
+    verification_status: PropProfileVerificationStatus = PropProfileVerificationStatus.PENDING
 
+    evidence_refs: List[str] = Field(default_factory=list)
+    source_urls: List[str] = Field(default_factory=list)
+    verified_by: Optional[str] = None
     forbidden_strategies: List[str] = Field(default_factory=lambda: ["martingale", "latency_arbitrage", "news_straddle"])
     weekend_holding_allowed: bool = False
     news_trading_allowed: bool = False
 
-    def model_post_init(self, __context: Any) -> None:
-        if self.firm_name is not None and self.provider_id == "UNKNOWN_PROVIDER":
-            self.provider_id = self.firm_name
-        elif self.firm_name is None:
-            self.firm_name = self.provider_id
+    @model_validator(mode="before")
+    @classmethod
+    def _sync_provider_and_firm(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            provider = data.get("provider_id")
+            firm = data.get("firm_name")
+            if firm and (not provider or provider == "UNKNOWN"):
+                data["provider_id"] = firm
+            elif provider and not firm:
+                data["firm_name"] = provider
+        return data
+
+    @property
+    def profile_version(self) -> str:
+        return self.version
+
+    @property
+    def fingerprint(self) -> str:
+        """Deterministic cryptographic fingerprint of all rule parameters."""
+        raw = (
+            f"{self.provider_id}:{self.version}:{self.evaluation_execution}:"
+            f"{self.funded_execution}:{self.payout_type}:{self.daily_loss_limit_pct}:"
+            f"{self.trailing_max_drawdown_pct}:{self.profit_target_pct}:"
+            f"{self.api_bot_policy}:{self.verification_status.value}:"
+            f"{sorted(self.country_eligibility)}"
+        )
+        return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+    def is_usable_for_exam(self, target_country: Optional[str] = None) -> Tuple[bool, List[str]]:
+        """Verify whether this profile has been verified and meets all paid-exam criteria."""
+        reasons = []
+        if self.verification_status != PropProfileVerificationStatus.VERIFIED:
+            reasons.append(f"Profile verification_status is {self.verification_status.value} (must be VERIFIED)")
+        if self.verified_at is None:
+            reasons.append("Profile verified_at timestamp is None")
+        if self.payout_type != "REAL":
+            reasons.append(f"payout_type is '{self.payout_type}' (must be REAL)")
+        if self.api_bot_policy != "ALLOWED":
+            reasons.append(f"api_bot_policy is '{self.api_bot_policy}' (must be ALLOWED for automated trading)")
+        if not self.country_eligibility:
+            reasons.append("country_eligibility is empty (no countries explicitly verified)")
+        elif target_country and target_country not in self.country_eligibility:
+            reasons.append(f"Target country '{target_country}' not in country_eligibility: {self.country_eligibility}")
+        return len(reasons) == 0, reasons
 
 
 class TradeSample(BaseModel):
@@ -247,7 +301,7 @@ class TradeSample(BaseModel):
 class PropExamMonteCarloSimulator:
     """
     Empirical path-dependent Monte Carlo simulator for prop evaluations and versioned 5-attempt kill switch.
-    Authoritative key: strategy_version + prop_rule_profile_version + provider (v1.4.1 Section 15).
+    Authoritative key: strategy_version + prop_rule_profile_version + provider (v1.4.1 Section 15, v1.4.2 Section 5).
     """
 
     def __init__(self):
@@ -273,10 +327,6 @@ class PropExamMonteCarloSimulator:
     ) -> bool:
         key = self._get_key(strategy_id, provider_id, strategy_version, profile_version)
         return key not in self._ineligible_combinations
-
-    def is_strategy_eligible(self, strategy_id: str, firm_name: str) -> bool:
-        """Backward-compatible check defaulting to v1.0."""
-        return self.is_combination_eligible(strategy_id, firm_name, "v1.0", "v1.0")
 
     def record_attempt_result(
         self,
@@ -327,18 +377,16 @@ class PropExamMonteCarloSimulator:
         provider_id = profile.provider_id or profile.firm_name or "UNKNOWN"
         profile_ver = profile.version or "v1.0"
 
-        # Check 5-attempt kill switch
-        if (
-            not self.is_combination_eligible(strategy_id, provider_id, strategy_version, profile_ver)
-            or not self.is_combination_eligible(strategy_id, provider_id, strategy_version, "v1.0")
-            or not self.is_strategy_eligible(strategy_id, provider_id)
-        ):
+        # Check 5-attempt kill switch ONLY for this exact key (v1.4.2 Section 5)
+        if not self.is_combination_eligible(strategy_id, provider_id, strategy_version, profile_ver):
             return {
                 "status": "BLOCKED",
                 "strategy_id": strategy_id,
                 "strategy_version": strategy_version,
                 "provider_id": provider_id,
                 "profile_version": profile_ver,
+                "attempt_blocked_by_history": True,
+                "eligible_for_paid_exam": False,
                 "is_eligible": False,
                 "pass_probability": 0.0,
                 "failure_probability": 1.0,
@@ -358,12 +406,38 @@ class PropExamMonteCarloSimulator:
                 "strategy_id": strategy_id,
                 "strategy_version": strategy_version,
                 "provider_id": provider_id,
+                "profile_version": profile_ver,
+                "rule_fingerprint": profile.fingerprint,
+                "attempt_blocked_by_history": False,
+                "eligible_for_paid_exam": False,
                 "is_eligible": False,
                 "pass_probability": 0.0,
                 "failure_probability": 0.0,
                 "reason": (
                     f"Insufficient empirical trade sample ({count} trades < 30 minimum). "
                     f"Gaussian IID fallback strictly forbidden."
+                ),
+                "simulations_run": 0,
+            }
+
+        # Check profile usability / verification (v1.4.2 Section 6)
+        usable, profile_unusable_reasons = profile.is_usable_for_exam()
+        if not usable:
+            return {
+                "status": "BLOCKED_UNVERIFIED_PROFILE",
+                "strategy_id": strategy_id,
+                "strategy_version": strategy_version,
+                "provider_id": provider_id,
+                "profile_version": profile_ver,
+                "rule_fingerprint": profile.fingerprint,
+                "attempt_blocked_by_history": False,
+                "eligible_for_paid_exam": False,
+                "is_eligible": False,
+                "pass_probability": 0.0,
+                "failure_probability": 0.0,
+                "reason": (
+                    f"Prop profile {provider_id} ({profile_ver}) is unverified or unusable for paid exam: "
+                    f"{'; '.join(profile_unusable_reasons)}."
                 ),
                 "simulations_run": 0,
             }
@@ -480,12 +554,21 @@ class PropExamMonteCarloSimulator:
         max_drawdowns.sort()
         final_equities.sort()
 
+        eligible_for_paid_exam = (
+            usable
+            and pass_prob >= 0.50
+            and exam_roi > 0.0
+        )
+
         return {
             "status": "COMPLETED",
             "strategy_id": strategy_id,
             "strategy_version": strategy_version,
             "provider_id": provider_id,
             "profile_version": profile_ver,
+            "rule_fingerprint": profile.fingerprint,
+            "attempt_blocked_by_history": False,
+            "eligible_for_paid_exam": eligible_for_paid_exam,
             "is_eligible": True,
             "pass_probability": pass_prob,
             "failure_probability": fail_prob,

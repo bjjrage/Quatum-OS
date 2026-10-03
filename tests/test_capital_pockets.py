@@ -7,6 +7,7 @@ from src.risk.capital_pockets import (
     ManualEvidenceObject,
     MultiAccountEvidenceGate,
     PropRuleProfile,
+    PropProfileVerificationStatus,
     TradeSample,
     PropExamMonteCarloSimulator,
     MultiAccountRiskAggregator,
@@ -162,6 +163,11 @@ def test_prop_monte_carlo_empirical_block_bootstrap_reproducible():
     profile = PropRuleProfile(
         provider_id="TopTierProp",
         version="v1.0",
+        verification_status=PropProfileVerificationStatus.VERIFIED,
+        verified_at="2026-01-01T00:00:00Z",
+        payout_type="REAL",
+        api_bot_policy="ALLOWED",
+        country_eligibility=["US"],
         daily_loss_limit_pct=0.04,
         trailing_max_drawdown_pct=0.08,
         profit_target_pct=0.08,
@@ -207,6 +213,39 @@ def test_prop_monte_carlo_empirical_block_bootstrap_reproducible():
     assert res1["failure_probability"] == res2["failure_probability"]
     assert "mean" in res1["max_drawdown_distribution"]
     assert "mean" in res1["final_equity_distribution"]
+
+
+def test_prop_monte_carlo_unverified_profile_blocked_when_sample_sufficient():
+    """Verify that an unverified profile fails closed even if empirical sample is sufficient (v1.4.2 Section 6)."""
+    simulator = PropExamMonteCarloSimulator()
+    profile_unverified = PropRuleProfile(
+        provider_id="TopTierProp",
+        version="v1.0",
+        daily_loss_limit_pct=0.04,
+        trailing_max_drawdown_pct=0.08,
+        profit_target_pct=0.08,
+        min_trading_days=5,
+    )
+    assert profile_unverified.verification_status == PropProfileVerificationStatus.PENDING
+
+    trades = [
+        TradeSample(
+            trade_id=f"trd-{i}",
+            timestamp_ns=1_000_000_000 * i,
+            net_return=0.01,
+            pnl_usd=100.0,
+            mfe_usd=200.0,
+            mae_usd=50.0,
+            holding_time_s=300.0,
+        )
+        for i in range(40)
+    ]
+
+    res = simulator.simulate("STR-002", profile_unverified, trades=trades)
+    assert res["status"] == "BLOCKED_UNVERIFIED_PROFILE"
+    assert res["eligible_for_paid_exam"] is False
+    assert res["attempt_blocked_by_history"] is False
+    assert "unverified or unusable" in res["reason"]
 
 
 def test_prop_5_attempt_kill_switch_version_keying():
