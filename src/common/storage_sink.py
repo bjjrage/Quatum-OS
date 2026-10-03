@@ -1,23 +1,27 @@
-"""Thread-safe and async-compatible Parquet storage sink with immutable part-append model."""
+"""Thread-safe and async-compatible Parquet storage sink with immutable part-append model and durable write confirmation."""
+from __future__ import annotations
+
 import asyncio
+import json
 import os
 import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple
+
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from .manifest import compute_sha256, PartitionManifest
 from .logger import setup_logger
+from .manifest import ManifestCorruptError, PartitionManifest, compute_sha256
 from .types import SCHEMAS
 
 logger = setup_logger("storage_sink")
 
 
 class StorageSink:
-    """Buffers rows in-memory and flushes immutable part-{ts}-{uuid}.parquet chunks."""
+    """Buffers rows in-memory, confirms durable writes before removal, and quarantines write failures."""
 
     def __init__(
         self,
@@ -35,18 +39,40 @@ class StorageSink:
         self.compression_level = compression_level
         self.manifest_enabled = manifest_enabled
         # Optional callback(path, sha256) invoked after a part is finalized; failures are ignored.
-        self.on_part_finalized = None
+        self.on_part_finalized: Optional[Callable[[Path, str], None]] = None
 
-        # Staging temp directory
+        # Staging temp directory and quarantine dead-letter directory
         self.tmp_dir = self.base_path / ".tmp"
         self.tmp_dir.mkdir(parents=True, exist_ok=True)
+        self.quarantine_dir = self.base_path / "quarantine"
+        self.quarantine_dir.mkdir(parents=True, exist_ok=True)
 
         # In-memory buffers: key is (venue, table_name) -> list of dicts
-        self._buffers: Dict[tuple[str, str], List[Dict[str, Any]]] = {}
-        self._buffer_start_ts: Dict[tuple[str, str], int] = {}
+        self._buffers: Dict[Tuple[str, str], List[Dict[str, Any]]] = {}
+        self._buffer_start_ts: Dict[Tuple[str, str], int] = {}
         self._lock = asyncio.Lock()
         self._running = False
         self._flush_task: Optional[asyncio.Task] = None
+
+        # Observable telemetry counters
+        self.events_received: int = 0
+        self.events_committed: int = 0
+        self.events_failed: int = 0
+        self.events_quarantined: int = 0
+        self.write_failures: int = 0
+        self.last_write_error: Optional[str] = None
+
+    def get_metrics(self) -> Dict[str, Any]:
+        """Return observable counters for health inspection and continuity reconciliation."""
+        return {
+            "events_received": self.events_received,
+            "events_committed": self.events_committed,
+            "events_failed": self.events_failed,
+            "events_quarantined": self.events_quarantined,
+            "write_failures": self.write_failures,
+            "last_write_error": self.last_write_error,
+            "buffered_events_count": sum(len(b) for b in self._buffers.values()),
+        }
 
     async def start(self) -> None:
         """Start periodic flushing background loop."""
@@ -70,6 +96,7 @@ class StorageSink:
         """Append a single row to buffer, flushing if row threshold is met."""
         key = (venue, table_name)
         async with self._lock:
+            self.events_received += 1
             if key not in self._buffers:
                 self._buffers[key] = []
                 self._buffer_start_ts[key] = time.time_ns()
@@ -84,6 +111,7 @@ class StorageSink:
             return
         key = (venue, table_name)
         async with self._lock:
+            self.events_received += len(rows)
             if key not in self._buffers:
                 self._buffers[key] = []
                 self._buffer_start_ts[key] = time.time_ns()
@@ -118,22 +146,38 @@ class StorageSink:
             return
 
         ts_start_ns = self._buffer_start_ts.get(key, time.time_ns())
-        self._buffers[key] = []
-        self._buffer_start_ts[key] = time.time_ns()
+        rows_to_write = list(rows)
 
         # Run disk IO in worker thread to prevent blocking asyncio event loop
         loop = asyncio.get_running_loop()
-        await loop.run_in_executor(None, self._write_chunk_sync, venue, table_name, rows, ts_start_ns)
+        success = await loop.run_in_executor(
+            None, self._write_chunk_sync, venue, table_name, rows_to_write, ts_start_ns
+        )
 
-    def _write_chunk_sync(self, venue: str, table_name: str, rows: List[Dict[str, Any]], ts_start_ns: int) -> None:
-        """Synchronous write of rows to an immutable Parquet part file."""
+        # Buffer is modified only after write attempt completes
+        # If success: remove written items
+        # If failure: rows were quarantined to dead-letter storage, so we remove from active buffer
+        # to prevent unbounded memory growth while keeping data safely persisted.
+        self._buffers[key] = self._buffers[key][len(rows_to_write):]
+        self._buffer_start_ts[key] = time.time_ns()
+
+    def _write_chunk_sync(self, venue: str, table_name: str, rows: List[Dict[str, Any]], ts_start_ns: int) -> bool:
+        """Synchronous write of rows to an immutable Parquet part file.
+        
+        Returns True on successful commit, False on write failure (rows quarantined).
+        """
         if not rows:
-            return
+            return True
 
         schema = SCHEMAS.get(table_name)
         if not schema:
-            logger.error(f"No PyArrow schema defined for table {table_name}. Skipping chunk.")
-            return
+            err_msg = f"No PyArrow schema defined for table {table_name}. Skipping chunk."
+            logger.error(err_msg)
+            self.write_failures += 1
+            self.events_failed += len(rows)
+            self.last_write_error = err_msg
+            self._quarantine_failed_chunk(venue, table_name, rows, ts_start_ns, ValueError(err_msg))
+            return False
 
         # Partition path calculation based on UTC timestamp
         now_utc = datetime.now(timezone.utc)
@@ -183,6 +227,7 @@ class StorageSink:
                     sha256_hash=sha256_hash,
                 )
 
+            self.events_committed += len(rows)
             logger.info(
                 f"Wrote immutable part: {venue}/{table_name} -> {filename} ({len(rows)} rows, {byte_size} bytes)"
             )
@@ -192,10 +237,51 @@ class StorageSink:
                     hook(dest_file, sha256_hash)
                 except Exception as hook_err:  # local capture must never depend on the control plane
                     logger.warning(f"on_part_finalized hook failed (ignored): {hook_err}")
+            return True
         except Exception as e:
+            self.write_failures += 1
+            self.events_failed += len(rows)
+            self.last_write_error = f"{type(e).__name__}: {str(e)}"
             logger.error(f"Failed to write parquet part for {venue}/{table_name}: {e}", exc_info=True)
             if tmp_file.exists():
                 try:
                     tmp_file.unlink()
                 except Exception:
                     pass
+            # Quarantine dead-letter: ensure data is never silently dropped
+            self._quarantine_failed_chunk(venue, table_name, rows, ts_start_ns, e)
+            return False
+
+    def _quarantine_failed_chunk(
+        self,
+        venue: str,
+        table_name: str,
+        rows: List[Dict[str, Any]],
+        ts_start_ns: int,
+        error: Exception,
+    ) -> None:
+        """Quarantine dead-letter dump for uncommitted rows."""
+        try:
+            target_dir = self.quarantine_dir / venue / f"table={table_name}"
+            target_dir.mkdir(parents=True, exist_ok=True)
+            part_uuid = uuid.uuid4().hex[:8]
+            q_file = target_dir / f"quarantine-{ts_start_ns}-{part_uuid}.json"
+            
+            payload = {
+                "venue": venue,
+                "table_name": table_name,
+                "ts_start_ns": ts_start_ns,
+                "quarantined_at_utc": datetime.now(timezone.utc).isoformat(),
+                "error_type": type(error).__name__,
+                "error_message": str(error),
+                "row_count": len(rows),
+                "rows": rows,
+            }
+            tmp_q = target_dir / f".tmp_q_{part_uuid}.tmp"
+            with open(tmp_q, "w", encoding="utf-8") as f:
+                json.dump(payload, f, indent=2, default=str)
+            os.replace(tmp_q, q_file)
+            self.events_quarantined += len(rows)
+            logger.warning(f"Quarantined {len(rows)} failed rows to dead-letter {q_file}")
+        except Exception as q_err:
+            logger.critical(f"FATAL: Failed to write quarantine dead-letter for {venue}/{table_name}: {q_err}", exc_info=True)
