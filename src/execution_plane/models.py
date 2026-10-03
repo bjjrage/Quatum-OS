@@ -319,6 +319,7 @@ class AccountSnapshot(BaseModel):
     positions: List[Dict[str, Any]] = Field(default_factory=list)
     open_orders: List[Dict[str, Any]] = Field(default_factory=list)
     timestamp_ns: Optional[int] = None
+    margin_asset: Optional[str] = None
     data_source: str = "UNAVAILABLE"
     status: str = "NOT_CONFIGURED"  # NOT_CONFIGURED | KNOWN | UNKNOWN | ERROR
 
