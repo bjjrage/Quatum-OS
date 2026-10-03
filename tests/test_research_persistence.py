@@ -5,12 +5,15 @@ import pytest
 from src.research import (
     ExperimentRecord,
     ExperimentRegistry,
+    RegistryIntegrityStatus,
+    ExperimentRegistryIntegrityError,
     ResearchParameterSet,
     ParameterSetStatus,
     compute_parameter_fingerprint,
     SealedHoldoutManager,
     HoldoutAuditRecord,
     HoldoutViolationError,
+    HoldoutAuditIntegrityError,
 )
 
 
@@ -135,3 +138,111 @@ def test_sealed_holdout_manager_prevents_retuning_and_logs_audit(tmp_path: Path)
     )
     assert record_bumped.strategy_version == "2.1.0"
     assert len(manager.list_audits_for_strategy("STR-002")) == 2
+
+
+def test_experiment_registry_corruption_fails_closed(tmp_path: Path):
+    """
+    CRITICAL REQUIREMENT (v1.4.2 Section 7):
+    If ANY experiment file is corrupted, the registry must:
+    - Set status to CORRUPTED / MANUAL_REPAIR_REQUIRED
+    - Raise ExperimentRegistryIntegrityError
+    - Refuse to return trial counts or record new experiments
+    - Preserve the corrupted file for forensics
+    """
+    exp_dir = tmp_path / "experiments"
+    exp_dir.mkdir(parents=True, exist_ok=True)
+
+    # 1. Write one valid record
+    rec_valid = ExperimentRecord(
+        experiment_id="exp_valid",
+        strategy_id="STR-002",
+        strategy_version="2.0.0",
+        parameters={"lookback": 20},
+    )
+    with open(exp_dir / "exp_valid.json", "w", encoding="utf-8") as f:
+        f.write(rec_valid.model_dump_json(indent=2))
+
+    # 2. Write one corrupted record
+    corrupt_file = exp_dir / "exp_corrupt.json"
+    corrupt_file.write_text("{\"corrupted_json\": [unclosed", encoding="utf-8")
+
+    # 3. Initializing registry must fail closed and raise ExperimentRegistryIntegrityError
+    with pytest.raises(ExperimentRegistryIntegrityError, match="corruption detected"):
+        ExperimentRegistry(storage_dir=exp_dir)
+
+    # 4. Verify corrupted file was NOT deleted or overwritten
+    assert corrupt_file.exists()
+    assert corrupt_file.read_text(encoding="utf-8") == "{\"corrupted_json\": [unclosed"
+
+    # 5. Quarantine log file was created
+    quarantine_file = exp_dir / "quarantine_integrity_log.json"
+    assert quarantine_file.exists()
+
+    # 6. Verify an instance marked corrupted refuses operations
+    reg = ExperimentRegistry.__new__(ExperimentRegistry)
+    reg.storage_dir = exp_dir
+    reg._experiments = {}
+    reg._strategy_trial_counts = {}
+    reg.status = RegistryIntegrityStatus.CORRUPTED
+    reg.quarantine_log = []
+
+    with pytest.raises(ExperimentRegistryIntegrityError, match="Cannot return trial count"):
+        reg.get_trial_count("STR-002")
+
+    with pytest.raises(ExperimentRegistryIntegrityError, match="Cannot record experiment"):
+        reg.record_experiment(rec_valid)
+
+
+def test_sealed_holdout_audit_corruption_fails_closed(tmp_path: Path):
+    """
+    CRITICAL REQUIREMENT (v1.4.2 Section 8):
+    If holdout audit file is corrupted, SealedHoldoutManager must:
+    - NOT initialize to an empty list
+    - Set status to corrupted and raise HoldoutAuditIntegrityError
+    - Lock holdout dataset against evaluations
+    - Preserve corrupted audit log for forensic inspection
+    """
+    audit_file = tmp_path / "holdout_audits.json"
+    manager_init = SealedHoldoutManager(audit_storage_path=audit_file)
+
+    # Record valid evaluation
+    manager_init.evaluate_holdout(
+        strategy_id="STR-002",
+        strategy_version="2.0.0",
+        git_sha="sha_valid",
+        parameter_set_fingerprint="fp_valid",
+        hypothesis_description="Initial evaluation",
+        holdout_dataset_bytes_or_hash="dataset_bytes",
+        metrics={"net_sharpe": 1.5},
+    )
+    assert audit_file.exists()
+
+    # Corrupt the audit file with invalid JSON garbage
+    corrupted_content = "CORRUPTED_NON_JSON_BYTES_X00XFF"
+    audit_file.write_text(corrupted_content, encoding="utf-8")
+
+    # Reopening manager must fail closed
+    with pytest.raises(HoldoutAuditIntegrityError, match="corrupted"):
+        SealedHoldoutManager(audit_storage_path=audit_file)
+
+    # Calling evaluate_holdout on compromised manager must fail closed
+    compromised_mgr = SealedHoldoutManager.__new__(SealedHoldoutManager)
+    compromised_mgr.audit_storage_path = audit_file
+    compromised_mgr._audits = []
+    compromised_mgr._is_corrupted = True
+    compromised_mgr._corruption_error = "Corrupted by attacker"
+
+    with pytest.raises(HoldoutAuditIntegrityError, match="Holdout dataset access is strictly locked"):
+        compromised_mgr.evaluate_holdout(
+            strategy_id="STR-002",
+            strategy_version="2.0.0",
+            git_sha="sha_exploit",
+            parameter_set_fingerprint="fp_exploit",
+            hypothesis_description="Attempted bypass",
+            holdout_dataset_bytes_or_hash="dataset_bytes",
+            metrics={"net_sharpe": 3.0},
+        )
+
+    # Corrupted file was preserved
+    assert audit_file.read_text(encoding="utf-8") == corrupted_content
+

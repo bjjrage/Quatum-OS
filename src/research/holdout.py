@@ -24,6 +24,11 @@ from typing import Dict, Any, List, Optional
 from pydantic import BaseModel, Field, ConfigDict
 
 
+class HoldoutAuditIntegrityError(RuntimeError):
+    """Raised when holdout audit log storage is corrupted, partial, or unverified."""
+    pass
+
+
 class HoldoutViolationError(Exception):
     """Raised when re-tuning or repeated uncommitted evaluation on sealed holdout occurs."""
     pass
@@ -31,7 +36,7 @@ class HoldoutViolationError(Exception):
 
 class HoldoutAuditRecord(BaseModel):
     """Immutable audit record generated whenever holdout data is opened."""
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
     audit_id: str
     opened_by: str
@@ -50,11 +55,14 @@ class SealedHoldoutManager:
     """
     Manages sealed holdout evaluation with immutable audit logging.
     Prevents p-hacking and multiple iterations on holdout data.
+    Fail-closed: Any corruption in the audit log locks the holdout dataset completely.
     """
 
     def __init__(self, audit_storage_path: Path = Path("data/research/holdout_audits.json")):
         self.audit_storage_path = Path(audit_storage_path)
         self._audits: List[HoldoutAuditRecord] = []
+        self._is_corrupted: bool = False
+        self._corruption_error: Optional[str] = None
         self._load_audits()
 
     def _load_audits(self) -> None:
@@ -62,11 +70,24 @@ class SealedHoldoutManager:
             try:
                 with open(self.audit_storage_path, "r", encoding="utf-8") as f:
                     data = json.load(f)
-                    self._audits = [HoldoutAuditRecord(**item) for item in data]
-            except Exception:
-                self._audits = []
+                if not isinstance(data, list):
+                    raise ValueError(f"Holdout audit file must contain a JSON list, got {type(data).__name__}")
+                self._audits = [HoldoutAuditRecord(**item) for item in data]
+            except Exception as e:
+                self._is_corrupted = True
+                self._corruption_error = str(e)
+                # Fail-closed: DO NOT initialize to empty list []
+                # DO NOT overwrite or delete the corrupted file
+                raise HoldoutAuditIntegrityError(
+                    f"Holdout audit storage at '{self.audit_storage_path}' is corrupted: {e}. "
+                    f"Holdout access is locked to prevent unverified re-evaluations."
+                ) from e
 
     def _persist_audits(self) -> None:
+        if self._is_corrupted:
+            raise HoldoutAuditIntegrityError(
+                f"Cannot persist audits: audit log at '{self.audit_storage_path}' is corrupted: {self._corruption_error}."
+            )
         self.audit_storage_path.parent.mkdir(parents=True, exist_ok=True)
         tmp_file = self.audit_storage_path.parent / f".tmp_{self.audit_storage_path.name}_{os.getpid()}"
         with open(tmp_file, "w", encoding="utf-8") as f:
@@ -91,6 +112,12 @@ class SealedHoldoutManager:
         Once a (strategy_id, strategy_version) combination has been evaluated on holdout,
         it is permanently SEALED. Further evaluation with new parameters is rejected.
         """
+        if self._is_corrupted:
+            raise HoldoutAuditIntegrityError(
+                f"Cannot evaluate holdout: audit log at '{self.audit_storage_path}' is corrupted: {self._corruption_error}. "
+                "Holdout dataset access is strictly locked."
+            )
+
         # Check if this strategy version was already tested on holdout
         for past_audit in self._audits:
             if (
@@ -132,4 +159,8 @@ class SealedHoldoutManager:
         return record
 
     def list_audits_for_strategy(self, strategy_id: str) -> List[HoldoutAuditRecord]:
+        if self._is_corrupted:
+            raise HoldoutAuditIntegrityError(
+                f"Cannot list audits: audit log at '{self.audit_storage_path}' is corrupted: {self._corruption_error}."
+            )
         return [a for a in self._audits if a.strategy_id == strategy_id]

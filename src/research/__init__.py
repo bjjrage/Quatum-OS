@@ -2,7 +2,12 @@
 from .pit_loader import PointInTimeDataLoader, SyntheticMarketGenerator
 from .features import FeatureEngine, BarAggregator
 from .events import EventDetector, PriceImpulseEvent
-from .experiments import ExperimentRecord, ExperimentRegistry
+from .experiments import (
+    ExperimentRecord,
+    ExperimentRegistry,
+    RegistryIntegrityStatus,
+    ExperimentRegistryIntegrityError,
+)
 from .parameters import (
     ResearchParameterSet,
     ParameterSetStatus,
@@ -12,6 +17,7 @@ from .holdout import (
     SealedHoldoutManager,
     HoldoutAuditRecord,
     HoldoutViolationError,
+    HoldoutAuditIntegrityError,
 )
 
 __all__ = [
@@ -23,10 +29,13 @@ __all__ = [
     "PriceImpulseEvent",
     "ExperimentRecord",
     "ExperimentRegistry",
+    "RegistryIntegrityStatus",
+    "ExperimentRegistryIntegrityError",
     "ResearchParameterSet",
     "ParameterSetStatus",
     "compute_parameter_fingerprint",
     "SealedHoldoutManager",
     "HoldoutAuditRecord",
     "HoldoutViolationError",
+    "HoldoutAuditIntegrityError",
 ]
