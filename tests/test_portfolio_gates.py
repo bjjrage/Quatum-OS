@@ -135,17 +135,25 @@ def test_correlation_capacity_gate():
 
 def test_all_gates_pass_orchestrator():
     """Verify all_gates_pass helper requires all gates to be PASS."""
-    passing_result = StrategyGateResult(
-        gate_name="Gate A",
-        status=GateStatus.PASS,
+    passing_result = StrategyGateResult.create_pass(
+        strategy_id="STR-001",
+        strategy_version="1.0.0",
+        gate_type="Gate A",
+        dataset_fingerprint="ds_test_fp",
+        config_fingerprint="cfg_test_fp",
+        criteria_evaluations={"passed": True},
         score=0.9,
         threshold=0.5,
     )
-    failing_result = StrategyGateResult(
-        gate_name="Gate B",
-        status=GateStatus.FAIL,
+    failing_result = StrategyGateResult.create_fail(
+        strategy_id="STR-001",
+        strategy_version="1.0.0",
+        gate_type="Gate B",
+        dataset_fingerprint="ds_test_fp",
+        config_fingerprint="cfg_test_fp",
         score=0.3,
         threshold=0.5,
+        reasons=["Failed decay"],
         falsification_evidence="Failed decay",
     )
 
@@ -153,11 +161,15 @@ def test_all_gates_pass_orchestrator():
     assert all_gates_pass({"A": passing_result, "B": failing_result}) is False
     assert all_gates_pass({}) is False
     # Test list input and PENDING status
-    pending_result = StrategyGateResult(
-        gate_name="Gate C",
-        status=GateStatus.PENDING,
+    pending_result = StrategyGateResult.create_pending(
+        strategy_id="STR-001",
+        strategy_version="1.0.0",
+        gate_type="Gate C",
+        dataset_fingerprint="ds_test_fp",
+        config_fingerprint="cfg_test_fp",
         score=0.0,
         threshold=0.5,
+        reasons=["Pending additional historical bars."],
     )
     assert all_gates_pass([passing_result]) is True
     assert all_gates_pass([passing_result, pending_result]) is False
@@ -171,15 +183,64 @@ def test_strategy_gate_result_audit_contract():
             strategy_id="STR-002",
             gate_type="LATENCY",
             status=GateStatus.PASS,
+            dataset_fingerprint="ds_fp",
+            config_fingerprint="cfg_fp",
+            criteria_evaluations={"passed": True},
             falsification_evidence="Failed half-life",
         )
 
-    # 2. Complete auditable record on FAIL
-    fail_res = StrategyGateResult(
+    # 2. Reject status=PASS with reasons
+    with pytest.raises(ValueError, match="cannot declare status=PASS with non-empty reasons"):
+        StrategyGateResult(
+            strategy_id="STR-002",
+            gate_type="LATENCY",
+            status=GateStatus.PASS,
+            dataset_fingerprint="ds_fp",
+            config_fingerprint="cfg_fp",
+            criteria_evaluations={"passed": True},
+            reasons=["Failed"],
+        )
+
+    # 3. Reject status=PASS with empty criteria_evaluations
+    with pytest.raises(ValueError, match="status=PASS requires non-empty criteria_evaluations"):
+        StrategyGateResult(
+            strategy_id="STR-002",
+            gate_type="LATENCY",
+            status=GateStatus.PASS,
+            dataset_fingerprint="ds_fp",
+            config_fingerprint="cfg_fp",
+            criteria_evaluations={},
+        )
+
+    # 4. Reject status=PASS with False criteria evaluation
+    with pytest.raises(ValueError, match="status=PASS cannot contain False criteria evaluations"):
+        StrategyGateResult(
+            strategy_id="STR-002",
+            gate_type="LATENCY",
+            status=GateStatus.PASS,
+            dataset_fingerprint="ds_fp",
+            config_fingerprint="cfg_fp",
+            criteria_evaluations={"dsr_significant": False},
+        )
+
+    # 5. Reject empty provenance
+    with pytest.raises(ValueError, match="Provenance violation"):
+        StrategyGateResult(
+            strategy_id="STR-002",
+            gate_type="LATENCY",
+            status=GateStatus.PASS,
+            dataset_fingerprint="",
+            config_fingerprint="cfg_fp",
+            criteria_evaluations={"passed": True},
+        )
+
+    # 6. Complete auditable record on FAIL
+    fail_res = StrategyGateResult.create_fail(
         strategy_id="STR-002",
         strategy_version="2.0.0",
         gate_type="LATENCY_SENSITIVITY",
-        status=GateStatus.FAIL,
+        dataset_fingerprint="ds_fp",
+        config_fingerprint="cfg_fp",
         metrics={"decay_at_5s": 0.25, "edge_half_life_s": 2.1},
         thresholds={"max_sharpe_drop_pct_at_5s": 0.50, "min_edge_half_life_s": 5.0},
         reasons=["Edge half-life 2.1s < 5.0s"],
@@ -187,6 +248,10 @@ def test_strategy_gate_result_audit_contract():
     assert fail_res.falsification_evidence == "Edge half-life 2.1s < 5.0s"
     assert len(fail_res.evaluated_at) > 0
     assert fail_res.metrics["decay_at_5s"] == 0.25
+
+    # 7. Immutability: mutation must raise
+    with pytest.raises(Exception):
+        fail_res.status = GateStatus.PASS
 
 
 def test_latency_gate_operational_stack_budget():

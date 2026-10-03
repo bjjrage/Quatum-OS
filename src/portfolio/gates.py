@@ -1,5 +1,5 @@
 """
-Portfolio Selection Gates (v1.4.1 Hardened).
+Portfolio Selection Gates (v1.4.2 Hardened & Fail-Closed).
 
 Implements four mandatory evidence gates before a strategy can be allocated capital or promoted:
 - Gate A: Latency Sensitivity Gate (replays backtest with delays: 0s, +1s, +5s, +30s; edge half-life; LATENCY_RACE detection; operational stack budget)
@@ -11,7 +11,8 @@ Governance Rules:
 1. All thresholds are explicitly configurable provisional research priors, not validated economic truths.
 2. Every evaluation produces a fully auditable StrategyGateResult with metrics, thresholds, fingerprints, and reasons.
 3. Insufficient data yields GateStatus.PENDING, never silent PASS.
-4. status=PASS cannot be instantiated if metrics fail thresholds or falsification evidence is present.
+4. status=PASS cannot be instantiated if metrics fail thresholds, criteria evaluations contain False or are empty, or falsification evidence is present.
+5. All gate artifacts and results are immutable (frozen=True, extra="forbid").
 """
 
 from __future__ import annotations
@@ -31,9 +32,24 @@ class GateStatus(str, Enum):
     PENDING = "PENDING"
 
 
+class StrategyGateEvidenceSnapshot(BaseModel):
+    """Immutable snapshot of evidence supporting a gate evaluation."""
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    gate_type: str
+    dataset_fingerprint: str
+    config_fingerprint: str
+    metrics: Dict[str, float] = Field(default_factory=dict)
+    thresholds: Dict[str, float] = Field(default_factory=dict)
+    criteria_evaluations: Dict[str, bool] = Field(default_factory=dict)
+    reasons: List[str] = Field(default_factory=list)
+    falsification_evidence: Optional[str] = None
+    captured_at: str = Field(default_factory=lambda: time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()))
+
+
 class StrategyGateResult(BaseModel):
-    """Complete auditable evaluation contract for all portfolio selection gates."""
-    model_config = ConfigDict(extra="allow")
+    """Complete auditable evaluation contract for all portfolio selection gates (v1.4.2 Fail-Closed)."""
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
     strategy_id: str = "DEFAULT"
     strategy_version: str = "1.0.0"
@@ -44,6 +60,7 @@ class StrategyGateResult(BaseModel):
     threshold: float = 0.0
     metrics: Dict[str, float] = Field(default_factory=dict)
     thresholds: Dict[str, float] = Field(default_factory=dict)
+    criteria_evaluations: Dict[str, bool] = Field(default_factory=dict)
     threshold_is_provisional: bool = True
     dataset_fingerprint: str = ""
     config_fingerprint: str = ""
@@ -57,29 +74,182 @@ class StrategyGateResult(BaseModel):
     def parameter_fingerprint(self) -> str:
         return self.config_fingerprint
 
+    @model_validator(mode="before")
+    @classmethod
+    def _validate_gate_contract(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
 
-    @model_validator(mode="after")
-    def _validate_gate_contract(self) -> "StrategyGateResult":
-        if not self.gate_name:
-            self.gate_name = self.gate_type
-        if not self.gate_type or self.gate_type == "UNKNOWN_GATE":
-            self.gate_type = self.gate_name or "UNKNOWN_GATE"
+        gate_type = data.get("gate_type") or data.get("gate_name") or "UNKNOWN_GATE"
+        gate_name = data.get("gate_name") or gate_type
+        data["gate_type"] = gate_type
+        data["gate_name"] = gate_name
 
-        if self.status == GateStatus.FAIL:
-            if not self.reasons and self.falsification_evidence:
-                self.reasons = [self.falsification_evidence]
-            elif not self.reasons:
-                self.reasons = [f"Failed gate {self.gate_type} threshold evaluation."]
-            if not self.falsification_evidence and self.reasons:
-                self.falsification_evidence = "; ".join(self.reasons)
+        status = data.get("status")
+        if isinstance(status, str):
+            status = GateStatus(status)
 
-        elif self.status == GateStatus.PASS:
-            if self.falsification_evidence:
+        ds_fp = data.get("dataset_fingerprint", "")
+        cfg_fp = data.get("config_fingerprint", "")
+        if not str(ds_fp).strip() or not str(cfg_fp).strip():
+            raise ValueError(
+                f"Provenance violation: dataset_fingerprint ('{ds_fp}') and config_fingerprint ('{cfg_fp}') "
+                "must be non-empty strings."
+            )
+
+        criteria = data.get("criteria_evaluations") or {}
+        reasons = list(data.get("reasons") or [])
+        falsification = data.get("falsification_evidence")
+
+        if status == GateStatus.PASS:
+            if falsification:
                 raise ValueError(
-                    f"Invalid StrategyGateResult: cannot declare status=PASS with falsification_evidence: {self.falsification_evidence}"
+                    f"Invalid StrategyGateResult: cannot declare status=PASS with falsification_evidence: {falsification}"
+                )
+            if reasons:
+                raise ValueError(
+                    f"Invalid StrategyGateResult: cannot declare status=PASS with non-empty reasons: {reasons}"
+                )
+            if not criteria:
+                raise ValueError(
+                    "Invalid StrategyGateResult: status=PASS requires non-empty criteria_evaluations mapping."
+                )
+            if any(val is False for val in criteria.values()):
+                failed_crit = [k for k, v in criteria.items() if v is False]
+                raise ValueError(
+                    f"Invalid StrategyGateResult: status=PASS cannot contain False criteria evaluations: {failed_crit}"
                 )
 
-        return self
+        elif status == GateStatus.FAIL:
+            if not reasons and falsification:
+                reasons = [falsification]
+                data["reasons"] = reasons
+            elif not reasons:
+                reasons = [f"Failed gate {gate_type} threshold evaluation."]
+                data["reasons"] = reasons
+            if not falsification and reasons:
+                data["falsification_evidence"] = "; ".join(reasons)
+
+        elif status == GateStatus.PENDING:
+            if falsification:
+                raise ValueError(
+                    f"Invalid StrategyGateResult: cannot declare status=PENDING with falsification_evidence: {falsification}"
+                )
+            if not reasons:
+                raise ValueError(
+                    "Invalid StrategyGateResult: status=PENDING requires non-empty reasons explaining pending evidence."
+                )
+
+        return data
+
+    @classmethod
+    def create_pass(
+        cls,
+        strategy_id: str,
+        gate_type: str,
+        dataset_fingerprint: str,
+        config_fingerprint: str,
+        criteria_evaluations: Dict[str, bool],
+        score: float = 1.0,
+        threshold: float = 0.5,
+        strategy_version: str = "1.0.0",
+        metrics: Optional[Dict[str, float]] = None,
+        thresholds: Optional[Dict[str, float]] = None,
+        experiment_ids: Optional[List[str]] = None,
+        diagnostics: Optional[Dict[str, Any]] = None,
+    ) -> StrategyGateResult:
+        return cls(
+            strategy_id=strategy_id,
+            strategy_version=strategy_version,
+            gate_type=gate_type,
+            status=GateStatus.PASS,
+            score=score,
+            threshold=threshold,
+            metrics=metrics or {},
+            thresholds=thresholds or {},
+            criteria_evaluations=criteria_evaluations,
+            dataset_fingerprint=dataset_fingerprint,
+            config_fingerprint=config_fingerprint,
+            experiment_ids=experiment_ids or [],
+            reasons=[],
+            falsification_evidence=None,
+            diagnostics=diagnostics or {},
+        )
+
+    @classmethod
+    def create_fail(
+        cls,
+        strategy_id: str,
+        gate_type: str,
+        dataset_fingerprint: str,
+        config_fingerprint: str,
+        score: float = 0.0,
+        threshold: float = 0.5,
+        strategy_version: str = "1.0.0",
+        metrics: Optional[Dict[str, float]] = None,
+        thresholds: Optional[Dict[str, float]] = None,
+        criteria_evaluations: Optional[Dict[str, bool]] = None,
+        reasons: Optional[List[str]] = None,
+        falsification_evidence: Optional[str] = None,
+        experiment_ids: Optional[List[str]] = None,
+        diagnostics: Optional[Dict[str, Any]] = None,
+    ) -> StrategyGateResult:
+        r = list(reasons or [])
+        f = falsification_evidence or ("; ".join(r) if r else f"Failed gate {gate_type}")
+        if not r:
+            r = [f]
+        return cls(
+            strategy_id=strategy_id,
+            strategy_version=strategy_version,
+            gate_type=gate_type,
+            status=GateStatus.FAIL,
+            score=score,
+            threshold=threshold,
+            metrics=metrics or {},
+            thresholds=thresholds or {},
+            criteria_evaluations=criteria_evaluations or {},
+            dataset_fingerprint=dataset_fingerprint,
+            config_fingerprint=config_fingerprint,
+            experiment_ids=experiment_ids or [],
+            reasons=r,
+            falsification_evidence=f,
+            diagnostics=diagnostics or {},
+        )
+
+    @classmethod
+    def create_pending(
+        cls,
+        strategy_id: str,
+        gate_type: str,
+        dataset_fingerprint: str,
+        config_fingerprint: str,
+        reasons: List[str],
+        score: float = 0.0,
+        threshold: float = 0.5,
+        strategy_version: str = "1.0.0",
+        metrics: Optional[Dict[str, float]] = None,
+        thresholds: Optional[Dict[str, float]] = None,
+        criteria_evaluations: Optional[Dict[str, bool]] = None,
+        experiment_ids: Optional[List[str]] = None,
+        diagnostics: Optional[Dict[str, Any]] = None,
+    ) -> StrategyGateResult:
+        return cls(
+            strategy_id=strategy_id,
+            strategy_version=strategy_version,
+            gate_type=gate_type,
+            status=GateStatus.PENDING,
+            score=score,
+            threshold=threshold,
+            metrics=metrics or {},
+            thresholds=thresholds or {},
+            criteria_evaluations=criteria_evaluations or {},
+            dataset_fingerprint=dataset_fingerprint,
+            config_fingerprint=config_fingerprint,
+            experiment_ids=experiment_ids or [],
+            reasons=reasons,
+            falsification_evidence=None,
+            diagnostics=diagnostics or {},
+        )
 
 
 def _inv_norm_cdf(p: float) -> float:
@@ -186,6 +356,9 @@ class LatencySensitivityGate:
         """Evaluate latency sensitivity across delay points."""
         gate_name = "Gate A: Latency Sensitivity"
         gate_type = "LATENCY_SENSITIVITY"
+        ds_fp = dataset_fingerprint or "ds_prov_unspecified"
+        cfg_fp = config_fingerprint or "cfg_prov_unspecified"
+
         p99_ms = observed_p99_latency_ms or self.observed_p99_latency_ms
         operational_latency_budget_s = (p99_ms / 1000.0) * self.latency_safety_margin_multiplier
         effective_min_half_life_s = max(self.min_edge_half_life_s, operational_latency_budget_s)
@@ -194,21 +367,20 @@ class LatencySensitivityGate:
         s5 = sharpes_by_delay.get(5.0)
 
         if s0 is None or s0 <= 0.0:
-            return StrategyGateResult(
+            evidence = "Strategy has no positive baseline Sharpe at 0s delay."
+            return StrategyGateResult.create_fail(
                 strategy_id=strategy_id,
                 strategy_version=strategy_version,
                 gate_type=gate_type,
-                gate_name=gate_name,
-                status=GateStatus.FAIL,
+                dataset_fingerprint=ds_fp,
+                config_fingerprint=cfg_fp,
                 score=0.0,
                 threshold=self.max_sharpe_drop_pct_at_5s,
                 metrics={"baseline_sharpe_0s": 0.0},
                 thresholds={"max_sharpe_drop_pct_at_5s": self.max_sharpe_drop_pct_at_5s},
-                dataset_fingerprint=dataset_fingerprint,
-                config_fingerprint=config_fingerprint,
-                experiment_ids=experiment_ids or [],
                 reasons=["Non-positive or missing 0s baseline Sharpe."],
-                falsification_evidence="Strategy has no positive baseline Sharpe at 0s delay.",
+                falsification_evidence=evidence,
+                experiment_ids=experiment_ids or [],
                 diagnostics={"sharpes_by_delay": sharpes_by_delay, "error": "Non-positive or missing 0s baseline Sharpe"},
             )
 
@@ -267,42 +439,46 @@ class LatencySensitivityGate:
             "min_edge_half_life_s": effective_min_half_life_s,
         }
 
+        criteria = {
+            "sharpe_drop_acceptable": sharpe_drop_at_5s <= self.max_sharpe_drop_pct_at_5s,
+            "half_life_sufficient": half_life_s >= effective_min_half_life_s,
+            "not_latency_race": not is_latency_race,
+        }
+
         if is_latency_race:
             evidence = (
                 f"Edge half-life ({half_life_s:.2f}s < {effective_min_half_life_s:.2f}s) or "
                 f"5s Sharpe drop ({sharpe_drop_at_5s:.1%} > {self.max_sharpe_drop_pct_at_5s:.1%}) "
                 f"violates robustness. Classified as LATENCY_RACE."
             )
-            return StrategyGateResult(
+            return StrategyGateResult.create_fail(
                 strategy_id=strategy_id,
                 strategy_version=strategy_version,
                 gate_type=gate_type,
-                gate_name=gate_name,
-                status=GateStatus.FAIL,
+                dataset_fingerprint=ds_fp,
+                config_fingerprint=cfg_fp,
                 score=decay_at_5s,
                 threshold=1.0 - self.max_sharpe_drop_pct_at_5s,
                 metrics=metrics,
                 thresholds=thresholds,
-                dataset_fingerprint=dataset_fingerprint,
-                config_fingerprint=config_fingerprint,
-                experiment_ids=experiment_ids or [],
+                criteria_evaluations=criteria,
                 reasons=[evidence],
                 falsification_evidence=evidence,
+                experiment_ids=experiment_ids or [],
                 diagnostics=diagnostics,
             )
 
-        return StrategyGateResult(
+        return StrategyGateResult.create_pass(
             strategy_id=strategy_id,
             strategy_version=strategy_version,
             gate_type=gate_type,
-            gate_name=gate_name,
-            status=GateStatus.PASS,
+            dataset_fingerprint=ds_fp,
+            config_fingerprint=cfg_fp,
+            criteria_evaluations=criteria,
             score=decay_at_5s,
             threshold=1.0 - self.max_sharpe_drop_pct_at_5s,
             metrics=metrics,
             thresholds=thresholds,
-            dataset_fingerprint=dataset_fingerprint,
-            config_fingerprint=config_fingerprint,
             experiment_ids=experiment_ids or [],
             diagnostics=diagnostics,
         )
@@ -354,25 +530,24 @@ class TemporalStabilityGate:
     ) -> StrategyGateResult:
         gate_name = "Gate B: Temporal Stability & Alpha Decay"
         gate_type = "TEMPORAL_STABILITY"
+        ds_fp = dataset_fingerprint or "ds_prov_unspecified"
+        cfg_fp = config_fingerprint or "cfg_prov_unspecified"
         n = len(returns)
 
         if n < self.rolling_window_periods * 2:
-            return StrategyGateResult(
+            return StrategyGateResult.create_pending(
                 strategy_id=strategy_id,
                 strategy_version=strategy_version,
                 gate_type=gate_type,
-                gate_name=gate_name,
-                status=GateStatus.PENDING,
+                dataset_fingerprint=ds_fp,
+                config_fingerprint=cfg_fp,
                 score=0.0,
                 threshold=self.min_decay_ratio,
                 metrics={"sample_size": float(n)},
                 thresholds={"min_decay_ratio": self.min_decay_ratio, "required_min_samples": float(self.rolling_window_periods * 2)},
-                dataset_fingerprint=dataset_fingerprint,
-                config_fingerprint=config_fingerprint,
                 experiment_ids=experiment_ids or [],
                 reasons=["Insufficient observation history for temporal stability split."],
                 diagnostics={"sample_size": n, "required_min": self.rolling_window_periods * 2},
-                falsification_evidence="Insufficient observation history for temporal stability split.",
             )
 
         mid = n // 2
@@ -424,6 +599,11 @@ class TemporalStabilityGate:
             "min_positive_rolling_pct": self.min_positive_rolling_pct,
         }
 
+        criteria = {
+            "decay_ratio_acceptable": not is_decaying,
+            "rolling_positive_acceptable": not is_unstable,
+        }
+
         if is_decaying or is_unstable:
             reasons = []
             if is_decaying:
@@ -432,36 +612,34 @@ class TemporalStabilityGate:
                 reasons.append(f"Positive rolling Sharpe fraction ({pct_positive:.1%} < {self.min_positive_rolling_pct:.1%}) fails consistency.")
             evidence = " ".join(reasons)
 
-            return StrategyGateResult(
+            return StrategyGateResult.create_fail(
                 strategy_id=strategy_id,
                 strategy_version=strategy_version,
                 gate_type=gate_type,
-                gate_name=gate_name,
-                status=GateStatus.FAIL,
+                dataset_fingerprint=ds_fp,
+                config_fingerprint=cfg_fp,
                 score=decay_ratio,
                 threshold=self.min_decay_ratio,
                 metrics=metrics,
                 thresholds=thresholds,
-                dataset_fingerprint=dataset_fingerprint,
-                config_fingerprint=config_fingerprint,
+                criteria_evaluations=criteria,
                 experiment_ids=experiment_ids or [],
                 reasons=reasons,
                 falsification_evidence=evidence,
                 diagnostics=diagnostics,
             )
 
-        return StrategyGateResult(
+        return StrategyGateResult.create_pass(
             strategy_id=strategy_id,
             strategy_version=strategy_version,
             gate_type=gate_type,
-            gate_name=gate_name,
-            status=GateStatus.PASS,
+            dataset_fingerprint=ds_fp,
+            config_fingerprint=cfg_fp,
+            criteria_evaluations=criteria,
             score=decay_ratio,
             threshold=self.min_decay_ratio,
             metrics=metrics,
             thresholds=thresholds,
-            dataset_fingerprint=dataset_fingerprint,
-            config_fingerprint=config_fingerprint,
             experiment_ids=experiment_ids or [],
             diagnostics=diagnostics,
         )
@@ -538,6 +716,8 @@ class MultipleSelectionGate:
     ) -> StrategyGateResult:
         gate_name = "Gate C: Multiple Selection Correction"
         gate_type = "MULTIPLE_SELECTION"
+        ds_fp = dataset_fingerprint or "ds_prov_unspecified"
+        cfg_fp = config_fingerprint or "cfg_prov_unspecified"
 
         if trial_count < 1:
             trial_count = 1
@@ -571,41 +751,44 @@ class MultipleSelectionGate:
             "max_adjusted_pvalue": self.max_adjusted_pvalue,
         }
 
+        criteria = {
+            "dsr_significant": dsr >= self.min_dsr,
+            "adjusted_pvalue_acceptable": p_val <= self.max_adjusted_pvalue,
+        }
+
         if dsr < self.min_dsr or p_val > self.max_adjusted_pvalue:
             reasons = [
                 f"Deflated Sharpe Ratio ({dsr:.3f} < {self.min_dsr:.3f}) fails multiple testing correction "
                 f"after {trial_count} historical trials (expected null max: {e_max:.2f})."
             ]
-            return StrategyGateResult(
+            return StrategyGateResult.create_fail(
                 strategy_id=strategy_id,
                 strategy_version=strategy_version,
                 gate_type=gate_type,
-                gate_name=gate_name,
-                status=GateStatus.FAIL,
+                dataset_fingerprint=ds_fp,
+                config_fingerprint=cfg_fp,
                 score=dsr,
                 threshold=self.min_dsr,
                 metrics=metrics,
                 thresholds=thresholds,
-                dataset_fingerprint=dataset_fingerprint,
-                config_fingerprint=config_fingerprint,
+                criteria_evaluations=criteria,
                 experiment_ids=experiment_ids or [],
                 reasons=reasons,
                 falsification_evidence=reasons[0],
                 diagnostics=diagnostics,
             )
 
-        return StrategyGateResult(
+        return StrategyGateResult.create_pass(
             strategy_id=strategy_id,
             strategy_version=strategy_version,
             gate_type=gate_type,
-            gate_name=gate_name,
-            status=GateStatus.PASS,
+            dataset_fingerprint=ds_fp,
+            config_fingerprint=cfg_fp,
+            criteria_evaluations=criteria,
             score=dsr,
             threshold=self.min_dsr,
             metrics=metrics,
             thresholds=thresholds,
-            dataset_fingerprint=dataset_fingerprint,
-            config_fingerprint=config_fingerprint,
             experiment_ids=experiment_ids or [],
             diagnostics=diagnostics,
         )
@@ -660,6 +843,8 @@ class CorrelationCapacityGate:
     ) -> StrategyGateResult:
         gate_name = "Gate D: Correlation & Capacity"
         gate_type = "CORRELATION_CAPACITY"
+        ds_fp = dataset_fingerprint or "ds_prov_unspecified"
+        cfg_fp = config_fingerprint or "cfg_prov_unspecified"
 
         capacity_usd = avg_5m_volume_usd * self.max_capacity_pct
         capacity_exceeded = proposed_allocation_usd > capacity_usd
@@ -740,37 +925,41 @@ class CorrelationCapacityGate:
                 f"Stress correlation ({max_stress_found:.2f}) breaches threshold ({self.max_stress_corr:.2f})."
             )
 
+        criteria = {
+            "capacity_within_limit": not capacity_exceeded,
+            "normal_correlation_acceptable": not corr_breach_normal,
+            "stress_correlation_acceptable": not corr_breach_stress,
+        }
+
         if failures:
-            return StrategyGateResult(
+            return StrategyGateResult.create_fail(
                 strategy_id=strategy_id,
                 strategy_version=strategy_version,
                 gate_type=gate_type,
-                gate_name=gate_name,
-                status=GateStatus.FAIL,
+                dataset_fingerprint=ds_fp,
+                config_fingerprint=cfg_fp,
                 score=max_norm_found,
                 threshold=self.max_normal_corr,
                 metrics=metrics,
                 thresholds=thresholds,
-                dataset_fingerprint=dataset_fingerprint,
-                config_fingerprint=config_fingerprint,
+                criteria_evaluations=criteria,
                 experiment_ids=experiment_ids or [],
                 reasons=failures,
                 falsification_evidence=" ".join(failures),
                 diagnostics=diagnostics,
             )
 
-        return StrategyGateResult(
+        return StrategyGateResult.create_pass(
             strategy_id=strategy_id,
             strategy_version=strategy_version,
             gate_type=gate_type,
-            gate_name=gate_name,
-            status=GateStatus.PASS,
+            dataset_fingerprint=ds_fp,
+            config_fingerprint=cfg_fp,
+            criteria_evaluations=criteria,
             score=max_norm_found,
             threshold=self.max_normal_corr,
             metrics=metrics,
             thresholds=thresholds,
-            dataset_fingerprint=dataset_fingerprint,
-            config_fingerprint=config_fingerprint,
             experiment_ids=experiment_ids or [],
             diagnostics=diagnostics,
         )

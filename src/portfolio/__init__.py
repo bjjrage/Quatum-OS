@@ -7,6 +7,7 @@ from src.portfolio.allocator import (
 )
 from src.portfolio.gates import (
     GateStatus,
+    StrategyGateEvidenceSnapshot,
     StrategyGateResult,
     LatencySensitivityGate,
     TemporalStabilityGate,
@@ -21,6 +22,7 @@ __all__ = [
     "AllocationBudget",
     "PortfolioAllocator",
     "GateStatus",
+    "StrategyGateEvidenceSnapshot",
     "StrategyGateResult",
     "LatencySensitivityGate",
     "TemporalStabilityGate",
