@@ -86,8 +86,8 @@ def test_rule_evidence_provenance_defaults():
         assert rule.strategy_id == "STR-002"
 
 
-def test_experiment_registry_trial_counting_and_deletion_prevention():
-    exp_reg = ExperimentRegistry()
+def test_experiment_registry_trial_counting_and_deletion_prevention(tmp_path):
+    exp_reg = ExperimentRegistry(storage_dir=tmp_path / "experiments")
 
     # Record 3 experiments for STR-002
     for i in range(3):
