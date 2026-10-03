@@ -335,6 +335,7 @@ def test_evidence_gated_lifecycle_transitions():
         family="MOMENTUM",
         origin=StrategyOrigin.ML,
         stage=StrategyStage.VALIDATION,
+        counterparty_thesis=thesis,
     )
     registry.register(spec_validation)
     with pytest.raises(InvalidStageTransitionError):
@@ -421,3 +422,79 @@ def test_strategy_not_found_raises():
     registry = StrategyRegistry()
     with pytest.raises(StrategyNotFoundError):
         registry.get("STR-NONEXISTENT")
+
+
+def test_strategy_spec_and_thesis_forbid_extra_fields():
+    """Verify ConfigDict(extra='forbid') prevents typo fields from silently being ignored."""
+    from pydantic import ValidationError
+    from src.strategies.models import StrategyParameterSet
+
+    # Extra field on StrategySpec
+    with pytest.raises(ValidationError):
+        StrategySpec(
+            strategy_id="STR-TYPO",
+            name="Typo Strategy",
+            family="MOMENTUM",
+            origin=StrategyOrigin.QUANT,
+            typo_attribute="illegal_value",
+        )
+
+    # Extra field on CounterpartyThesis
+    with pytest.raises(ValidationError):
+        CounterpartyThesis(
+            counterparty_type="Arbitrageur",
+            economic_mechanism="Friction",
+            why_trade_now="Urgency",
+            why_impact_may_be_transient="Reversion",
+            why_it_may_be_information="News",
+            falsification_conditions=["Adverse selection"],
+            unknown_extra_field=123,
+        )
+
+    # Typed StrategyParameterSet validation
+    params = StrategyParameterSet(
+        parameter_set_id="params_v1",
+        family="MOMENTUM",
+        parameters={"lookback": 50, "threshold": 2.5},
+    )
+    spec = StrategySpec(
+        strategy_id="STR-TYPED-01",
+        name="Typed Params Test",
+        family="MOMENTUM",
+        origin=StrategyOrigin.QUANT,
+        parameters=params,
+    )
+    assert spec.parameters.parameters["lookback"] == 50
+
+
+def test_registry_registration_governance_invariants():
+    """Verify that StrategyRegistry.register strictly rejects illegal specs."""
+    registry = StrategyRegistry()
+
+    # 1. Reject non-StrategySpec
+    with pytest.raises(TypeError, match="Expected StrategySpec"):
+        registry.register({"not": "a spec"})
+
+    # 2. Reject registering directly as ACTIVE without economic edge validation
+    spec_active_unvalidated = StrategySpec(
+        strategy_id="STR-ILLEGAL-ACTIVE",
+        name="Illegal Active",
+        family="MOMENTUM",
+        origin=StrategyOrigin.QUANT,
+        stage=StrategyStage.ACTIVE,
+        economic_edge_validated=False,
+    )
+    with pytest.raises(ValueError, match="economic_edge_validated is False"):
+        registry.register(spec_active_unvalidated)
+
+    # 3. Reject registering past RESEARCH stage without CounterpartyThesis
+    spec_val_no_thesis = StrategySpec(
+        strategy_id="STR-NO-THESIS",
+        name="No Thesis",
+        family="MOMENTUM",
+        origin=StrategyOrigin.QUANT,
+        stage=StrategyStage.VALIDATION,
+        counterparty_thesis=None,
+    )
+    with pytest.raises(ValueError, match="without a complete CounterpartyThesis"):
+        registry.register(spec_val_no_thesis)

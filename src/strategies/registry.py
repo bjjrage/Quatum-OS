@@ -51,11 +51,32 @@ class StrategyRegistry:
 
         Raises:
             DuplicateStrategyError: If a strategy with the same ID already exists.
+            ValueError: If spec violates lifecycle governance or registration invariants.
         """
+        if not isinstance(spec, StrategySpec):
+            raise TypeError(f"Expected StrategySpec instance, got {type(spec).__name__}")
+
         if spec.strategy_id in self._strategies:
             raise DuplicateStrategyError(
                 f"Strategy with ID '{spec.strategy_id}' is already registered."
             )
+
+        # Invariant: registering as ACTIVE or SMALL_LIVE without validated economic edge is rejected
+        if spec.stage in (StrategyStage.ACTIVE, StrategyStage.SMALL_LIVE):
+            if not spec.economic_edge_validated:
+                raise ValueError(
+                    f"Cannot register strategy '{spec.strategy_id}' as {spec.stage.value}: "
+                    "economic_edge_validated is False. Promotion requires passing portfolio evidence gates."
+                )
+
+        # Invariant: registering past RESEARCH stage requires complete CounterpartyThesis
+        if spec.stage not in (StrategyStage.IDEA, StrategyStage.RESEARCH):
+            if spec.counterparty_thesis is None or not spec.counterparty_thesis.is_complete_for_validation():
+                raise ValueError(
+                    f"Cannot register strategy '{spec.strategy_id}' in stage {spec.stage.value} "
+                    "without a complete CounterpartyThesis including falsification conditions."
+                )
+
         self._strategies[spec.strategy_id] = spec
 
     def get(self, strategy_id: str) -> StrategySpec:

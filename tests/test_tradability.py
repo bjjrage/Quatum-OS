@@ -99,3 +99,30 @@ def test_tradability_policy_tier_5_hard_rejections():
     assert s_manifest.tier == TradabilityTier.TIER_5_UNTRADABLE
     assert s_manifest.tradable is False
     assert any("manifest" in r.lower() for r in s_manifest.rejection_reasons)
+
+
+def test_tradability_tier_5_marginal_tradable_limits():
+    """Verify Tier 5 is tradable=True with strict position cap and limit-only execution."""
+    policy = LiquidityTierPolicy(
+        max_spread_bps=15.0,
+        min_depth_0_5pct_usd=25_000.0,
+        min_volume_5m_usd=100_000.0,
+        tier5_max_position_usd=5_000.0,
+    )
+
+    # Instrument with marginal spread (14.0 bps, <= 15.0) and modest depth/volume (Tier 5)
+    score_t5 = policy.evaluate(
+        symbol="MARGINAL_ALT",
+        timestamp_ns=1700000000_000000000,
+        spread_bps=14.0,
+        depth_0_5pct_usd=28_000.0,
+        volume_5m_usd=120_000.0,
+        clock_sync_offset_ms=10.0,
+        manifest_valid=True,
+    )
+
+    assert score_t5.tier == TradabilityTier.TIER_5_SMALL_TRADABLE
+    assert score_t5.tradable is True
+    assert score_t5.max_position_usd == 5_000.0
+    assert score_t5.limit_orders_only is True
+    assert len(score_t5.rejection_reasons) == 0

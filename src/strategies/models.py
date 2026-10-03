@@ -11,7 +11,7 @@ Core Governance Rules:
 from enum import Enum
 import time
 from typing import Dict, Any, List, Optional, Set
-from pydantic import BaseModel, Field, computed_field, model_validator
+from pydantic import BaseModel, Field, ConfigDict, computed_field, model_validator
 
 
 class StrategyOrigin(str, Enum):
@@ -81,6 +81,8 @@ class CounterpartyThesis(BaseModel):
     - WHEN WOULD IT INSTEAD REPRESENT PERSISTENT INFORMATION?
     - WHAT WOULD FALSIFY THIS THESIS?
     """
+    model_config = ConfigDict(extra="forbid")
+
     counterparty_type: str = Field(..., description="Who is paying us? (e.g. Urgent liquidity demander, hedger, segmented arbitrageur)")
     economic_mechanism: str = Field(..., description="Why are they paying us? (e.g. Inventory imbalance, forced liquidation, structural barrier)")
     why_trade_now: str = Field(..., description="Why can't or won't they wait? (e.g. Stop cascade, margin call, time constraint)")
@@ -116,6 +118,8 @@ class StrategyRuleEvidenceStatus(str, Enum):
 
 class StrategyRuleEvidence(BaseModel):
     """Evidence provenance tracking for an individual heuristic or rule."""
+    model_config = ConfigDict(extra="forbid")
+
     rule_id: str
     strategy_id: str
     description: str
@@ -125,6 +129,39 @@ class StrategyRuleEvidence(BaseModel):
     first_proposed_at: str = Field(default_factory=lambda: time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()))
     last_validated_at: Optional[str] = None
     notes: str = ""
+
+
+class StrategyParameterSet(BaseModel):
+    """Typed parameter configuration container for strategy families."""
+    model_config = ConfigDict(extra="forbid")
+
+    parameter_set_id: str = "DEFAULT"
+    family: str = "CUSTOM"
+    parameters: Dict[str, Any] = Field(default_factory=dict)
+    version: str = "1.0.0"
+
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce_dict(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            known = {"parameter_set_id", "family", "parameters", "version"}
+            if not any(k in data for k in known):
+                return {"parameters": data}
+            elif "parameters" not in data:
+                extra_params = {k: v for k, v in data.items() if k not in known}
+                cleaned = {k: v for k, v in data.items() if k in known}
+                cleaned["parameters"] = extra_params
+                return cleaned
+        return data
+
+    def __getitem__(self, item: str) -> Any:
+        return self.parameters[item]
+
+    def get(self, item: str, default: Any = None) -> Any:
+        return self.parameters.get(item, default)
+
+    def __contains__(self, item: str) -> bool:
+        return item in self.parameters
 
 
 # Deterministic lifecycle stage transition graph
@@ -183,6 +220,8 @@ class StrategySpec(BaseModel):
     Contains metadata, origin, lifecycle stage, counterparty thesis, rule evidence,
     and empirical validation flags. No execution authority is granted by this specification.
     """
+    model_config = ConfigDict(extra="forbid")
+
     strategy_id: str = Field(..., description="Unique strategy identifier (e.g. STR-001)")
     name: str = Field(..., description="Descriptive human-readable strategy name")
     family: str = Field(..., description="Strategy family classification")
@@ -196,6 +235,10 @@ class StrategySpec(BaseModel):
     rules_evidence: List[StrategyRuleEvidence] = Field(
         default_factory=list,
         description="Evidence provenance for individual rules"
+    )
+    parameters: Optional[StrategyParameterSet] = Field(
+        default=None,
+        description="Typed parameter configuration container"
     )
     trial_count: int = Field(
         default=0,
