@@ -60,21 +60,34 @@ def evaluate_duration_gate(
     gate_name: str,
     elapsed_seconds: float,
     metrics_pass: bool,
+    effective_data_span_seconds: Optional[float] = None,
+    is_process_alive: Optional[bool] = None,
+    total_row_count: Optional[int] = None,
+    min_row_count: Optional[int] = None,
     reasons: Optional[List[str]] = None,
 ) -> GateEvaluationResult:
-    """Strict evaluation of an acceptance gate enforcing duration requirements.
+    """Strict evaluation of an acceptance gate enforcing duration, data span, and liveness requirements.
     
     If elapsed_seconds is less than required, the gate status is strictly PENDING
     regardless of metric values.
+    If elapsed_seconds >= required, it requires:
+    - metrics_pass == True
+    - is_process_alive is True (if specified)
+    - effective_data_span_seconds >= required (if specified)
+    - total_row_count >= min_row_count (if specified)
     """
     reasons_list = list(reasons or [])
     
     if gate_name == "24h":
         required = MIN_24H_SECONDS
+        default_min_rows = 5_000
     elif gate_name == "72h":
         required = MIN_72H_SECONDS
+        default_min_rows = 15_000
     else:
         raise ValueError(f"Unknown gate name: {gate_name}")
+
+    threshold_rows = min_row_count if min_row_count is not None else default_min_rows
 
     if elapsed_seconds < required:
         reasons_list.append(
@@ -89,15 +102,32 @@ def evaluate_duration_gate(
             reasons=reasons_list,
         )
 
-    # Required time has elapsed: evaluate metrics
-    if metrics_pass:
+    # Required wall-clock time has elapsed: evaluate fail-closed integrity constraints
+    disqualifications: List[str] = []
+    if is_process_alive is False:
+        disqualifications.append("Recorder process is not alive (dead or terminated PID).")
+
+    if effective_data_span_seconds is not None and effective_data_span_seconds < required:
+        disqualifications.append(
+            f"Effective data span ({effective_data_span_seconds:.1f}s) does not meet required duration ({required:.1f}s)."
+        )
+
+    if total_row_count is not None and total_row_count < threshold_rows:
+        disqualifications.append(
+            f"Insufficient data volume: {total_row_count} rows recorded < minimum required {threshold_rows}."
+        )
+
+    if not metrics_pass:
+        disqualifications.extend(reasons_list)
+
+    if not disqualifications:
         return GateEvaluationResult(
             gate_name=gate_name,
             status="PASS",
             elapsed_seconds=elapsed_seconds,
             required_seconds=required,
             passed=True,
-            reasons=["All gate criteria and duration requirements successfully satisfied."],
+            reasons=["All gate criteria, continuous span, process liveness, and duration requirements successfully satisfied."],
         )
     else:
         return GateEvaluationResult(
@@ -106,7 +136,7 @@ def evaluate_duration_gate(
             elapsed_seconds=elapsed_seconds,
             required_seconds=required,
             passed=False,
-            reasons=reasons_list,
+            reasons=disqualifications,
         )
 
 

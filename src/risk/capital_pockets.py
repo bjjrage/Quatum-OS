@@ -666,16 +666,16 @@ class MultiAccountRiskAggregator:
         return strat_gross
 
     def aggregate_cluster_exposures(self) -> Dict[str, float]:
-        """Aggregate gross notional exposure per EventCluster across ALL accounts."""
-        agg_pos = self.aggregate_positions()
+        """Aggregate gross notional exposure per EventCluster across ALL accounts without cross-account netting."""
         cluster_gross: Dict[str, float] = {}
 
         for cluster_id, cluster in self.event_clusters.items():
             gross = 0.0
             for sym, weight in cluster.member_weights.items():
-                qty = agg_pos.get(sym, 0.0)
                 price = self.mark_prices.get(sym, 0.0)
-                gross += abs(qty * weight) * price
+                for acc_pos in self.positions_by_account.values():
+                    qty = acc_pos.get(sym, 0.0)
+                    gross += abs(qty * weight) * price
             cluster_gross[cluster_id] = gross
 
         return cluster_gross
@@ -687,14 +687,25 @@ class MultiAccountRiskAggregator:
             (is_approved, violation_reason, metrics)
         """
         agg_equity = self.total_aggregate_equity()
-        if agg_equity <= 0.0:
-            return False, "Total aggregate portfolio equity is non-positive.", {}
+        if agg_equity <= 0.0 or not math.isfinite(agg_equity):
+            return False, "Total aggregate portfolio equity is non-positive or invalid.", {}
 
-        agg_pos = self.aggregate_positions()
-        gross_notional = sum(abs(qty) * self.mark_prices.get(sym, 0.0) for sym, qty in agg_pos.items())
+        # 0. Fail-closed mark price validation for any open position
+        for acc_id, acc_pos in self.positions_by_account.items():
+            for sym, qty in acc_pos.items():
+                if abs(qty) > 1e-9:
+                    p = self.mark_prices.get(sym)
+                    if p is None or not math.isfinite(p) or p <= 0.0:
+                        reason = f"Missing or invalid mark price for open position in '{sym}' (account '{acc_id}')."
+                        return False, reason, {}
+
+        # 1. Global gross leverage check (sum gross notionals across ALL accounts WITHOUT netting)
+        gross_notional = sum(
+            sum(abs(qty) * self.mark_prices.get(sym, 0.0) for sym, qty in acc_pos.items())
+            for acc_pos in self.positions_by_account.values()
+        )
         gross_leverage = gross_notional / agg_equity
 
-        # 1. Global gross leverage check
         if gross_leverage > self.max_global_gross_leverage:
             reason = (
                 f"Global gross leverage ({gross_leverage:.2f}x) breaches ceiling "
@@ -704,9 +715,14 @@ class MultiAccountRiskAggregator:
                 p.freeze(reason)
             return False, reason, {"gross_leverage": gross_leverage, "gross_notional": gross_notional}
 
-        # 2. Single asset concentration check
-        for sym, qty in agg_pos.items():
-            sym_notional = abs(qty) * self.mark_prices.get(sym, 0.0)
+        # 2. Single asset gross concentration check across accounts
+        single_asset_gross: Dict[str, float] = {}
+        for acc_pos in self.positions_by_account.values():
+            for sym, qty in acc_pos.items():
+                price = self.mark_prices.get(sym, 0.0)
+                single_asset_gross[sym] = single_asset_gross.get(sym, 0.0) + (abs(qty) * price)
+
+        for sym, sym_notional in single_asset_gross.items():
             sym_pct = sym_notional / agg_equity
             if sym_pct > self.max_global_single_asset_pct:
                 reason = (
@@ -744,9 +760,55 @@ class MultiAccountRiskAggregator:
                     p.freeze(reason)
                 return False, reason, {"breached_cluster": cluster_id, "cluster_notional": cluster_notional}
 
+        # 5. Global Drawdown Circuit Breaker
+        total_peak = sum(p.peak_equity_usd for p in self.pockets.values())
+        if total_peak > 0.0:
+            global_dd = max(0.0, (total_peak - agg_equity) / total_peak)
+            if global_dd >= self.max_global_drawdown_pct:
+                reason = (
+                    f"Global aggregate portfolio drawdown ({global_dd*100:.2f}%) exceeds hard ceiling "
+                    f"({self.max_global_drawdown_pct*100:.2f}%). ALL accounts frozen."
+                )
+                for p in self.pockets.values():
+                    p.freeze(reason)
+                return False, reason, {"global_drawdown_pct": global_dd}
+
         return True, None, {
             "gross_leverage": gross_leverage,
             "gross_notional": gross_notional,
             "strategy_exposures": strat_exposures,
             "cluster_exposures": cluster_exposures,
         }
+
+    def evaluate_pocket_order(
+        self,
+        pocket_id: str,
+        symbol: str,
+        side: str,
+        quantity: float,
+        price: float,
+    ) -> Tuple[bool, Optional[str]]:
+        """Evaluate whether a proposed order can be placed on a specific pocket."""
+        pocket = self.pockets.get(pocket_id)
+        if not pocket:
+            return False, f"Pocket '{pocket_id}' not found."
+
+        if not isinstance(quantity, (int, float)) or not math.isfinite(quantity) or quantity <= 0:
+            return False, f"Invalid quantity: {quantity}"
+        if not isinstance(price, (int, float)) or not math.isfinite(price) or price <= 0:
+            return False, f"Invalid price: {price}"
+        side_norm = side.upper() if isinstance(side, str) else ""
+        if side_norm not in ("BUY", "SELL"):
+            return False, f"Invalid order side: {side}"
+
+        curr_qty = self.positions_by_account.get(pocket.account_id, {}).get(symbol, 0.0)
+        side_sign = 1.0 if side_norm == "BUY" else -1.0
+        delta_qty = side_sign * quantity
+        new_qty = curr_qty + delta_qty
+        is_risk_reducing = (curr_qty > 0 and delta_qty < 0 and new_qty >= 0) or \
+                           (curr_qty < 0 and delta_qty > 0 and new_qty <= 0)
+
+        if pocket.is_frozen and not is_risk_reducing:
+            return False, f"Pocket '{pocket_id}' is frozen: {pocket.freeze_reason}"
+
+        return True, None

@@ -331,6 +331,7 @@ def test_full_governance_lifecycle_end_to_end():
             venue=intent.venue,
             current_time_ns=t0,
             current_bbo=client_bbo,
+            permit=paper_decision,
         )
 
         # INVARIANT: Market order does NOT fill using stale T0 quote!

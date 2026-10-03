@@ -399,7 +399,7 @@ def test_attack_19_strategy_cannot_relax_risk_hard_stop():
 
 # Vector 20: Delayed market order fills using stale T0 BBO
 def test_attack_20_delayed_market_order_does_not_fill_stale_t0_quote():
-    broker = PaperBroker(initial_cash_usd=100_000.0, simulated_latency_ms=20.0)
+    broker = PaperBroker(initial_cash_usd=100_000.0, simulated_latency_ms=20.0, enforce_risk_permit=False)
     t0 = 1_000_000_000
     stale_bbo = {"best_bid": 60_000.0, "best_ask": 60_010.0, "ask_size": 2.0, "bid_size": 2.0}
 

@@ -100,6 +100,7 @@ class PaperBroker:
         maker_fee_bps: float = 1.0,
         taker_fee_bps: float = 5.0,
         base_slippage_bps: float = 2.0,
+        enforce_risk_permit: bool = True,
     ):
         self.initial_cash_usd = initial_cash_usd
         self.cash_usd = initial_cash_usd
@@ -108,6 +109,7 @@ class PaperBroker:
         self.maker_fee_bps = maker_fee_bps
         self.taker_fee_bps = taker_fee_bps
         self.base_slippage_bps = base_slippage_bps
+        self.enforce_risk_permit = enforce_risk_permit
 
         self.positions: Dict[str, PaperPosition] = {}
         self.orders: Dict[str, PaperOrder] = {}
@@ -128,12 +130,25 @@ class PaperBroker:
         venue: str = "SIM",
         current_time_ns: int = 0,
         current_bbo: Optional[Dict[str, float]] = None,
+        permit: Optional[Any] = None,
     ) -> PaperOrder:
         """
         Submit an order to the virtual broker.
         If simulated latency > 0, the order is placed into SUBMITTED status and must wait
         for market state at T >= submitted_at_ns + latency_ns to execute.
+        Requires an approved risk permit unless explicitly disabled for low-level simulator tests.
         """
+        if self.enforce_risk_permit:
+            if permit is None:
+                raise PermissionError(
+                    "PaperBroker: Order rejected. Pre-trade Risk permit is mandatory (UNKNOWN != ALLOWED)."
+                )
+            is_approved = getattr(permit, "risk_approved", None)
+            if is_approved is None:
+                is_approved = getattr(permit, "approved", False)
+            if not is_approved:
+                raise PermissionError("PaperBroker: Order rejected. Risk permit is not approved.")
+
         if quantity <= 0.0:
             raise ValueError(f"Quantity must be positive: {quantity}")
         if order_type == PaperOrderType.LIMIT and (limit_price is None or limit_price <= 0.0):
@@ -432,6 +447,7 @@ class PaperBroker:
         new_limit_price: Optional[float] = None,
         current_time_ns: int = 0,
         current_bbo: Optional[Dict[str, float]] = None,
+        permit: Optional[Any] = None,
     ) -> PaperOrder:
         """
         Cancel existing order and submit replacement with new quantity/price,
@@ -451,6 +467,7 @@ class PaperBroker:
             venue=old_order.venue,
             current_time_ns=current_time_ns,
             current_bbo=current_bbo,
+            permit=permit,
         )
 
     def get_portfolio_summary(self, mark_prices: Dict[str, float]) -> Dict[str, Any]:

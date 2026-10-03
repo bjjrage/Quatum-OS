@@ -105,9 +105,13 @@ class ExecutionRouter:
         self.store.add_transition(rec.intent.intent_id, old.value, new.value, reason, rec.updated_at_ns)
         self.store.save_order(rec)
         self._audit("ORDER_STATE_CHANGE", rec, from_state=old.value, to_state=new.value)
+        if rec.terminal and hasattr(self.risk, "release_in_flight") and getattr(rec, "intent", None):
+            self.risk.release_in_flight(rec.intent.client_order_id)
 
     def _reject(self, rec, reason, state=S.REJECTED, fc: Optional[FailureClass] = None) -> OrderRecord:
         self._to(rec, state, reason, fc or FailureClass.NON_RETRYABLE)
+        if hasattr(self.risk, "release_in_flight") and getattr(rec, "intent", None):
+            self.risk.release_in_flight(rec.intent.client_order_id)
         self._finish_trace(rec)
         return rec
 
@@ -258,6 +262,8 @@ class ExecutionRouter:
             return self._reject(rec, f"RISK_VETO:{getattr(decision.violation_code, 'value', decision.violation_code)}",
                                 state=S.RISK_REJECTED)
         self._to(rec, S.RISK_APPROVED, "risk approved")
+        if hasattr(self.risk, "register_in_flight"):
+            self.risk.register_in_flight(po)
 
         # 6. mode dispatch
         authorized = self._authorized(intent)
@@ -277,12 +283,15 @@ class ExecutionRouter:
         if self.paper_broker is None:
             return self._reject(rec, "PAPER_NOT_WIRED")
         from src.paper.broker import PaperOrderSide, PaperOrderType
+        from src.execution_plane.adapters.base import issue_permit
         i = rec.intent
         self._to(rec, S.ROUTING, "paper route")
         self._trace(rec).mark("router_dispatch_at_ns", self._now())
+        permit = issue_permit("SUBMIT", i.venue, i.client_order_id, self.mode, 0.0, True, self._now())
         po = self.paper_broker.submit_order(
             symbol=i.symbol, side=PaperOrderSide(i.side), order_type=PaperOrderType(i.order_type),
-            quantity=i.quantity, limit_price=i.limit_price, venue=i.venue, current_time_ns=self._now())
+            quantity=i.quantity, limit_price=i.limit_price, venue=i.venue, current_time_ns=self._now(),
+            permit=permit)
         rec.venue_order_id = po.order_id
         self._to(rec, S.ACKNOWLEDGED, "paper broker accepted")
         if getattr(po, "filled_qty", 0) and po.filled_qty > 0:
@@ -291,7 +300,10 @@ class ExecutionRouter:
                 venue="paper", venue_order_id=po.order_id, venue_trade_id=f"paper:{po.order_id}",
                 price=po.filled_price or i.valuation_price, quantity=po.filled_qty, fee=po.fee_paid or 0.0,
                 is_taker=po.is_taker, timestamp_ns=self._now()))
-        self._finish_trace(rec)
+        if rec.terminal:
+            if hasattr(self.risk, "release_in_flight"):
+                self.risk.release_in_flight(rec.intent.client_order_id)
+            self._finish_trace(rec)
         return rec
 
     def _route_shadow(self, rec: OrderRecord, adapter, meta) -> OrderRecord:
