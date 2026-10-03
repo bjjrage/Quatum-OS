@@ -838,10 +838,19 @@ class Str002V2Strategy:
 
         # 6. Risk-budget position sizing
         # Require explicit risk budget from upstream authority (no internally invented default)
-        if allowed_risk_usd is None or allowed_risk_usd <= 0.0:
+        if (
+            allowed_risk_usd is None
+            or isinstance(allowed_risk_usd, bool)
+            or not math.isfinite(allowed_risk_usd)
+            or allowed_risk_usd <= 0.0
+        ):
             diagnostics = {
                 "decision": "BLOCKED",
-                "reason": "RISK_BUDGET_NOT_PROVIDED: Explicit positive allowed_risk_usd required from risk authority.",
+                "reason": (
+                    "RISK_BUDGET_NOT_PROVIDED: RISK_BUDGET_INVALID: explicit finite allowed_risk_usd > 0 required from risk authority."
+                    if allowed_risk_usd is None
+                    else "RISK_BUDGET_INVALID: allowed_risk_usd must be finite and > 0."
+                ),
                 "btc_state": btc_state.value,
                 "z_score": z_score,
                 "state_machine_state": sm.state.value,

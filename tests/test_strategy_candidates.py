@@ -4,7 +4,7 @@ import pytest
 
 from src.strategies.factory import EvidenceAdmissionGate, SignalDirection
 from src.strategies.str001_empirical import STR001RelativeValueAlpha
-from src.strategies.str002_event_study import STR002EventStudyAlpha, MoveClassification
+from src.strategies.str002_event_study import STR002EventStudyAlpha, MoveClassification, BboQuote
 from src.backtest.metrics import BacktestPerformanceReport
 from src.research.events import PriceImpulseEvent, ShockDirection
 
@@ -110,21 +110,21 @@ def test_str002_event_study_trajectory_and_signal() -> None:
         forced_liquidation_volume=2_500_000.0,
     )
 
-    # Post-shock trajectory: retraces back to 61,000 (50% retracement)
-    post_prices = [61900.0, 61600.0, 61300.0, 61000.0]
-    post_ts = [forced_event.ts_peak_ns + (i + 1) * 60_000_000_000 for i in range(len(post_prices))]
-
-    obs = alpha.analyze_event_trajectory(forced_event, post_prices, post_ts)
+    # Causal path: BBO series with timestamps; entry at ASK after latency
+    t0 = forced_event.ts_peak_ns
+    bbo = [BboQuote(t0 + 1_000_000_000 * k, bid=b, ask=b + 1.0) for k, b in
+           [(1, 61900.0), (61, 61600.0), (121, 61300.0), (181, 61000.0)]]
+    obs = alpha.analyze_event_trajectory(forced_event, bbo)
     assert obs.classification == MoveClassification.FORCED_LIQUIDITY_MOVE
-    assert obs.retracement_ratio == 0.50
-    assert obs.mfe == 1000.0
-    assert obs.time_to_retracement_s > 0.0
-    assert "1m" in obs.forward_returns
+    assert obs.entry.entry_price_source == "NONE"  # SHORT hypothesis: no executable fills modeled
+    assert obs.execution_side == "SHORT_RESEARCH_ONLY"
+    assert obs.horizon_results == {}
+    assert obs.post_hoc_diagnostics.label == "POST_HOC_DIAGNOSTIC"
 
-    # Signal generation on Forced Move: Mean reversion (SHORT after EXPANSION_UP)
+    # SHORT after EXPANSION_UP is research-only: no executable Signal
     sig = alpha.generate_signal({"impulse_event": forced_event, "is_fundamental_news": False}, current_ts_ns=100)
-    assert sig is not None
-    assert sig.direction == SignalDirection.SHORT
+    assert sig is None
+    assert alpha.research_candidates and alpha.research_candidates[0]["is_executable"] is False
 
     # Informative Move (news / hack): No retracement obligation -> STRICTLY NO SIGNAL
     sig_info = alpha.generate_signal({"impulse_event": forced_event, "is_fundamental_news": True}, current_ts_ns=100)

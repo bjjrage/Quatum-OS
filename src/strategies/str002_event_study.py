@@ -1,4 +1,29 @@
-"""STR-002: Behavioral Alpha / Impulse-Overshoot-Retracement Event Study & Strategy Engine."""
+"""STR-002: Behavioral Alpha / Impulse-Overshoot-Retracement Event Study & Strategy Engine.
+
+CAUSAL EXECUTION MODEL (Hardening 02C)
+--------------------------------------
+Timeline invariants:
+    event_timestamp <= signal_timestamp <= decision_timestamp
+    entry_timestamp >= decision_timestamp + execution_latency
+The event peak price is event METADATA, never an executable fill.
+
+LONG-only executable side:
+    ENTRY  = first point-in-time BBO with timestamp >= decision + latency, filled at ASK.
+    EXIT   = first BBO with timestamp >= entry_timestamp + horizon (within a documented
+             tolerance), filled at BID. Never mid, never the last row, never an index.
+    STOP   = chronological; fills at the BID of the triggering quote (conservative: a gap
+             through the stop gives the gapped bid, not the theoretical stop price).
+
+Economic result (per fixed horizon, no "best" horizon selection):
+    gross_return_bps = (exit_bid / entry_ask - 1) * 1e4        (spread is embedded here)
+    total_cost_bps   = entry_fee_bps + exit_fee_bps + slippage_bps   (MODEL_ASSUMPTION)
+    net_return_bps   = gross_return_bps - total_cost_bps
+Spread is NOT added again to total_cost_bps. The spread components are informational.
+
+MFE / MAE / max retracement are POST_HOC_DIAGNOSTIC only and never feed any return.
+SHORT (mean reversion after EXPANSION_UP) is RESEARCH ONLY and never leaves this module
+as an executable Signal.
+"""
 from dataclasses import dataclass, field
 from enum import Enum
 import math
@@ -8,53 +33,134 @@ from .factory import CandidateHypothesis, Signal, SignalDirection
 from .models import StrategySpec, StrategyFamily, StrategyOrigin, StrategyStage
 from src.research.events import PriceImpulseEvent, ShockDirection
 
+NS_PER_S = 1_000_000_000
+NS_PER_MS = 1_000_000
+
+# Canonical fixed horizons (seconds)
+CANONICAL_HORIZONS_S: Dict[str, int] = {"1m": 60, "3m": 180, "5m": 300, "15m": 900, "30m": 1800}
+
+STRATEGY_VERSION = "event_study_v2c"
+
+STATUS_EXECUTED = "EXECUTED"
+STATUS_STOPPED = "STOPPED"
+STATUS_HORIZON_NOT_AVAILABLE = "HORIZON_NOT_AVAILABLE"
+STATUS_MISSING_ASK = "UNEXECUTABLE_MISSING_ASK"
+STATUS_MISSING_BID = "UNEXECUTABLE_MISSING_BID"
+STATUS_RESEARCH_ONLY_SHORT = "RESEARCH_ONLY_SHORT_NOT_EXECUTABLE"
+STATUS_ENTRY_OK = "ENTRY_FILLED"
+
 
 class MoveClassification(str, Enum):
     FORCED_LIQUIDITY_MOVE = "FORCED_LIQUIDITY_MOVE"
     INFORMATIVE_MOVE = "INFORMATIVE_MOVE"
 
 
+@dataclass(frozen=True)
+class BboQuote:
+    """Point-in-time best bid/offer record."""
+    timestamp_ns: int
+    bid: Optional[float]
+    ask: Optional[float]
+    bid_depth: Optional[float] = None
+    ask_depth: Optional[float] = None
+
+
+def _valid_price(p: Optional[float]) -> bool:
+    return p is not None and math.isfinite(p) and p > 0.0
+
+
+@dataclass
+class EntryExecution:
+    status: str
+    decision_timestamp_ns: int
+    entry_target_timestamp_ns: int
+    execution_latency_ms: float
+    entry_timestamp_ns: Optional[int] = None
+    entry_ask: Optional[float] = None
+    entry_bid: Optional[float] = None
+    entry_price_source: str = "NONE"
+    entry_spread_bps: Optional[float] = None
+    entry_spread_component_bps: Optional[float] = None  # (ask - mid)/mid, informational
+    ask_depth: Optional[float] = None
+    capacity_status: str = "UNEXECUTABLE"
+    fill_ratio: Optional[float] = None
+
+
+@dataclass
+class HorizonResult:
+    horizon: str
+    status: str
+    target_timestamp_ns: Optional[int] = None
+    exit_timestamp_ns: Optional[int] = None
+    exit_bid: Optional[float] = None
+    exit_price_source: str = "NONE"
+    exit_spread_component_bps: Optional[float] = None  # (mid - bid)/mid, informational
+    gross_return_bps: Optional[float] = None
+    entry_fee_bps: Optional[float] = None
+    exit_fee_bps: Optional[float] = None
+    slippage_bps: Optional[float] = None
+    total_cost_bps: Optional[float] = None
+    net_return_bps: Optional[float] = None
+    cost_assumption_label: str = "MODEL_ASSUMPTION"
+
+
+@dataclass
+class PostHocDiagnostics:
+    """Retrospective best-path information. NEVER used for returns, exits or admission."""
+    label: str = "POST_HOC_DIAGNOSTIC"
+    mfe: Optional[float] = None
+    mae: Optional[float] = None
+    max_retracement_ratio: Optional[float] = None
+    time_to_retracement_s: Optional[float] = None
+
+
+@dataclass
+class EventProvenance:
+    strategy_id: str = "STR-002"
+    strategy_version: str = STRATEGY_VERSION
+    beta_down: Optional[float] = None
+    beta_up: Optional[float] = None
+    gamma_eth: Optional[float] = None
+    residual: Optional[float] = None
+    shock_z_score: Optional[float] = None
+    btc_state: str = "UNKNOWN"
+    dataset_version_or_hash: str = "UNKNOWN"
+    git_sha: str = "UNKNOWN"
+
+
 @dataclass
 class EventStudyObservation:
-    """Rigorous 14-dimension record for each observed impulse event with causal trajectory tracking."""
+    """Audit-friendly record: event metadata, signal metadata, entry, diagnostics, horizons."""
+    # event metadata
     event_id: str
     symbol: str
     venue: str
     classification: MoveClassification
-    # 1. Impulse magnitude (log return)
+    direction: str
     impulse_magnitude: float
-    # 2. Prior realized volatility
     prior_realized_volatility: float
-    # 3. Forward returns at horizons [1m, 3m, 5m, 15m, 30m]
-    forward_returns: Dict[str, float]
-    # 4. Retracement ratio (fraction of impulse reversed at peak retracement or exit)
-    retracement_ratio: float
-    # 5. Maximum Favorable Excursion (MFE)
-    mfe: float
-    # 6. Maximum Adverse Excursion (MAE)
-    mae: float
-    # 7. Time to retracement in seconds
-    time_to_retracement_s: float
-    # 8. Asset liquidity tier
-    liquidity_tier: str
-    # 9. Bid-ask spread in bps
-    spread_bps: float
-    # 10. Orderbook depth
-    depth: float
-    # 11. Funding rate
-    funding_rate: float
-    # 12. Open Interest delta
-    open_interest_delta: float
-    # 13. Forced liquidation volume
     forced_liquidation_volume: float
-    # 14. Market regime
+    # point-in-time telemetry (None / UNKNOWN when not supplied; never fabricated)
+    funding_rate: Optional[float]
+    open_interest_delta: Optional[float]
     market_regime: str
-    # Net economic edge after taker fees and slippage
-    net_edge_bps: float
-    # Causal path-dependent fields
-    exit_reason: Optional[str] = None
-    exit_price: Optional[float] = None
-    is_stopped_out: bool = False
+    liquidity_tier: str
+    spread_bps: Optional[float]
+    depth: Optional[float]
+    # causal timeline
+    event_timestamp_ns: int
+    signal_timestamp_ns: int
+    decision_timestamp_ns: int
+    entry_timestamp_ns: Optional[int]
+    # execution
+    execution_side: str
+    entry: EntryExecution
+    stop_price: Optional[float]
+    risk_distance: Optional[float]
+    stop_fill_model: str
+    horizon_results: Dict[str, HorizonResult]
+    post_hoc_diagnostics: PostHocDiagnostics
+    provenance: EventProvenance
 
 
 class STR002EventStudyAlpha(CandidateHypothesis):
@@ -63,9 +169,23 @@ class STR002EventStudyAlpha(CandidateHypothesis):
     def __init__(
         self,
         min_z_score: float = 2.5,
-        min_retracement_target_pct: float = 0.35,  # Expect at least 35% retracement
+        min_retracement_target_pct: float = 0.35,  # ex-ante signal threshold assumption
         fee_and_slippage_bps: float = 8.0,
+        execution_latency_ms: float = 250.0,
+        entry_fee_bps: float = 2.0,   # MODEL_ASSUMPTION
+        exit_fee_bps: float = 2.0,    # MODEL_ASSUMPTION
+        slippage_bps: float = 4.0,    # MODEL_ASSUMPTION
+        horizon_tolerance_s: float = 60.0,
     ):
+        for name, v in (
+            ("execution_latency_ms", execution_latency_ms),
+            ("entry_fee_bps", entry_fee_bps),
+            ("exit_fee_bps", exit_fee_bps),
+            ("slippage_bps", slippage_bps),
+            ("horizon_tolerance_s", horizon_tolerance_s),
+        ):
+            if v is None or not math.isfinite(v) or v < 0.0:
+                raise ValueError(f"{name} must be finite and >= 0, got {v!r}")
         spec = StrategySpec(
             strategy_id="STR-002",
             family=StrategyFamily.BEHAVIORAL,
@@ -77,12 +197,24 @@ class STR002EventStudyAlpha(CandidateHypothesis):
                 "min_z_score": min_z_score,
                 "min_retracement_target_pct": min_retracement_target_pct,
                 "fee_and_slippage_bps": fee_and_slippage_bps,
+                "execution_latency_ms": execution_latency_ms,
+                "entry_fee_bps": entry_fee_bps,
+                "exit_fee_bps": exit_fee_bps,
+                "slippage_bps": slippage_bps,
+                "horizon_tolerance_s": horizon_tolerance_s,
             },
         )
         super().__init__(spec)
         self.min_z = min_z_score
         self.min_target = min_retracement_target_pct
-        self.hurdle_bps = fee_and_slippage_bps
+        self.hurdle_bps = fee_and_slippage_bps  # ex-ante signal hurdle only
+        self.execution_latency_ms = float(execution_latency_ms)
+        self.entry_fee_bps = float(entry_fee_bps)
+        self.exit_fee_bps = float(exit_fee_bps)
+        self.slippage_bps = float(slippage_bps)
+        self.horizon_tolerance_ns = int(horizon_tolerance_s * NS_PER_S)
+        # Non-executable SHORT research evidence (never emitted as Signal)
+        self.research_candidates: List[Dict[str, Any]] = []
 
     @staticmethod
     def classify_move(
@@ -97,140 +229,233 @@ class STR002EventStudyAlpha(CandidateHypothesis):
             return MoveClassification.FORCED_LIQUIDITY_MOVE
         return MoveClassification.INFORMATIVE_MOVE
 
+    @staticmethod
+    def classify_capacity(ask_depth: Optional[float], order_qty: Optional[float]) -> (str, Optional[float]):
+        """Return (capacity_status, fill_ratio). Never assumes infinite liquidity."""
+        if ask_depth is None or not math.isfinite(ask_depth):
+            return "DEPTH_NOT_AVAILABLE", None
+        if ask_depth <= 0.0:
+            return "UNEXECUTABLE", 0.0
+        if order_qty is None or not math.isfinite(order_qty) or order_qty <= 0.0:
+            return "CAPACITY_UNRESOLVED_NO_ORDER_SIZE", None
+        ratio = min(1.0, ask_depth / order_qty)
+        if ratio >= 1.0:
+            return "FULL_FILL", 1.0
+        if ratio >= 0.5:
+            return "PARTIAL_FILL", ratio
+        return "CAPACITY_LIMITED", ratio
+
     def analyze_event_trajectory(
         self,
         event: PriceImpulseEvent,
-        post_impulse_prices: List[float],
-        post_impulse_timestamps_ns: List[int],
-        funding_rate: float = 0.0001,
-        oi_delta: float = -500000.0,
+        bbo_series: List[BboQuote],
+        signal_timestamp_ns: Optional[int] = None,
+        decision_timestamp_ns: Optional[int] = None,
+        provenance: Optional[EventProvenance] = None,
+        order_qty: Optional[float] = None,
         is_fundamental_news: bool = False,
+        funding_rate: Optional[float] = None,
+        oi_delta: Optional[float] = None,
+        market_regime: str = "UNKNOWN",
+        liquidity_tier: str = "UNKNOWN",
         stop_buffer_pct: float = 0.005,
-        max_holding_s: float = 900.0,
+        horizons_s: Optional[Dict[str, int]] = None,
     ) -> EventStudyObservation:
-        """Reconstruct full 14-dimension observation from impulse event and post-shock trajectory.
-        
-        Evaluates stops and targets chronologically and path-dependently:
-        - If MAE breaches the stop buffer, the trade is stopped out immediately.
-        - Peak retracement after a stop-out is NOT credited (prevents lookahead / optimistic bias).
-        """
+        """Build a causal observation from the event and a point-in-time BBO series."""
+        horizons = horizons_s if horizons_s is not None else CANONICAL_HORIZONS_S
         classification = self.classify_move(
             has_forced_liquidations=event.has_forced_liquidations,
             liquidation_volume=event.forced_liquidation_volume,
             is_fundamental_news=is_fundamental_news,
         )
 
-        p_start = event.start_price
-        p_peak = event.peak_price
-        impulse_dist = p_peak - p_start
-        abs_impulse = abs(impulse_dist)
+        event_ts = event.ts_peak_ns
+        signal_ts = signal_timestamp_ns if signal_timestamp_ns is not None else event_ts
+        decision_ts = decision_timestamp_ns if decision_timestamp_ns is not None else signal_ts
+        if not (event_ts <= signal_ts <= decision_ts):
+            raise ValueError("Causal timeline violated: require event <= signal <= decision")
 
-        # Dynamic hard stop distance: max(50 bps of price, 10% of impulse)
-        stop_dist = max(p_peak * stop_buffer_pct, abs_impulse * 0.10) if abs_impulse > 0 else p_peak * 0.01
+        for i in range(1, len(bbo_series)):
+            if bbo_series[i].timestamp_ns < bbo_series[i - 1].timestamp_ns:
+                raise ValueError("BBO series must be time-ordered")
 
-        mfe = 0.0
-        mae = 0.0
-        max_retracement = 0.0
-        time_to_ret_s = 0.0
-        exit_reason = "SERIES_END" if post_impulse_prices else "NO_DATA"
-        exit_price = p_peak
-        is_stopped_out = False
+        latency_ns = int(self.execution_latency_ms * NS_PER_MS)
+        entry_target = decision_ts + latency_ns
+        prov = provenance if provenance is not None else EventProvenance()
+        is_short_research = event.direction == ShockDirection.EXPANSION_UP
 
-        fwd_returns: Dict[str, float] = {}
+        def _build(entry: EntryExecution, results, stop_price, risk_dist, stop_model, posthoc):
+            return EventStudyObservation(
+                event_id=event.event_id,
+                symbol=event.symbol,
+                venue=event.venue,
+                classification=classification,
+                direction=event.direction.value if hasattr(event.direction, "value") else str(event.direction),
+                impulse_magnitude=round(event.impulse_return, 6),
+                prior_realized_volatility=round(event.prior_volatility, 6),
+                forced_liquidation_volume=event.forced_liquidation_volume,
+                funding_rate=funding_rate,
+                open_interest_delta=oi_delta,
+                market_regime=market_regime,
+                liquidity_tier=liquidity_tier,
+                spread_bps=entry.entry_spread_bps,
+                depth=entry.ask_depth,
+                event_timestamp_ns=event_ts,
+                signal_timestamp_ns=signal_ts,
+                decision_timestamp_ns=decision_ts,
+                entry_timestamp_ns=entry.entry_timestamp_ns,
+                execution_side="SHORT_RESEARCH_ONLY" if is_short_research else "LONG",
+                entry=entry,
+                stop_price=stop_price,
+                risk_distance=risk_dist,
+                stop_fill_model=stop_model,
+                horizon_results=results,
+                post_hoc_diagnostics=posthoc,
+                provenance=prov,
+            )
 
-        if post_impulse_prices:
-            # 1. Forward horizon returns from peak
-            n = len(post_impulse_prices)
-            fwd_returns["1m"] = round((post_impulse_prices[min(1, n - 1)] - p_peak) / p_peak, 4)
-            fwd_returns["5m"] = round((post_impulse_prices[min(5, n - 1)] - p_peak) / p_peak, 4)
-            fwd_returns["15m"] = round((post_impulse_prices[min(15, n - 1)] - p_peak) / p_peak, 4)
+        # SHORT is research-only: no executable fills are modeled at all.
+        if is_short_research:
+            entry = EntryExecution(
+                status=STATUS_RESEARCH_ONLY_SHORT,
+                decision_timestamp_ns=decision_ts,
+                entry_target_timestamp_ns=entry_target,
+                execution_latency_ms=self.execution_latency_ms,
+            )
+            return _build(entry, {}, None, None, "NOT_APPLICABLE", PostHocDiagnostics())
 
-            # 2. Chronological causal evaluation
-            for idx, p in enumerate(post_impulse_prices):
-                ts = post_impulse_timestamps_ns[idx]
-                elapsed_s = (ts - event.ts_peak_ns) / 1e9
+        # ---- ENTRY: first quote at/after decision + latency, filled at ASK ----
+        entry_quote = next((q for q in bbo_series if q.timestamp_ns >= entry_target), None)
+        if entry_quote is None or not _valid_price(entry_quote.ask):
+            entry = EntryExecution(
+                status=STATUS_MISSING_ASK,
+                decision_timestamp_ns=decision_ts,
+                entry_target_timestamp_ns=entry_target,
+                execution_latency_ms=self.execution_latency_ms,
+                entry_timestamp_ns=entry_quote.timestamp_ns if entry_quote else None,
+            )
+            results = {
+                h: HorizonResult(horizon=h, status=STATUS_MISSING_ASK) for h in horizons
+            }
+            return _build(entry, results, None, None, "NOT_APPLICABLE", PostHocDiagnostics())
 
-                # For expansion up: retracement is downward (p < p_peak), adverse is upward (p > p_peak)
-                # For expansion down: retracement is upward (p > p_peak), adverse is downward (p < p_peak)
-                if event.direction == ShockDirection.EXPANSION_UP:
-                    favorable = p_peak - p
-                    adverse = p - p_peak
-                else:
-                    favorable = p - p_peak
-                    adverse = p_peak - p
-
-                if adverse > mae:
-                    mae = adverse
-                if favorable > mfe:
-                    mfe = favorable
-
-                # Check if stop loss was hit FIRST (adverse excursion exceeds stop distance)
-                if adverse >= stop_dist:
-                    is_stopped_out = True
-                    exit_reason = "STOP_LOSS"
-                    exit_price = p_peak + stop_dist if event.direction == ShockDirection.EXPANSION_UP else p_peak - stop_dist
-                    time_to_ret_s = elapsed_s
-                    # Stop-out terminates trajectory; cannot claim subsequent retracement
-                    max_retracement = 0.0
-                    break
-
-                # Update favorable retracement
-                if abs_impulse > 1e-6:
-                    retrace_ratio = favorable / abs_impulse
-                    if retrace_ratio > max_retracement:
-                        max_retracement = retrace_ratio
-                        time_to_ret_s = elapsed_s
-
-                # Check if time expired
-                if elapsed_s >= max_holding_s:
-                    exit_reason = "TIME_EXPIRED"
-                    exit_price = p
-                    break
-            else:
-                # Completed without hitting stop loss or time limit
-                if post_impulse_prices:
-                    exit_price = post_impulse_prices[-1]
-                    if max_retracement >= self.min_target:
-                        exit_reason = "TARGET_REACHED"
-                    else:
-                        exit_reason = "SERIES_END"
-
-        # Calculate causal net economic edge
-        if is_stopped_out:
-            gross_loss_pct = -(stop_dist / p_peak) if p_peak > 0 else -0.01
-            gross_return_bps = gross_loss_pct * 10000.0
-            net_edge = gross_return_bps - self.hurdle_bps
-        else:
-            gross_return_bps = max_retracement * abs(event.impulse_return) * 10000.0
-            net_edge = gross_return_bps - self.hurdle_bps
-
-        return EventStudyObservation(
-            event_id=event.event_id,
-            symbol=event.symbol,
-            venue=event.venue,
-            classification=classification,
-            impulse_magnitude=round(event.impulse_return, 6),
-            prior_realized_volatility=round(event.prior_volatility, 6),
-            forward_returns=fwd_returns,
-            retracement_ratio=round(max_retracement, 4),
-            mfe=round(mfe, 2),
-            mae=round(mae, 2),
-            time_to_retracement_s=round(time_to_ret_s, 2),
-            liquidity_tier="TIER_1_MAJOR",
-            spread_bps=1.5,
-            depth=100.0,
-            funding_rate=funding_rate,
-            open_interest_delta=oi_delta,
-            forced_liquidation_volume=event.forced_liquidation_volume,
-            market_regime="HIGH_VOLATILITY",
-            net_edge_bps=round(net_edge, 2),
-            exit_reason=exit_reason,
-            exit_price=round(exit_price, 4) if exit_price is not None else None,
-            is_stopped_out=is_stopped_out,
+        entry_ask = float(entry_quote.ask)
+        entry_ts = entry_quote.timestamp_ns
+        entry_bid = float(entry_quote.bid) if _valid_price(entry_quote.bid) else None
+        spread_bps = None
+        entry_spread_comp = None
+        if entry_bid is not None and entry_ask >= entry_bid:
+            mid = 0.5 * (entry_ask + entry_bid)
+            spread_bps = (entry_ask - entry_bid) / mid * 1e4
+            entry_spread_comp = (entry_ask - mid) / mid * 1e4
+        cap_status, fill_ratio = self.classify_capacity(entry_quote.ask_depth, order_qty)
+        entry = EntryExecution(
+            status=STATUS_ENTRY_OK,
+            decision_timestamp_ns=decision_ts,
+            entry_target_timestamp_ns=entry_target,
+            execution_latency_ms=self.execution_latency_ms,
+            entry_timestamp_ns=entry_ts,
+            entry_ask=entry_ask,
+            entry_bid=entry_bid,
+            entry_price_source="ASK",
+            entry_spread_bps=spread_bps,
+            entry_spread_component_bps=entry_spread_comp,
+            ask_depth=entry_quote.ask_depth,
+            capacity_status=cap_status,
+            fill_ratio=fill_ratio,
         )
 
+        # ---- STOP (set from the actual entry ask; evaluated chronologically) ----
+        abs_impulse = abs(event.peak_price - event.start_price)
+        stop_dist = max(entry_ask * stop_buffer_pct, 0.10 * abs_impulse)
+        stop_dist = min(stop_dist, entry_ask * 0.99)
+        stop_price = entry_ask - stop_dist
+        stop_ts: Optional[int] = None
+        stop_fill_bid: Optional[float] = None
+        for q in bbo_series:
+            if q.timestamp_ns <= entry_ts:
+                continue
+            if _valid_price(q.bid) and q.bid <= stop_price:
+                stop_ts = q.timestamp_ns
+                stop_fill_bid = float(q.bid)  # conservative: gapped bid, not theoretical stop
+                break
+
+        # ---- FIXED HORIZONS (timestamp based) ----
+        results: Dict[str, HorizonResult] = {}
+        for name, secs in horizons.items():
+            target = entry_ts + int(secs * NS_PER_S)
+            res = HorizonResult(horizon=name, status=STATUS_HORIZON_NOT_AVAILABLE, target_timestamp_ns=target)
+            if stop_ts is not None and stop_ts <= target:
+                self._fill_exit(res, entry_ask, stop_fill_bid, stop_ts, None, STATUS_STOPPED, "BID_STOP_TRIGGER_QUOTE")
+                results[name] = res
+                continue
+            hq = next((q for q in bbo_series if q.timestamp_ns >= target), None)
+            if hq is None or hq.timestamp_ns > target + self.horizon_tolerance_ns:
+                results[name] = res  # HORIZON_NOT_AVAILABLE; no substitution
+                continue
+            if not _valid_price(hq.bid):
+                res.status = STATUS_MISSING_BID
+                res.exit_timestamp_ns = hq.timestamp_ns
+                results[name] = res
+                continue
+            self._fill_exit(res, entry_ask, float(hq.bid), hq.timestamp_ns, hq.ask, STATUS_EXECUTED, "BID")
+            results[name] = res
+
+        # ---- POST-HOC DIAGNOSTICS (never feed returns) ----
+        mfe = 0.0
+        mae = 0.0
+        max_ret = 0.0
+        t_ret = 0.0
+        for q in bbo_series:
+            if q.timestamp_ns <= entry_ts or not _valid_price(q.bid):
+                continue
+            favorable = q.bid - event.peak_price
+            adverse = event.peak_price - q.bid
+            mfe = max(mfe, favorable)
+            mae = max(mae, adverse)
+            if abs_impulse > 1e-9:
+                ratio = favorable / abs_impulse
+                if ratio > max_ret:
+                    max_ret = ratio
+                    t_ret = (q.timestamp_ns - event_ts) / NS_PER_S
+        posthoc = PostHocDiagnostics(
+            mfe=round(mfe, 6),
+            mae=round(mae, 6),
+            max_retracement_ratio=round(max_ret, 6),
+            time_to_retracement_s=round(t_ret, 3),
+        )
+        return _build(entry, results, stop_price, stop_dist, "BID_AT_TRIGGER_QUOTE_CONSERVATIVE", posthoc)
+
+    def _fill_exit(
+        self,
+        res: HorizonResult,
+        entry_ask: float,
+        exit_bid: float,
+        exit_ts: int,
+        exit_ask: Optional[float],
+        status: str,
+        source: str,
+    ) -> None:
+        res.status = status
+        res.exit_timestamp_ns = exit_ts
+        res.exit_bid = exit_bid
+        res.exit_price_source = source
+        if _valid_price(exit_ask) and exit_ask >= exit_bid:
+            exit_mid = 0.5 * (exit_ask + exit_bid)
+            res.exit_spread_component_bps = (exit_mid - exit_bid) / exit_mid * 1e4
+        res.gross_return_bps = (exit_bid / entry_ask - 1.0) * 1e4
+        res.entry_fee_bps = self.entry_fee_bps
+        res.exit_fee_bps = self.exit_fee_bps
+        res.slippage_bps = self.slippage_bps
+        res.total_cost_bps = self.entry_fee_bps + self.exit_fee_bps + self.slippage_bps
+        res.net_return_bps = res.gross_return_bps - res.total_cost_bps
+
     def generate_signal(self, market_data: Dict[str, Any], current_ts_ns: int) -> Optional[Signal]:
-        """Generate mean reversion signal only on qualified Forced Liquidity moves."""
+        """Generate a LONG mean-reversion signal only on qualified Forced Liquidity moves.
+
+        The SHORT hypothesis (after EXPANSION_UP) is research-only: it is recorded in
+        `research_candidates` and NEVER returned through the executable Signal interface.
+        """
         event: Optional[PriceImpulseEvent] = market_data.get("impulse_event")
         if not event or abs(event.z_score) < self.min_z:
             return None
@@ -246,28 +471,31 @@ class STR002EventStudyAlpha(CandidateHypothesis):
             return None
 
         expected_retrace_bps = abs(event.impulse_return) * self.min_target * 10000.0
-        net_edge = expected_retrace_bps - self.hurdle_bps
+        net_edge = expected_retrace_bps - self.hurdle_bps  # ex-ante threshold only
 
         if net_edge <= 0.0:
             return None
 
-        # Direction is opposite to impulse (mean reversion)
-        direction = (
-            SignalDirection.SHORT
-            if event.direction == ShockDirection.EXPANSION_UP
-            else SignalDirection.LONG
-        )
+        if event.direction == ShockDirection.EXPANSION_UP:
+            self.research_candidates.append({
+                "event_id": event.event_id,
+                "symbol": event.symbol,
+                "venue": event.venue,
+                "hypothesis": "SHORT_MEAN_REVERSION",
+                "status": "RESEARCH_ONLY",
+                "is_executable": False,
+                "ts_ns": current_ts_ns,
+            })
+            return None
 
         confidence = min(1.0, net_edge / 50.0)
         target_weight = min(0.15, net_edge / 200.0)
-
-        is_short = (direction == SignalDirection.SHORT)
 
         return Signal(
             strategy_id=self.spec.strategy_id,
             symbol=event.symbol,
             venue=event.venue,
-            direction=direction,
+            direction=SignalDirection.LONG,
             target_weight=round(target_weight, 4),
             confidence=round(confidence, 4),
             expected_edge_bps=round(net_edge, 2),
@@ -278,12 +506,6 @@ class STR002EventStudyAlpha(CandidateHypothesis):
                 "impulse_return_bps": round(event.impulse_return * 10000.0, 1),
                 "expected_retracement_bps": round(expected_retrace_bps, 1),
                 "forced_liq_volume": event.forced_liquidation_volume,
-                "is_research_only": is_short,
-                "is_executable": not is_short,
-                "research_note": (
-                    "SHORT side is strictly research-only ($0 live risk, 0 orders)."
-                    if is_short
-                    else "LONG side executable candidate subject to Risk Authority approval."
-                ),
+                "expected_edge_label": "EX_ANTE_THRESHOLD_ASSUMPTION",
             },
         )

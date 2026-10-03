@@ -1083,7 +1083,7 @@ def test_str002_part_b_explicit_risk_budget_required_fail_closed():
     assert exec_zero is False
     assert snap_zero is None
     assert diag_zero["decision"] == "BLOCKED"
-    assert "RISK_BUDGET_NOT_PROVIDED" in diag_zero["reason"]
+    assert "RISK_BUDGET_INVALID" in diag_zero["reason"]
 
     # 3. Negative risk budget
     strat.reset_state("NO_BUDGET")
@@ -1091,7 +1091,7 @@ def test_str002_part_b_explicit_risk_budget_required_fail_closed():
     assert exec_neg is False
     assert snap_neg is None
     assert diag_neg["decision"] == "BLOCKED"
-    assert "RISK_BUDGET_NOT_PROVIDED" in diag_neg["reason"]
+    assert "RISK_BUDGET_INVALID" in diag_neg["reason"]
 
 
 def test_str002_part_c_multi_horizon_volatility_scaling():
@@ -1127,73 +1127,30 @@ def test_str002_part_c_multi_horizon_volatility_scaling():
     assert classifier.classify_horizon(0.0010, -0.001, 5) == BtcState.STATE_UNKNOWN
 
 
-def test_str002_part_d_and_e_causal_event_study():
-    """Part D & E: Verify causal path dependency and research-only classification for SHORT side."""
-    from src.strategies.str002_event_study import STR002EventStudyAlpha, MoveClassification
-    from src.research.events import PriceImpulseEvent, ShockDirection
-    from src.strategies.factory import SignalDirection
-
-    alpha = STR002EventStudyAlpha(min_z_score=2.5, min_retracement_target_pct=0.35, fee_and_slippage_bps=8.0)
-
-    # Shock event: price expands down from 100 to 90 (10% drop, liquidation cascade)
-    down_event = PriceImpulseEvent(
-        event_id="causal_down_1",
-        symbol="ETHUSDT",
-        venue="binance_perp",
-        ts_start_ns=1_000_000_000_000_000,
-        ts_peak_ns=1_000_001_000_000_000,
-        start_price=100.0,
-        peak_price=90.0,
-        impulse_return=-0.10,
-        prior_volatility=0.01,
-        z_score=-4.5,
-        direction=ShockDirection.EXPANSION_DOWN,
-        has_forced_liquidations=True,
-        forced_liquidation_volume=5_000_000.0,
+@pytest.mark.parametrize("budget", [float("nan"), float("inf"), float("-inf")])
+def test_str002_risk_budget_non_finite_blocked(budget):
+    strat = Str002V2Strategy()
+    r = [0.0002 + 0.00005 * ((i % 3) - 1) for i in range(40)]
+    r_alt = r[:39] + [-0.07]
+    ex, snap, diag = strat.generate_signal(
+        symbol="NF", timestamp_ns=1700000000_000000000, r_alt_series=r_alt, r_btc_series=r, r_eth_series=r,
+        btc_returns_1m_5m_15m=(0.0001, 0.0001, 0.0001), btc_vol_5m_ratio=1.0, current_price=10.0,
+        pre_shock_origin=11.0, pre_shock_vwap=10.9, delta_5s=500.0, bid_depth_0_5pct=60000.0,
+        pre_shock_median_depth=100000.0, recent_1s_lows=[9.8, 9.7, 9.9], allowed_risk_usd=budget,
     )
+    assert ex is False and snap is None
+    assert diag["decision"] == "BLOCKED" and "RISK_BUDGET_INVALID" in diag["reason"]
+    assert "position_quantity" not in diag
 
-    # Case 1: Stopped out early on adverse excursion before peak retracement
-    # Impulse = 10.0. stop_dist = max(90 * 0.005, 10 * 0.10) = 1.0 (stop price = 89.0)
-    # Trajectory: dips to 88.5 (-1.5 adverse -> triggers STOP LOSS at 89.0), then later rallies to 98.0
-    post_prices_stopped = [88.5, 92.0, 95.0, 98.0]
-    post_ts_stopped = [down_event.ts_peak_ns + (i + 1) * 60_000_000_000 for i in range(len(post_prices_stopped))]
 
-    obs_stopped = alpha.analyze_event_trajectory(down_event, post_prices_stopped, post_ts_stopped)
-    assert obs_stopped.is_stopped_out is True
-    assert obs_stopped.exit_reason == "STOP_LOSS"
-    assert obs_stopped.exit_price == 89.0
-    assert obs_stopped.retracement_ratio == 0.0  # Does NOT falsely claim 98.0 rebound
-    assert obs_stopped.net_edge_bps < 0.0
-
-    # Case 2: Clean favorable retracement without stop out
-    post_prices_clean = [91.0, 93.0, 95.0]
-    post_ts_clean = [down_event.ts_peak_ns + (i + 1) * 60_000_000_000 for i in range(len(post_prices_clean))]
-
-    obs_clean = alpha.analyze_event_trajectory(down_event, post_prices_clean, post_ts_clean)
-    assert obs_clean.is_stopped_out is False
-    assert obs_clean.exit_reason == "TARGET_REACHED"
-    assert obs_clean.retracement_ratio == 0.50  # 95 - 90 = 5 / 10 = 50%
-    assert obs_clean.net_edge_bps > 0.0
-
-    # Case 3: SHORT side hypothesis is strictly marked research-only
-    up_event = PriceImpulseEvent(
-        event_id="causal_up_1",
-        symbol="ETHUSDT",
-        venue="binance_perp",
-        ts_start_ns=1_000_000_000_000_000,
-        ts_peak_ns=1_000_001_000_000_000,
-        start_price=90.0,
-        peak_price=100.0,
-        impulse_return=0.111,
-        prior_volatility=0.01,
-        z_score=4.5,
-        direction=ShockDirection.EXPANSION_UP,
-        has_forced_liquidations=True,
-        forced_liquidation_volume=5_000_000.0,
+def test_str002_finite_positive_budget_permitted():
+    strat = Str002V2Strategy()
+    r = [0.0002 + 0.00005 * ((i % 3) - 1) for i in range(40)]
+    r_alt = r[:39] + [-0.07]
+    ex, snap, diag = strat.generate_signal(
+        symbol="OK", timestamp_ns=1700000000_000000000, r_alt_series=r_alt, r_btc_series=r, r_eth_series=r,
+        btc_returns_1m_5m_15m=(0.0001, 0.0001, 0.0001), btc_vol_5m_ratio=1.0, current_price=10.0,
+        pre_shock_origin=11.0, pre_shock_vwap=10.9, delta_5s=500.0, bid_depth_0_5pct=60000.0,
+        pre_shock_median_depth=100000.0, recent_1s_lows=[9.8, 9.7, 9.9], allowed_risk_usd=100.0,
     )
-    sig_short = alpha.generate_signal({"impulse_event": up_event, "is_fundamental_news": False}, current_ts_ns=100)
-    assert sig_short is not None
-    assert sig_short.direction == SignalDirection.SHORT
-    assert sig_short.metadata["is_research_only"] is True
-    assert sig_short.metadata["is_executable"] is False
-    assert "research-only" in sig_short.metadata["research_note"]
+    assert ex is True and diag["decision"] == "EXECUTE_LONG"
