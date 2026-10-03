@@ -556,3 +556,193 @@ alter table public.configuration_snapshots enable row level security;
 revoke all on public.configuration_snapshots from anon, authenticated;
 drop trigger if exists trg_configuration_snapshots_append_only on public.configuration_snapshots;
 create trigger trg_configuration_snapshots_append_only before update or delete on public.configuration_snapshots for each row execute function public.forbid_mutation();
+
+-- Canonical OrderIntents (immutable evidence)
+create table if not exists public.execution_intents (
+  intent_id text primary key,
+  strategy_id text,
+  venue text,
+  symbol text,
+  idempotency_key text,
+  client_order_id text,
+  execution_mode text,
+  created_at timestamptz,
+  payload jsonb not null,
+  synced_at timestamptz not null default now()
+);
+create index if not exists idx_execution_intents_strategy_id on public.execution_intents (strategy_id);
+create index if not exists idx_execution_intents_venue on public.execution_intents (venue);
+create index if not exists idx_execution_intents_symbol on public.execution_intents (symbol);
+create index if not exists idx_execution_intents_idempotency_key on public.execution_intents (idempotency_key);
+create index if not exists idx_execution_intents_client_order_id on public.execution_intents (client_order_id);
+create index if not exists idx_execution_intents_execution_mode on public.execution_intents (execution_mode);
+create index if not exists idx_execution_intents_created_at on public.execution_intents (created_at);
+alter table public.execution_intents enable row level security;
+revoke all on public.execution_intents from anon, authenticated;
+drop trigger if exists trg_execution_intents_append_only on public.execution_intents;
+create trigger trg_execution_intents_append_only before update or delete on public.execution_intents for each row execute function public.forbid_mutation();
+
+-- Current order lifecycle state (mutable projection)
+create table if not exists public.execution_orders (
+  intent_id text primary key,
+  client_order_id text,
+  venue_order_id text,
+  venue text,
+  symbol text,
+  state text,
+  idempotency_key text,
+  payload jsonb not null,
+  synced_at timestamptz not null default now()
+);
+create index if not exists idx_execution_orders_client_order_id on public.execution_orders (client_order_id);
+create index if not exists idx_execution_orders_venue_order_id on public.execution_orders (venue_order_id);
+create index if not exists idx_execution_orders_venue on public.execution_orders (venue);
+create index if not exists idx_execution_orders_symbol on public.execution_orders (symbol);
+create index if not exists idx_execution_orders_state on public.execution_orders (state);
+create index if not exists idx_execution_orders_idempotency_key on public.execution_orders (idempotency_key);
+alter table public.execution_orders enable row level security;
+revoke all on public.execution_orders from anon, authenticated;
+
+-- Every submission attempt (written BEFORE transmission)
+create table if not exists public.execution_attempts (
+  attempt_id text primary key,
+  intent_id text,
+  client_order_id text,
+  venue text,
+  attempt_no text,
+  outcome text,
+  started_at timestamptz,
+  payload jsonb not null,
+  synced_at timestamptz not null default now()
+);
+create index if not exists idx_execution_attempts_intent_id on public.execution_attempts (intent_id);
+create index if not exists idx_execution_attempts_client_order_id on public.execution_attempts (client_order_id);
+create index if not exists idx_execution_attempts_venue on public.execution_attempts (venue);
+create index if not exists idx_execution_attempts_attempt_no on public.execution_attempts (attempt_no);
+create index if not exists idx_execution_attempts_outcome on public.execution_attempts (outcome);
+create index if not exists idx_execution_attempts_started_at on public.execution_attempts (started_at);
+alter table public.execution_attempts enable row level security;
+revoke all on public.execution_attempts from anon, authenticated;
+drop trigger if exists trg_execution_attempts_append_only on public.execution_attempts;
+create trigger trg_execution_attempts_append_only before update or delete on public.execution_attempts for each row execute function public.forbid_mutation();
+
+-- Order state machine transitions
+create table if not exists public.order_state_transitions (
+  transition_id text primary key,
+  intent_id text,
+  from_state text,
+  to_state text,
+  at timestamptz,
+  payload jsonb not null,
+  synced_at timestamptz not null default now()
+);
+create index if not exists idx_order_state_transitions_intent_id on public.order_state_transitions (intent_id);
+create index if not exists idx_order_state_transitions_from_state on public.order_state_transitions (from_state);
+create index if not exists idx_order_state_transitions_to_state on public.order_state_transitions (to_state);
+create index if not exists idx_order_state_transitions_at on public.order_state_transitions (at);
+alter table public.order_state_transitions enable row level security;
+revoke all on public.order_state_transitions from anon, authenticated;
+drop trigger if exists trg_order_state_transitions_append_only on public.order_state_transitions;
+create trigger trg_order_state_transitions_append_only before update or delete on public.order_state_transitions for each row execute function public.forbid_mutation();
+
+-- Normalized fills incl. partials and fees
+create table if not exists public.execution_fills (
+  fill_id text primary key,
+  intent_id text,
+  venue text,
+  venue_trade_id text,
+  payload jsonb not null,
+  synced_at timestamptz not null default now()
+);
+create index if not exists idx_execution_fills_intent_id on public.execution_fills (intent_id);
+create index if not exists idx_execution_fills_venue on public.execution_fills (venue);
+create index if not exists idx_execution_fills_venue_trade_id on public.execution_fills (venue_trade_id);
+alter table public.execution_fills enable row level security;
+revoke all on public.execution_fills from anon, authenticated;
+drop trigger if exists trg_execution_fills_append_only on public.execution_fills;
+create trigger trg_execution_fills_append_only before update or delete on public.execution_fills for each row execute function public.forbid_mutation();
+
+-- Reconciliation evidence
+create table if not exists public.reconciliation_events (
+  event_id text primary key,
+  venue text,
+  status text,
+  at timestamptz,
+  payload jsonb not null,
+  synced_at timestamptz not null default now()
+);
+create index if not exists idx_reconciliation_events_venue on public.reconciliation_events (venue);
+create index if not exists idx_reconciliation_events_status on public.reconciliation_events (status);
+create index if not exists idx_reconciliation_events_at on public.reconciliation_events (at);
+alter table public.reconciliation_events enable row level security;
+revoke all on public.reconciliation_events from anon, authenticated;
+drop trigger if exists trg_reconciliation_events_append_only on public.reconciliation_events;
+create trigger trg_reconciliation_events_append_only before update or delete on public.reconciliation_events for each row execute function public.forbid_mutation();
+
+-- Connection/private-stream/clock events
+create table if not exists public.connection_events (
+  event_id text primary key,
+  venue text,
+  event_type text,
+  at timestamptz,
+  payload jsonb not null,
+  synced_at timestamptz not null default now()
+);
+create index if not exists idx_connection_events_venue on public.connection_events (venue);
+create index if not exists idx_connection_events_event_type on public.connection_events (event_type);
+create index if not exists idx_connection_events_at on public.connection_events (at);
+alter table public.connection_events enable row level security;
+revoke all on public.connection_events from anon, authenticated;
+drop trigger if exists trg_connection_events_append_only on public.connection_events;
+create trigger trg_connection_events_append_only before update or delete on public.connection_events for each row execute function public.forbid_mutation();
+
+-- Rate-limit telemetry
+create table if not exists public.rate_limit_events (
+  event_id text primary key,
+  venue text,
+  event_type text,
+  at timestamptz,
+  payload jsonb not null,
+  synced_at timestamptz not null default now()
+);
+create index if not exists idx_rate_limit_events_venue on public.rate_limit_events (venue);
+create index if not exists idx_rate_limit_events_event_type on public.rate_limit_events (event_type);
+create index if not exists idx_rate_limit_events_at on public.rate_limit_events (at);
+alter table public.rate_limit_events enable row level security;
+revoke all on public.rate_limit_events from anon, authenticated;
+drop trigger if exists trg_rate_limit_events_append_only on public.rate_limit_events;
+create trigger trg_rate_limit_events_append_only before update or delete on public.rate_limit_events for each row execute function public.forbid_mutation();
+
+-- Execution latency traces
+create table if not exists public.latency_samples (
+  sample_id text primary key,
+  intent_id text,
+  venue text,
+  payload jsonb not null,
+  synced_at timestamptz not null default now()
+);
+create index if not exists idx_latency_samples_intent_id on public.latency_samples (intent_id);
+create index if not exists idx_latency_samples_venue on public.latency_samples (venue);
+alter table public.latency_samples enable row level security;
+revoke all on public.latency_samples from anon, authenticated;
+drop trigger if exists trg_latency_samples_append_only on public.latency_samples;
+create trigger trg_latency_samples_append_only before update or delete on public.latency_samples for each row execute function public.forbid_mutation();
+
+-- Normalized account snapshots
+create table if not exists public.account_snapshots (
+  snapshot_id text primary key,
+  venue text,
+  account_id text,
+  status text,
+  at timestamptz,
+  payload jsonb not null,
+  synced_at timestamptz not null default now()
+);
+create index if not exists idx_account_snapshots_venue on public.account_snapshots (venue);
+create index if not exists idx_account_snapshots_account_id on public.account_snapshots (account_id);
+create index if not exists idx_account_snapshots_status on public.account_snapshots (status);
+create index if not exists idx_account_snapshots_at on public.account_snapshots (at);
+alter table public.account_snapshots enable row level security;
+revoke all on public.account_snapshots from anon, authenticated;
+drop trigger if exists trg_account_snapshots_append_only on public.account_snapshots;
+create trigger trg_account_snapshots_append_only before update or delete on public.account_snapshots for each row execute function public.forbid_mutation();

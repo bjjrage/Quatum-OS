@@ -82,6 +82,17 @@ _SPECS: List[TableSpec] = [
     _t("research_datasets", "dataset_id", "dataset_fingerprint config_fingerprint storage_path", True, "Research dataset registrations"),
     _t("research_artifacts", "artifact_id", "artifact_type sha256 storage_path", True, "Backtest/model/report artifacts"),
     _t("configuration_snapshots", "snapshot_id", "config_kind config_fingerprint created_at:timestamptz", True, "Versioned configuration snapshots"),
+    # ---- Execution plane (v1): all evidentiary, soft refs ----
+    _t("execution_intents", "intent_id", "strategy_id venue symbol idempotency_key client_order_id execution_mode created_at:timestamptz", True, "Canonical OrderIntents (immutable evidence)"),
+    _t("execution_orders", "intent_id", "client_order_id venue_order_id venue symbol state idempotency_key", False, "Current order lifecycle state (mutable projection)"),
+    _t("execution_attempts", "attempt_id", "intent_id client_order_id venue attempt_no outcome started_at:timestamptz", True, "Every submission attempt (written BEFORE transmission)"),
+    _t("order_state_transitions", "transition_id", "intent_id from_state to_state at:timestamptz", True, "Order state machine transitions"),
+    _t("execution_fills", "fill_id", "intent_id venue venue_trade_id", True, "Normalized fills incl. partials and fees"),
+    _t("reconciliation_events", "event_id", "venue status at:timestamptz", True, "Reconciliation evidence"),
+    _t("connection_events", "event_id", "venue event_type at:timestamptz", True, "Connection/private-stream/clock events"),
+    _t("rate_limit_events", "event_id", "venue event_type at:timestamptz", True, "Rate-limit telemetry"),
+    _t("latency_samples", "sample_id", "intent_id venue", True, "Execution latency traces"),
+    _t("account_snapshots", "snapshot_id", "venue account_id status at:timestamptz", True, "Normalized account snapshots")
 ]
 
 TABLE_SPECS: Dict[str, TableSpec] = {s.name: s for s in _SPECS}
