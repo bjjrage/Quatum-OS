@@ -40,6 +40,7 @@ from src.common.operational_truth import OperationalStatus, safe_metric, is_fres
 from src.persistence.backend import (
     LocalPersistenceBackend,
     PersistenceError,
+    ImmutableConflictError,
     payload_hash,
     canonical_json,
 )
@@ -407,62 +408,180 @@ def test_supabase_pagination_over_1000_rows_deterministic():
     assert transport.call_count == 3
 
 
-def test_supabase_write_race_hash_mismatch():
-    """SupabasePersistenceBackend rejects write when expected_hash does not match current state via atomic RPC."""
-    class MockRpcCasTransport(RestTransport):
+def test_supabase_patch_cas_request_shape():
+    """1. Exact PostgREST PATCH CAS request shape (method=PATCH, path, params with pk & data_hash, Prefer header)."""
+    captured = []
+
+    class CapturingTransport(RestTransport):
         def request(self, method, path, params=None, json_body=None, headers=None, raw_body=None):
-            if path == "/rest/v1/rpc/quant_os_cas_put":
-                if json_body.get("p_expected_hash") != "correct_hash":
-                    return (409, {"message": "CAS_CONFLICT: expected hash wrong_hash but found correct_hash"})
-                return (200, {"status": "UPDATED"})
+            captured.append({
+                "method": method,
+                "path": path,
+                "params": params,
+                "json_body": json_body,
+                "headers": headers,
+            })
+            return (200, [{"cluster_id": "c1", "data_hash": "new_hash_123"}])
+
+    backend = SupabasePersistenceBackend(
+        config=SupabaseConfig(url="https://test.supabase.co", anon_key="test_anon", service_role_key="test_svc"),
+        transport=CapturingTransport(),
+    )
+
+    data = {"cluster_id": "c1", "name": "cluster_one", "events": [1, 2]}
+    res = backend.put("event_clusters", "c1", data, expected_hash="old_hash_000")
+
+    assert res == "UPDATED"
+    assert len(captured) == 1
+    req = captured[0]
+    assert req["method"] == "PATCH"
+    assert req["path"] == "/rest/v1/event_clusters"
+    assert req["params"] == {"cluster_id": "eq.c1", "data_hash": "eq.old_hash_000"}
+    assert req["headers"] == {"Prefer": "return=representation"}
+    assert req["json_body"]["cluster_id"] == "c1"
+    assert req["json_body"]["payload"] == data
+    assert req["json_body"]["data_hash"] == payload_hash(data)
+
+
+def test_supabase_patch_cas_success():
+    """2. Successful CAS: PostgREST returns 1 row representation -> UPDATED."""
+    class SuccessTransport(RestTransport):
+        def request(self, method, path, params=None, json_body=None, headers=None, raw_body=None):
+            return (200, [{"cluster_id": "c1", "payload": json_body["payload"], "data_hash": json_body["data_hash"]}])
+
+    backend = SupabasePersistenceBackend(
+        config=SupabaseConfig(url="https://test.supabase.co", anon_key="test_anon", service_role_key="test_svc"),
+        transport=SuccessTransport(),
+    )
+
+    res = backend.put("event_clusters", "c1", {"cluster_id": "c1", "v": 2}, expected_hash="h1")
+    assert res == "UPDATED"
+
+
+def test_supabase_patch_cas_zero_rows_conflict():
+    """3. Zero-row CAS conflict: 0 rows modified -> raises PersistenceError('CAS_CONFLICT')."""
+    class ConflictTransport(RestTransport):
+        def request(self, method, path, params=None, json_body=None, headers=None, raw_body=None):
+            # PostgREST returns [] when no row matches the filter (e.g. data_hash mismatch)
             return (200, [])
 
     backend = SupabasePersistenceBackend(
         config=SupabaseConfig(url="https://test.supabase.co", anon_key="test_anon", service_role_key="test_svc"),
-        transport=MockRpcCasTransport()
+        transport=ConflictTransport(),
     )
 
-    with pytest.raises(PersistenceError, match="Lost update detected"):
-        backend.put("event_clusters", "c1", {"cluster_id": "c1", "description": "my_state"}, expected_hash="wrong_hash")
+    with pytest.raises(PersistenceError, match="CAS_CONFLICT"):
+        backend.put("event_clusters", "c1", {"cluster_id": "c1", "v": 2}, expected_hash="wrong_hash")
 
 
-def test_supabase_atomic_cas_concurrent_writers_race():
-    """Simulate real race where Writer A and Writer B have the same initial expected_hash and only one succeeds."""
+def test_supabase_patch_cas_no_get_before_patch():
+    """4. Zero GET before PATCH: exactly 1 call to transport."""
+    calls = []
+
+    class CountingTransport(RestTransport):
+        def request(self, method, path, params=None, json_body=None, headers=None, raw_body=None):
+            calls.append(method)
+            return (200, [{"cluster_id": "c1"}])
+
+    backend = SupabasePersistenceBackend(
+        config=SupabaseConfig(url="https://test.supabase.co", anon_key="test_anon", service_role_key="test_svc"),
+        transport=CountingTransport(),
+    )
+
+    backend.put("event_clusters", "c1", {"cluster_id": "c1"}, expected_hash="h0")
+    assert calls == ["PATCH"]
+    assert len(calls) == 1
+
+
+def test_supabase_patch_cas_updates_projections_atomically():
+    """5. Indexed materialized projections updated atomically with payload."""
+    sent_payload = None
+
+    class CaptureBodyTransport(RestTransport):
+        def request(self, method, path, params=None, json_body=None, headers=None, raw_body=None):
+            nonlocal sent_payload
+            sent_payload = json_body
+            return (200, [json_body])
+
+    backend = SupabasePersistenceBackend(
+        config=SupabaseConfig(url="https://test.supabase.co", anon_key="test_anon", service_role_key="test_svc"),
+        transport=CaptureBodyTransport(),
+    )
+
+    order_data = {
+        "intent_id": "int_100",
+        "client_order_id": "cl_100",
+        "venue_order_id": "v_ord_100",
+        "venue": "BINANCE",
+        "symbol": "BTC-USD",
+        "state": "FILLED",
+        "idempotency_key": "idem_100",
+        "custom_meta": "extra",
+    }
+    backend.put("execution_orders", "int_100", order_data, expected_hash="h_prev")
+
+    assert sent_payload is not None
+    assert sent_payload["intent_id"] == "int_100"
+    assert sent_payload["client_order_id"] == "cl_100"
+    assert sent_payload["venue_order_id"] == "v_ord_100"
+    assert sent_payload["venue"] == "BINANCE"
+    assert sent_payload["symbol"] == "BTC-USD"
+    assert sent_payload["state"] == "FILLED"
+    assert sent_payload["idempotency_key"] == "idem_100"
+    assert sent_payload["payload"] == order_data
+    assert sent_payload["data_hash"] == payload_hash(order_data)
+
+
+def test_supabase_patch_cas_null_hash_fails_closed():
+    """6. NULL hash fails closed: when data_hash is NULL in DB, PATCH with expected_hash returns 0 rows -> CAS_CONFLICT."""
+    class NullHashTransport(RestTransport):
+        def request(self, method, path, params=None, json_body=None, headers=None, raw_body=None):
+            return (200, [])
+
+    backend = SupabasePersistenceBackend(
+        config=SupabaseConfig(url="https://test.supabase.co", anon_key="test_anon", service_role_key="test_svc"),
+        transport=NullHashTransport(),
+    )
+
+    with pytest.raises(PersistenceError, match="CAS_CONFLICT"):
+        backend.put("event_clusters", "c1", {"cluster_id": "c1", "val": 99}, expected_hash="any_hash")
+
+
+def test_supabase_patch_cas_two_writers_race():
+    """7. Two writers race: exactly one gets 1 row and succeeds; second gets 0 rows and raises CAS_CONFLICT."""
     import threading
 
     class AtomicDbServer:
         def __init__(self):
             self.lock = threading.Lock()
             self.current_hash = "initial_hash_h0"
-            self.data = {"cluster_id": "c1", "val": 0}
+            self.rows = {"c1": {"cluster_id": "c1", "val": 0, "data_hash": "initial_hash_h0"}}
 
-        def cas_put(self, expected_hash, new_data, new_hash):
+        def patch(self, pk_val, expected_hash, json_body):
             with self.lock:
-                if self.current_hash != expected_hash:
-                    return 409, {"message": f"CAS_CONFLICT: expected {expected_hash} but found {self.current_hash}"}
-                self.current_hash = new_hash
-                self.data = new_data
-                return 200, {"status": "UPDATED"}
+                row = self.rows.get(pk_val)
+                if row is None or row.get("data_hash") != expected_hash:
+                    return (200, [])
+                row.update(json_body)
+                return (200, [dict(row)])
 
     server = AtomicDbServer()
 
     class AtomicTransport(RestTransport):
         def request(self, method, path, params=None, json_body=None, headers=None, raw_body=None):
-            if path == "/rest/v1/rpc/quant_os_cas_put":
-                return server.cas_put(
-                    json_body["p_expected_hash"],
-                    json_body["p_row"]["payload"],
-                    json_body["p_new_hash"]
-                )
+            if method == "PATCH":
+                pk_val = params["cluster_id"].split("eq.")[1]
+                expected_hash = params["data_hash"].split("eq.")[1]
+                return server.patch(pk_val, expected_hash, json_body)
             return (200, [])
 
     backend_a = SupabasePersistenceBackend(
         config=SupabaseConfig(url="https://test.supabase.co", anon_key="test_anon", service_role_key="test_svc"),
-        transport=AtomicTransport()
+        transport=AtomicTransport(),
     )
     backend_b = SupabasePersistenceBackend(
         config=SupabaseConfig(url="https://test.supabase.co", anon_key="test_anon", service_role_key="test_svc"),
-        transport=AtomicTransport()
+        transport=AtomicTransport(),
     )
 
     results = {}
@@ -473,7 +592,7 @@ def test_supabase_atomic_cas_concurrent_writers_race():
             res = backend_a.put(
                 "event_clusters", "c1",
                 {"cluster_id": "c1", "val": 1},
-                expected_hash="initial_hash_h0"
+                expected_hash="initial_hash_h0",
             )
             results["A"] = res
         except Exception as e:
@@ -484,7 +603,7 @@ def test_supabase_atomic_cas_concurrent_writers_race():
             res = backend_b.put(
                 "event_clusters", "c1",
                 {"cluster_id": "c1", "val": 2},
-                expected_hash="initial_hash_h0"
+                expected_hash="initial_hash_h0",
             )
             results["B"] = res
         except Exception as e:
@@ -493,20 +612,148 @@ def test_supabase_atomic_cas_concurrent_writers_race():
     t_a = threading.Thread(target=writer_a)
     t_b = threading.Thread(target=writer_b)
     t_a.start()
-    t_a.join()
     t_b.start()
+    t_a.join()
     t_b.join()
 
-    # Exactly one writer succeeded and the other encountered CAS conflict
+    # Exactly one writer succeeded and the other got CAS_CONFLICT
     assert ("A" in results and "B" in errors) or ("B" in results and "A" in errors)
     if "A" in results:
         assert results["A"] == "UPDATED"
         assert isinstance(errors["B"], PersistenceError)
-        assert "Lost update detected" in str(errors["B"])
+        assert "CAS_CONFLICT" in str(errors["B"])
     else:
         assert results["B"] == "UPDATED"
         assert isinstance(errors["A"], PersistenceError)
-        assert "Lost update detected" in str(errors["A"])
+        assert "CAS_CONFLICT" in str(errors["A"])
+
+
+def test_supabase_insert_collision_on_mutable_table_raises():
+    """8. Insert collision on mutable table with different payload raises INSERT_COLLISION."""
+    class CollisionTransport(RestTransport):
+        def request(self, method, path, params=None, json_body=None, headers=None, raw_body=None):
+            if method == "POST":
+                return (409, {"message": "duplicate key value violates unique constraint"})
+            if method == "GET":
+                existing = {"cluster_id": "c1", "payload": {"cluster_id": "c1", "val": "old_data"}}
+                return (200, [existing])
+            return (200, [])
+
+    backend = SupabasePersistenceBackend(
+        config=SupabaseConfig(url="https://test.supabase.co", anon_key="test_anon", service_role_key="test_svc"),
+        transport=CollisionTransport(),
+    )
+
+    with pytest.raises(PersistenceError, match="INSERT_COLLISION"):
+        backend.put("event_clusters", "c1", {"cluster_id": "c1", "val": "new_data"})
+
+
+def test_supabase_immutable_table_rejects_cas_and_overwrite():
+    """9. Immutable table CAS or overwrite blocked (ImmutableConflictError)."""
+    backend = SupabasePersistenceBackend(
+        config=SupabaseConfig(url="https://test.supabase.co", anon_key="test_anon", service_role_key="test_svc"),
+        transport=MagicMock(),
+    )
+    with pytest.raises(ImmutableConflictError, match="append-only; CAS mutation forbidden"):
+        backend.put("execution_intents", "intent_1", {"intent_id": "intent_1"}, expected_hash="any_hash")
+
+    class ImmutableConflictTransport(RestTransport):
+        def request(self, method, path, params=None, json_body=None, headers=None, raw_body=None):
+            if method == "POST":
+                return (409, {"message": "duplicate key value violates unique constraint"})
+            if method == "GET":
+                return (200, [{"intent_id": "intent_1", "payload": {"intent_id": "intent_1", "data": "original"}}])
+            return (200, [])
+
+    backend_conflict = SupabasePersistenceBackend(
+        config=SupabaseConfig(url="https://test.supabase.co", anon_key="test_anon", service_role_key="test_svc"),
+        transport=ImmutableConflictTransport(),
+    )
+    with pytest.raises(ImmutableConflictError, match="is append-only with a different payload"):
+        backend_conflict.put("execution_intents", "intent_1", {"intent_id": "intent_1", "data": "tampered"})
+
+
+def test_backfill_hash_equals_python_payload_hash():
+    """10. Backfill hash equals Python payload_hash(payload)."""
+    from scripts.backfill_supabase_data_hash import backfill_data_hashes
+
+    patched_rows = []
+
+    class MockTransport(RestTransport):
+        def request(self, method, path, params=None, json_body=None, headers=None, raw_body=None):
+            if method == "GET":
+                if path == "/rest/v1/event_clusters":
+                    return (200, [{"cluster_id": "c1", "payload": {"cluster_id": "c1", "foo": "bar"}, "data_hash": None}])
+                return (200, [])
+            if method == "PATCH":
+                patched_rows.append((path, params, json_body))
+                return (200, [json_body])
+            return (200, [])
+
+    backend = SupabasePersistenceBackend(
+        config=SupabaseConfig(url="https://test.supabase.co", anon_key="test_anon", service_role_key="test_svc"),
+        transport=MockTransport(),
+    )
+
+    report = backfill_data_hashes(backend)
+    assert report["hashes_backfilled"] >= 1
+    assert len(patched_rows) >= 1
+    path, params, body = patched_rows[0]
+    expected_hash = payload_hash({"cluster_id": "c1", "foo": "bar"})
+    assert body["data_hash"] == expected_hash
+
+
+def test_backfill_mismatch_on_corrupted_existing_hash_stops():
+    """11. Backfill mismatch on corrupted existing hash stops immediately (INTEGRITY_FAILURE)."""
+    from scripts.backfill_supabase_data_hash import backfill_data_hashes
+
+    class CorruptTransport(RestTransport):
+        def request(self, method, path, params=None, json_body=None, headers=None, raw_body=None):
+            if method == "GET" and path == "/rest/v1/event_clusters":
+                return (200, [{"cluster_id": "c1", "payload": {"cluster_id": "c1"}, "data_hash": "corrupted_hash_xyz"}])
+            return (200, [])
+
+    backend = SupabasePersistenceBackend(
+        config=SupabaseConfig(url="https://test.supabase.co", anon_key="test_anon", service_role_key="test_svc"),
+        transport=CorruptTransport(),
+    )
+
+    with pytest.raises(PersistenceError, match="INTEGRITY_FAILURE"):
+        backfill_data_hashes(backend)
+
+
+def test_backfill_is_idempotent():
+    """12. Backfill is idempotent (second run produces 0 modifications)."""
+    from scripts.backfill_supabase_data_hash import backfill_data_hashes
+
+    row_data = {"cluster_id": "c1"}
+    h = payload_hash(row_data)
+
+    class ValidTransport(RestTransport):
+        def __init__(self):
+            self.patch_called = False
+
+        def request(self, method, path, params=None, json_body=None, headers=None, raw_body=None):
+            if method == "GET":
+                if path == "/rest/v1/event_clusters":
+                    return (200, [{"cluster_id": "c1", "payload": row_data, "data_hash": h}])
+                return (200, [])
+            if method == "PATCH":
+                self.patch_called = True
+                return (200, [json_body])
+            return (200, [])
+
+    transport = ValidTransport()
+    backend = SupabasePersistenceBackend(
+        config=SupabaseConfig(url="https://test.supabase.co", anon_key="test_anon", service_role_key="test_svc"),
+        transport=transport,
+    )
+
+    report = backfill_data_hashes(backend)
+    assert report["hashes_backfilled"] == 0
+    assert report["already_valid"] >= 1
+    assert transport.patch_called is False
+
 
 
 # ------------------------------------------------------------------------------

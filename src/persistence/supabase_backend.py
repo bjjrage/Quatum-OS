@@ -105,43 +105,62 @@ class SupabasePersistenceBackend(PersistenceBackend):
     def put(self, table: str, key: str, data: Dict[str, Any], expected_hash: Optional[str] = None) -> str:
         spec = get_spec(table)
         h = payload_hash(data)
+        row = remote_row(table, key, data)
+        row["data_hash"] = h
 
         if expected_hash is not None:
-            # Atomic CAS RPC execution (PostgREST: POST /rest/v1/rpc/quant_os_cas_put)
-            rpc_body = {
-                "p_table": table,
-                "p_pk": spec.pk,
-                "p_key": key,
-                "p_row": remote_row(table, key, data),
-                "p_expected_hash": expected_hash,
-                "p_new_hash": h,
+            if spec.immutable:
+                raise ImmutableConflictError(f"remote {table}[{key}] is append-only; CAS mutation forbidden")
+
+            # PostgREST atomic conditional PATCH:
+            # PATCH /rest/v1/<table>?<pk>=eq.<key>&data_hash=eq.<expected_hash>
+            # Header: Prefer: return=representation
+            params = {
+                spec.pk: f"eq.{key}",
+                "data_hash": f"eq.{expected_hash}",
             }
+            headers = {"Prefer": "return=representation"}
             status, body = self._require().request(
-                "POST", "/rest/v1/rpc/quant_os_cas_put", json_body=rpc_body
+                "PATCH", f"/rest/v1/{table}", params=params, json_body=row, headers=headers
             )
-            if status in (400, 409) or (isinstance(body, dict) and any(err in str(body) for err in ("CAS_CONFLICT", "CAS_RECORD_NOT_FOUND", "Lost update", "P0001"))):
-                raise PersistenceError(
-                    f"Lost update detected on {table}[{key}]: expected hash {expected_hash} but found conflicting remote state."
-                )
             self._check(status, body)
-            if isinstance(body, dict):
-                return body.get("status", UPDATED)
+
+            if isinstance(body, list):
+                if len(body) == 1:
+                    return UPDATED
+                if len(body) == 0:
+                    raise PersistenceError(
+                        f"CAS_CONFLICT: lost update or uninitialized hash on {table}[{key}]: expected hash {expected_hash}."
+                    )
+                raise PersistenceError(
+                    f"GOVERNANCE_ERROR: unexpected multiple rows ({len(body)}) updated on {table}[{key}]."
+                )
             return UPDATED
 
-        existing = self.get(table, key)
-        if existing is not None:
-            curr_hash = payload_hash(existing)
-            if curr_hash == h or canonical_json(existing) == canonical_json(data):
-                return UNCHANGED
-            if spec.immutable:
-                raise ImmutableConflictError(f"remote {table}[{key}] is append-only with a different payload")
-        prefer = "resolution=merge-duplicates" if not spec.immutable else "resolution=ignore-duplicates"
+        # Non-CAS write (expected_hash is None):
+        # Insertion path: use POST without merge-duplicates so DB enforces PK uniqueness
         status, body = self._require().request(
-            "POST", f"/rest/v1/{table}", params={"on_conflict": spec.pk},
-            json_body=remote_row(table, key, data), headers={"Prefer": prefer + ",return=minimal"},
+            "POST", f"/rest/v1/{table}",
+            json_body=row, headers={"Prefer": "return=representation"},
         )
+        if status in (200, 201):
+            return INSERTED
+
+        if status == 409 or (status == 400 and "duplicate" in str(body).lower()):
+            # PK collision: verify whether this is an idempotent duplicate or collision
+            existing = self.get(table, key)
+            if existing is not None:
+                if payload_hash(existing) == h or canonical_json(existing) == canonical_json(data):
+                    return UNCHANGED
+                if spec.immutable:
+                    raise ImmutableConflictError(f"remote {table}[{key}] is append-only with a different payload")
+                raise PersistenceError(
+                    f"INSERT_COLLISION: {table}[{key}] already exists with different payload; use expected_hash for updates."
+                )
+            raise PersistenceError(f"insert collision on {table}[{key}]: {status} {str(body)[:200]}")
+
         self._check(status, body)
-        return INSERTED if existing is None else UPDATED
+        return INSERTED
 
     def list(self, table: str, limit: Optional[int] = None, page_size: int = 1000, **filters: Any) -> List[Dict[str, Any]]:
         spec = get_spec(table)

@@ -61,6 +61,11 @@ def test_committed_migration_matches_generator():
     assert sql.replace("\r\n", "\n") == schema.render_migration_sql().replace("\r\n", "\n")
 
 
+def test_committed_migration_0002_matches_generator():
+    sql = (ROOT / "migrations" / schema.MIGRATION_0002_NAME).read_text(encoding="utf-8")
+    assert sql.replace("\r\n", "\n") == schema.render_migration_0002_sql().replace("\r\n", "\n")
+
+
 def test_migration_enables_rls_and_revokes_public():
     sql = schema.render_migration_sql()
     assert sql.count("enable row level security") >= len(schema.TABLE_SPECS)
