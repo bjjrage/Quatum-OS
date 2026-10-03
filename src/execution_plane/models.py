@@ -254,6 +254,8 @@ class ExecFill(BaseModel):
 
 class OrderRecord(BaseModel):
     """Mutable projection of one order's lifecycle (source of truth is the persisted transitions)."""
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     intent: OrderIntent
     state: OrderState = OrderState.INTENT_CREATED
     mode: ExecutionMode = DEFAULT_EXECUTION_MODE
@@ -266,6 +268,7 @@ class OrderRecord(BaseModel):
     venue_absent_confirmed: bool = False
     prior_state: Optional[OrderState] = None  # state before CANCEL_PENDING
     updated_at_ns: int = 0
+    risk_decision: Optional[Any] = None
 
     @property
     def requested_qty(self) -> float:

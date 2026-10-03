@@ -11,6 +11,22 @@ from pydantic import BaseModel, Field
 MIN_24H_SECONDS: float = 24.0 * 3600.0  # 86,400 seconds
 MIN_72H_SECONDS: float = 72.0 * 3600.0  # 259,200 seconds
 
+# ==============================================================================
+# PROVISIONAL OPERATIONAL PRIORS — DATA CONTINUITY AND STREAM ACCEPTANCE
+# ==============================================================================
+PROVISIONAL_REQUIRED_STREAMS: List[str] = [
+    "binance_perp/bbo_ticks",
+    "binance_perp/trade_ticks",
+    "deribit/bbo_ticks",
+    "deribit/deribit_metrics",
+    "polymarket/orderbook_l2_depth",
+    "polymarket/bbo_ticks",
+]
+PROVISIONAL_MAX_STREAM_GAP_SECONDS: float = 3600.0  # 1 hour max allowable gap
+PROVISIONAL_TICK_STREAM_MAX_GAP_SECONDS: float = 1800.0  # 30m max gap for tick streams
+PROVISIONAL_MAX_FRESHNESS_SECONDS: float = 1800.0   # 30m max staleness from now
+PROVISIONAL_MIN_STREAM_ROWS: int = 100             # Minimum row count per stream
+
 
 class AcceptanceState(str, Enum):
     """Formal states for the Batch 0 continuous recording acceptance lifecycle."""
@@ -64,6 +80,7 @@ def evaluate_duration_gate(
     is_process_alive: Optional[bool] = None,
     total_row_count: Optional[int] = None,
     min_row_count: Optional[int] = None,
+    stream_continuity_failures: Optional[List[str]] = None,
     reasons: Optional[List[str]] = None,
 ) -> GateEvaluationResult:
     """Strict evaluation of an acceptance gate enforcing duration, data span, and liveness requirements.
@@ -116,6 +133,9 @@ def evaluate_duration_gate(
         disqualifications.append(
             f"Insufficient data volume: {total_row_count} rows recorded < minimum required {threshold_rows}."
         )
+
+    if stream_continuity_failures:
+        disqualifications.extend(stream_continuity_failures)
 
     if not metrics_pass:
         disqualifications.extend(reasons_list)
