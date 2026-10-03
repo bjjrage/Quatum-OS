@@ -44,7 +44,7 @@ class ResearchParameterSet(BaseModel):
     """
     Versioned, immutable parameter set governing an empirical strategy variant.
     """
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
     parameter_set_id: str = Field(..., description="Unique parameter set identifier")
     strategy_id: str = Field(..., description="Target strategy identifier (e.g. STR-001, STR-002)")

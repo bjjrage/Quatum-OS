@@ -108,6 +108,8 @@ class ManualEvidenceObject(BaseModel):
     Written evidence required before adding a second account from the same provider (v1.4.1 Section 17).
     Must explicitly address multi-account, same-bot, same-strategy, and copy trading policies.
     """
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
     provider_name: str
     account_id: str
     multiple_accounts_allowed: bool = False

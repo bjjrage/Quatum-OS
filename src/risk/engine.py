@@ -33,7 +33,7 @@ class RiskViolationCode(str, Enum):
     EVENT_CLUSTER_LIMIT_EXCEEDED = "EVENT_CLUSTER_LIMIT_EXCEEDED"
 
 
-@dataclass
+@dataclass(frozen=True)
 class ProposedOrder:
     order_id: str
     strategy_id: str

@@ -35,7 +35,7 @@ class TradabilityTier(IntEnum):
 
 class TradabilityScore(BaseModel):
     """Point-in-time tradability score and tier classification for a target instrument."""
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
     symbol: str
     timestamp_ns: int
@@ -49,6 +49,9 @@ class TradabilityScore(BaseModel):
     max_position_usd: Optional[float] = None
     limit_orders_only: bool = False
     rejection_reasons: List[str] = Field(default_factory=list)
+
+
+TradabilityEvaluationResult = TradabilityScore
 
 
 class LiquidityTierPolicy:

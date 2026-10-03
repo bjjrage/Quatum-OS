@@ -81,7 +81,7 @@ class CounterpartyThesis(BaseModel):
     - WHEN WOULD IT INSTEAD REPRESENT PERSISTENT INFORMATION?
     - WHAT WOULD FALSIFY THIS THESIS?
     """
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
     counterparty_type: str = Field(..., description="Who is paying us? (e.g. Urgent liquidity demander, hedger, segmented arbitrageur)")
     economic_mechanism: str = Field(..., description="Why are they paying us? (e.g. Inventory imbalance, forced liquidation, structural barrier)")
@@ -118,7 +118,7 @@ class StrategyRuleEvidenceStatus(str, Enum):
 
 class StrategyRuleEvidence(BaseModel):
     """Evidence provenance tracking for an individual heuristic or rule."""
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
     rule_id: str
     strategy_id: str
@@ -133,7 +133,7 @@ class StrategyRuleEvidence(BaseModel):
 
 class StrategyParameterSet(BaseModel):
     """Typed parameter configuration container for strategy families."""
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
     parameter_set_id: str = "DEFAULT"
     family: str = "CUSTOM"
@@ -220,7 +220,7 @@ class StrategySpec(BaseModel):
     Contains metadata, origin, lifecycle stage, counterparty thesis, rule evidence,
     and empirical validation flags. No execution authority is granted by this specification.
     """
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
     strategy_id: str = Field(..., description="Unique strategy identifier (e.g. STR-001)")
     name: str = Field(..., description="Descriptive human-readable strategy name")
