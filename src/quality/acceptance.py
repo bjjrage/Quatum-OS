@@ -24,9 +24,26 @@ class AcceptanceState(str, Enum):
     CHECKPOINT_72H_FAIL = "CHECKPOINT_72H_FAIL"
 
 
+class AcceptanceContinuityState(str, Enum):
+    """Continuity lifecycle states for continuous recording runs."""
+    VALID = "VALID"
+    NEW_RUN = "NEW_RUN"
+    CONFIG_CHANGED = "CONFIG_CHANGED"
+    BROKEN = "BROKEN"
+
+
+class RecorderContinuityError(RuntimeError):
+    """Raised when recorder manifest exists but is corrupted, unparseable, or invalid.
+    
+    Prevents silent clock reset or fabrication of continuous acceptance records.
+    """
+    pass
+
+
 class GateDurationError(ValueError):
     """Raised when an acceptance checkpoint pass is attempted before required duration."""
     pass
+
 
 
 class GateEvaluationResult(BaseModel):
@@ -128,6 +145,10 @@ class RuntimeManifest(BaseModel):
     heartbeat_at_utc: str
     last_heartbeat_timestamp_ns: Optional[int] = None
     venues: List[str]
+    continuity_state: AcceptanceContinuityState = AcceptanceContinuityState.VALID
+    continuity_reason: Optional[str] = None
+    previous_run_id: Optional[str] = None
+    recovery_evidence: Optional[str] = None
 
     @classmethod
     def create_new(
@@ -157,6 +178,8 @@ class RuntimeManifest(BaseModel):
             heartbeat_at_utc=now_utc,
             last_heartbeat_timestamp_ns=now_ns,
             venues=default_venues,
+            continuity_state=AcceptanceContinuityState.NEW_RUN,
+            continuity_reason="FRESH_INITIALIZATION",
         )
 
     def elapsed_seconds(self) -> float:
@@ -194,31 +217,94 @@ class RuntimeManifest(BaseModel):
         git_sha: str,
         config_fingerprint: str,
         venues: Optional[List[str]] = None,
+        fail_closed: bool = True,
     ) -> Tuple["RuntimeManifest", bool]:
         """Attempt to resume an existing manifest if config_fingerprint matches.
         
-        Preserves original run_id, started_at_utc, and started_at_timestamp_ns while
-        updating pid, git_sha, status, and heartbeat.
+        Fail-Closed Invariants:
+        CASE A: Manifest does not exist -> create new run (NEW_RUN).
+        CASE B: Manifest exists, parses correctly, and fingerprint matches -> resume same run_id,
+                preserve started_at_utc and started_at_timestamp_ns (VALID).
+        CASE C: Manifest exists, parses correctly, but fingerprint differs -> invalidate previous run,
+                create new run with CONFIG_CHANGED reason and reference to previous_run_id.
+        CASE D: Manifest exists but cannot be parsed / corrupted / structurally invalid:
+                DO NOT silently create a fresh run. Preserve old corrupted file and raise
+                RecorderContinuityError (or return BROKEN if fail_closed=False).
         
         Returns:
             (manifest, was_resumed)
         """
+        filepath = Path(filepath)
         if filepath.exists():
+            raw_content = ""
             try:
-                existing = cls.load(filepath)
-                if existing.config_fingerprint == config_fingerprint:
-                    existing.pid = pid
-                    existing.git_sha = git_sha
-                    existing.status = AcceptanceState.RUNNING
-                    existing.update_heartbeat()
-                    return existing, True
-            except Exception:
-                pass
+                with open(filepath, "r", encoding="utf-8") as f:
+                    raw_content = f.read()
+                data = json.loads(raw_content)
+                existing = cls(**data)
+            except Exception as exc:
+                # CASE D: Corrupted or structurally invalid manifest
+                try:
+                    forensic_backup = filepath.parent / f"{filepath.stem}.corrupt_{int(time.time())}.json"
+                    if not forensic_backup.exists() and raw_content:
+                        with open(forensic_backup, "w", encoding="utf-8") as bf:
+                            bf.write(raw_content)
+                except Exception:
+                    pass
 
+                err_msg = (
+                    f"RecorderContinuityError: Manifest exists at {filepath} but failed integrity parsing "
+                    f"({type(exc).__name__}: {exc}). Fail-closed invariant forbids silent clock reset. "
+                    "Manual review required."
+                )
+                if fail_closed:
+                    raise RecorderContinuityError(err_msg) from exc
+
+                broken_manifest = cls.create_new(
+                    pid=pid,
+                    git_sha=git_sha,
+                    config_fingerprint=config_fingerprint,
+                    venues=venues,
+                )
+                broken_manifest.status = AcceptanceState.NOT_STARTED
+                broken_manifest.continuity_state = AcceptanceContinuityState.BROKEN
+                broken_manifest.continuity_reason = err_msg
+                broken_manifest.recovery_evidence = raw_content[:500]
+                return broken_manifest, False
+
+            # Case B: Fingerprint matches -> RESUME
+            if existing.config_fingerprint == config_fingerprint:
+                existing.pid = pid
+                existing.git_sha = git_sha
+                existing.status = AcceptanceState.RUNNING
+                existing.continuity_state = AcceptanceContinuityState.VALID
+                existing.continuity_reason = "RESUMED_IDENTICAL_FINGERPRINT"
+                existing.update_heartbeat()
+                return existing, True
+            else:
+                # Case C: Fingerprint changed -> NEW_RUN with CONFIG_CHANGED
+                new_manifest = cls.create_new(
+                    pid=pid,
+                    git_sha=git_sha,
+                    config_fingerprint=config_fingerprint,
+                    venues=venues,
+                )
+                new_manifest.continuity_state = AcceptanceContinuityState.CONFIG_CHANGED
+                new_manifest.continuity_reason = (
+                    f"CONFIG_FINGERPRINT_CHANGED: previous={existing.config_fingerprint[:12]} "
+                    f"current={config_fingerprint[:12]}"
+                )
+                new_manifest.previous_run_id = existing.run_id
+                return new_manifest, False
+
+        # Case A: Manifest does not exist -> NEW_RUN
         new_manifest = cls.create_new(
             pid=pid,
             git_sha=git_sha,
             config_fingerprint=config_fingerprint,
             venues=venues,
         )
+        new_manifest.continuity_state = AcceptanceContinuityState.NEW_RUN
+        new_manifest.continuity_reason = "FRESH_INITIALIZATION"
         return new_manifest, False
+
