@@ -4,11 +4,15 @@ Realistic Paper Broker and Execution Simulator.
 Invariants:
 - Strictly dry-run and simulated: live execution is physically prevented.
 - Realistic execution modeling:
-  - Network transit latency simulation.
+  - Network transit latency simulation (orders submitted at T0 execute at T >= T0 + latency).
+  - Market orders do NOT fill using stale T0 quotes when latency > 0.
   - Queue priority / FIFO fill modeling for passive limit orders.
-  - Non-instantaneous fills and price slippage for taker market orders.
+  - Marketable limit orders are classified as TAKER orders (charge taker fee).
+  - Depth exhaustion and partial fills against available liquidity.
+  - Non-instantaneous fills and non-linear price slippage.
   - Maker / Taker fee structure.
   - Multi-asset cash and position ledger with realized/unrealized PnL.
+  - Cancel and Replace support.
 """
 
 from __future__ import annotations
@@ -33,6 +37,7 @@ class PaperOrderType(str, Enum):
 class PaperOrderStatus(str, Enum):
     NEW = "NEW"
     SUBMITTED = "SUBMITTED"
+    PARTIALLY_FILLED = "PARTIALLY_FILLED"
     FILLED = "FILLED"
     CANCELLED = "CANCELLED"
     REJECTED = "REJECTED"
@@ -56,6 +61,7 @@ class PaperOrder:
     filled_at_ns: Optional[int] = None
     fee_paid: float = 0.0
     slippage_usd: float = 0.0
+    is_taker: bool = False
 
 
 @dataclass
@@ -70,6 +76,7 @@ class PaperTrade:
     fee: float
     slippage_usd: float
     timestamp_ns: int
+    is_taker: bool = False
 
 
 @dataclass
@@ -96,6 +103,7 @@ class PaperBroker:
     ):
         self.initial_cash_usd = initial_cash_usd
         self.cash_usd = initial_cash_usd
+        self.simulated_latency_ms = simulated_latency_ms
         self.latency_ns = int(simulated_latency_ms * 1_000_000)
         self.maker_fee_bps = maker_fee_bps
         self.taker_fee_bps = taker_fee_bps
@@ -123,6 +131,8 @@ class PaperBroker:
     ) -> PaperOrder:
         """
         Submit an order to the virtual broker.
+        If simulated latency > 0, the order is placed into SUBMITTED status and must wait
+        for market state at T >= submitted_at_ns + latency_ns to execute.
         """
         if quantity <= 0.0:
             raise ValueError(f"Quantity must be positive: {quantity}")
@@ -131,6 +141,18 @@ class PaperBroker:
 
         order_id = f"ord-{uuid.uuid4().hex[:10]}"
         available_at_ns = current_time_ns + self.latency_ns
+
+        is_taker = False
+        if order_type == PaperOrderType.MARKET:
+            is_taker = True
+        elif order_type == PaperOrderType.LIMIT and current_bbo is not None:
+            # Check if limit crosses the spread immediately (Marketable Limit)
+            best_ask = current_bbo.get("best_ask", float("inf"))
+            best_bid = current_bbo.get("best_bid", 0.0)
+            if side == PaperOrderSide.BUY and best_ask > 0 and limit_price >= best_ask:
+                is_taker = True
+            elif side == PaperOrderSide.SELL and best_bid > 0 and limit_price <= best_bid:
+                is_taker = True
 
         order = PaperOrder(
             order_id=order_id,
@@ -143,51 +165,98 @@ class PaperBroker:
             status=PaperOrderStatus.SUBMITTED,
             submitted_at_ns=current_time_ns,
             available_at_ns=available_at_ns,
+            is_taker=is_taker,
         )
 
         if current_bbo is not None:
-            # Set estimated initial queue depth ahead for limit orders
             bid_size = current_bbo.get("bid_size", 5.0)
             ask_size = current_bbo.get("ask_size", 5.0)
             order.queue_ahead_volume = bid_size if side == PaperOrderSide.BUY else ask_size
 
         self.orders[order_id] = order
 
-        # If it's a MARKET order and current_bbo is available, fill immediately after latency
-        if order_type == PaperOrderType.MARKET and current_bbo is not None:
-            self._fill_market_order(order, current_bbo, fill_time_ns=available_at_ns)
+        # If zero latency, we can execute immediately using current_bbo
+        if self.latency_ns == 0 and current_bbo is not None:
+            if order.is_taker:
+                self._fill_taker_order(
+                    order,
+                    best_bid=current_bbo.get("best_bid", 0.0),
+                    best_ask=current_bbo.get("best_ask", 0.0),
+                    bid_size=current_bbo.get("bid_size", 10.0),
+                    ask_size=current_bbo.get("ask_size", 10.0),
+                    fill_time_ns=current_time_ns,
+                )
 
         return order
 
-    def _fill_market_order(
+    def _fill_taker_order(
         self,
         order: PaperOrder,
-        bbo: Dict[str, float],
+        best_bid: float,
+        best_ask: float,
+        bid_size: float,
+        ask_size: float,
         fill_time_ns: int,
-    ) -> None:
-        """Execute market taker order with slippage and taker fee."""
-        best_bid = bbo.get("best_bid", 0.0)
-        best_ask = bbo.get("best_ask", 0.0)
-
+    ) -> Optional[PaperTrade]:
+        """Execute market/marketable limit taker order with non-linear slippage and taker fee."""
         if order.side == PaperOrderSide.BUY:
             base_price = best_ask if best_ask > 0 else best_bid
-            slippage_factor = 1.0 + (self.base_slippage_bps / 10_000.0)
-            exec_price = base_price * slippage_factor
+            available_depth = ask_size
         else:
             base_price = best_bid if best_bid > 0 else best_ask
-            slippage_factor = 1.0 - (self.base_slippage_bps / 10_000.0)
-            exec_price = base_price * slippage_factor
+            available_depth = bid_size
 
-        notional = order.quantity * exec_price
+        if base_price <= 0.0 or available_depth <= 0.0:
+            return None
+
+        # Check limit condition for marketable limit orders
+        if order.order_type == PaperOrderType.LIMIT and order.limit_price is not None:
+            if order.side == PaperOrderSide.BUY and base_price > order.limit_price:
+                # Market moved above buy limit; converts to resting passive order
+                order.is_taker = False
+                order.queue_ahead_volume = available_depth
+                return None
+            elif order.side == PaperOrderSide.SELL and base_price < order.limit_price:
+                # Market moved below sell limit; converts to resting passive order
+                order.is_taker = False
+                order.queue_ahead_volume = available_depth
+                return None
+
+        unfilled = order.quantity - order.filled_qty
+        fill_qty = min(unfilled, available_depth)
+        if fill_qty <= 0.0:
+            return None
+
+        # Size-aware non-linear slippage
+        depth_ratio = fill_qty / max(0.1, available_depth)
+        effective_slippage_bps = self.base_slippage_bps * (1.0 + depth_ratio)
+
+        if order.side == PaperOrderSide.BUY:
+            exec_price = base_price * (1.0 + (effective_slippage_bps / 10_000.0))
+            if order.order_type == PaperOrderType.LIMIT and order.limit_price is not None:
+                exec_price = min(exec_price, order.limit_price)
+        else:
+            exec_price = base_price * (1.0 - (effective_slippage_bps / 10_000.0))
+            if order.order_type == PaperOrderType.LIMIT and order.limit_price is not None:
+                exec_price = max(exec_price, order.limit_price)
+
+        notional = fill_qty * exec_price
         fee = notional * (self.taker_fee_bps / 10_000.0)
-        slippage_usd = abs(exec_price - base_price) * order.quantity
+        slippage_usd = abs(exec_price - base_price) * fill_qty
 
-        order.status = PaperOrderStatus.FILLED
-        order.filled_qty = order.quantity
-        order.filled_price = exec_price
+        # Cumulative fill tracking
+        prior_notional = (order.filled_price or 0.0) * order.filled_qty
+        new_total_qty = order.filled_qty + fill_qty
+        order.filled_price = (prior_notional + (exec_price * fill_qty)) / new_total_qty
+        order.filled_qty = new_total_qty
         order.filled_at_ns = fill_time_ns
-        order.fee_paid = fee
-        order.slippage_usd = slippage_usd
+        order.fee_paid += fee
+        order.slippage_usd += slippage_usd
+
+        if math.isclose(order.filled_qty, order.quantity, rel_tol=1e-5):
+            order.status = PaperOrderStatus.FILLED
+        else:
+            order.status = PaperOrderStatus.PARTIALLY_FILLED
 
         trade = PaperTrade(
             trade_id=f"trd-{uuid.uuid4().hex[:10]}",
@@ -196,13 +265,15 @@ class PaperBroker:
             venue=order.venue,
             side=order.side,
             price=exec_price,
-            quantity=order.quantity,
+            quantity=fill_qty,
             fee=fee,
             slippage_usd=slippage_usd,
             timestamp_ns=fill_time_ns,
+            is_taker=True,
         )
         self.trades.append(trade)
         self._update_position(trade)
+        return trade
 
     def on_market_event(
         self,
@@ -211,66 +282,94 @@ class PaperBroker:
         best_ask: float,
         event_time_ns: int,
         trade_volume: float = 1.0,
+        bid_size: float = 10.0,
+        ask_size: float = 10.0,
     ) -> List[PaperTrade]:
         """
-        Evaluate resting limit orders against incoming market updates.
+        Evaluate pending market orders and resting limit orders against incoming market updates.
+        Only orders whose available_at_ns <= event_time_ns (latency elapsed) are evaluated.
         """
         executed_trades = []
 
         for order in list(self.orders.values()):
-            if order.status != PaperOrderStatus.SUBMITTED:
+            if order.status not in (PaperOrderStatus.SUBMITTED, PaperOrderStatus.PARTIALLY_FILLED):
                 continue
-            if order.symbol != symbol or order.order_type != PaperOrderType.LIMIT:
+            if order.symbol != symbol:
                 continue
             if event_time_ns < order.available_at_ns:
-                continue  # In transit
+                continue  # Still in network transit
 
-            fill = False
-            exec_price = order.limit_price or 0.0
-
-            if order.side == PaperOrderSide.BUY:
-                # Buy limit fills if ask crosses limit or trade volume clears queue
-                if best_ask > 0 and best_ask <= exec_price:
-                    fill = True
-                elif best_bid <= exec_price:
-                    order.queue_ahead_volume -= trade_volume
-                    if order.queue_ahead_volume <= 0:
-                        fill = True
-            elif order.side == PaperOrderSide.SELL:
-                # Sell limit fills if bid crosses limit or trade volume clears queue
-                if best_bid > 0 and best_bid >= exec_price:
-                    fill = True
-                elif best_ask >= exec_price:
-                    order.queue_ahead_volume -= trade_volume
-                    if order.queue_ahead_volume <= 0:
-                        fill = True
-
-            if fill:
-                notional = order.quantity * exec_price
-                fee = notional * (self.maker_fee_bps / 10_000.0)
-
-                order.status = PaperOrderStatus.FILLED
-                order.filled_qty = order.quantity
-                order.filled_price = exec_price
-                order.filled_at_ns = event_time_ns
-                order.fee_paid = fee
-                order.slippage_usd = 0.0  # Limit orders provide liquidity
-
-                trade = PaperTrade(
-                    trade_id=f"trd-{uuid.uuid4().hex[:10]}",
-                    order_id=order.order_id,
-                    symbol=order.symbol,
-                    venue=order.venue,
-                    side=order.side,
-                    price=exec_price,
-                    quantity=order.quantity,
-                    fee=fee,
-                    slippage_usd=0.0,
-                    timestamp_ns=event_time_ns,
+            if order.is_taker or order.order_type == PaperOrderType.MARKET:
+                # Execute taker against post-latency market state
+                trade = self._fill_taker_order(
+                    order,
+                    best_bid=best_bid,
+                    best_ask=best_ask,
+                    bid_size=bid_size,
+                    ask_size=ask_size,
+                    fill_time_ns=event_time_ns,
                 )
-                self.trades.append(trade)
-                self._update_position(trade)
-                executed_trades.append(trade)
+                if trade is not None:
+                    executed_trades.append(trade)
+            elif order.order_type == PaperOrderType.LIMIT:
+                # Passive resting limit order
+                fill = False
+                exec_price = order.limit_price or 0.0
+
+                if order.side == PaperOrderSide.BUY:
+                    if best_ask > 0 and best_ask <= exec_price:
+                        fill = True
+                    elif best_bid <= exec_price:
+                        order.queue_ahead_volume -= trade_volume
+                        if order.queue_ahead_volume <= 0:
+                            fill = True
+                elif order.side == PaperOrderSide.SELL:
+                    if best_bid > 0 and best_bid >= exec_price:
+                        fill = True
+                    elif best_ask >= exec_price:
+                        order.queue_ahead_volume -= trade_volume
+                        if order.queue_ahead_volume <= 0:
+                            fill = True
+
+                if fill:
+                    unfilled = order.quantity - order.filled_qty
+                    available_depth = ask_size if order.side == PaperOrderSide.BUY else bid_size
+                    fill_qty = min(unfilled, available_depth)
+                    if fill_qty <= 0.0:
+                        continue
+
+                    notional = fill_qty * exec_price
+                    fee = notional * (self.maker_fee_bps / 10_000.0)
+
+                    prior_notional = (order.filled_price or 0.0) * order.filled_qty
+                    new_total_qty = order.filled_qty + fill_qty
+                    order.filled_price = (prior_notional + (exec_price * fill_qty)) / new_total_qty
+                    order.filled_qty = new_total_qty
+                    order.filled_at_ns = event_time_ns
+                    order.fee_paid += fee
+                    order.slippage_usd = 0.0  # Passive limit provides liquidity
+
+                    if math.isclose(order.filled_qty, order.quantity, rel_tol=1e-5):
+                        order.status = PaperOrderStatus.FILLED
+                    else:
+                        order.status = PaperOrderStatus.PARTIALLY_FILLED
+
+                    trade = PaperTrade(
+                        trade_id=f"trd-{uuid.uuid4().hex[:10]}",
+                        order_id=order.order_id,
+                        symbol=order.symbol,
+                        venue=order.venue,
+                        side=order.side,
+                        price=exec_price,
+                        quantity=fill_qty,
+                        fee=fee,
+                        slippage_usd=0.0,
+                        timestamp_ns=event_time_ns,
+                        is_taker=False,
+                    )
+                    self.trades.append(trade)
+                    self._update_position(trade)
+                    executed_trades.append(trade)
 
         return executed_trades
 
@@ -321,10 +420,38 @@ class PaperBroker:
 
     def cancel_order(self, order_id: str) -> bool:
         order = self.orders.get(order_id)
-        if order and order.status == PaperOrderStatus.SUBMITTED:
+        if order and order.status in (PaperOrderStatus.SUBMITTED, PaperOrderStatus.PARTIALLY_FILLED):
             order.status = PaperOrderStatus.CANCELLED
             return True
         return False
+
+    def replace_order(
+        self,
+        order_id: str,
+        new_quantity: float,
+        new_limit_price: Optional[float] = None,
+        current_time_ns: int = 0,
+        current_bbo: Optional[Dict[str, float]] = None,
+    ) -> PaperOrder:
+        """
+        Cancel existing order and submit replacement with new quantity/price,
+        incurring new network transit latency.
+        """
+        old_order = self.orders.get(order_id)
+        if not old_order or old_order.status not in (PaperOrderStatus.SUBMITTED, PaperOrderStatus.PARTIALLY_FILLED):
+            raise ValueError(f"Cannot replace order {order_id} in status {old_order.status if old_order else 'NOT_FOUND'}")
+
+        self.cancel_order(order_id)
+        return self.submit_order(
+            symbol=old_order.symbol,
+            side=old_order.side,
+            order_type=old_order.order_type,
+            quantity=new_quantity,
+            limit_price=new_limit_price if new_limit_price is not None else old_order.limit_price,
+            venue=old_order.venue,
+            current_time_ns=current_time_ns,
+            current_bbo=current_bbo,
+        )
 
     def get_portfolio_summary(self, mark_prices: Dict[str, float]) -> Dict[str, Any]:
         """Calculate total equity, unrealized PnL, and current positions."""

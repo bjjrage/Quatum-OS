@@ -182,6 +182,16 @@ def test_end_to_end_replay_pipeline():
         current_bbo=bbo,
     )
 
+    # Deliver order after transit latency
+    paper_broker.on_market_event(
+        symbol=proposed_order.symbol,
+        best_bid=bbo["best_bid"],
+        best_ask=bbo["best_ask"],
+        event_time_ns=int(latest_tick["ts_exchange_ns"]) + paper_broker.latency_ns,
+        ask_size=bbo["ask_size"],
+        bid_size=bbo["bid_size"],
+    )
+
     assert paper_order.status == PaperOrderStatus.FILLED
     assert paper_order.filled_price is not None
     assert paper_order.fee_paid > 0.0

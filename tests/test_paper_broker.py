@@ -9,10 +9,11 @@ from src.paper.broker import (
 )
 
 
-def test_market_order_fill_with_slippage_and_fee():
+def test_zero_latency_immediate_market_fill():
+    """With zero latency, market orders fill immediately against provided BBO."""
     broker = PaperBroker(
         initial_cash_usd=100_000.0,
-        simulated_latency_ms=10.0,
+        simulated_latency_ms=0.0,
         taker_fee_bps=5.0,  # 0.05%
         base_slippage_bps=2.0,  # 0.02%
     )
@@ -40,6 +41,137 @@ def test_market_order_fill_with_slippage_and_fee():
     summary = broker.get_portfolio_summary({"BTC-USDT": 60_010.0})
     assert summary["positions"]["BTC-USDT"]["quantity"] == 0.5
     assert summary["cash_usd"] < 100_000.0
+
+
+def test_delayed_market_order_fills_against_post_latency_market_state():
+    """
+    CRITICAL REQUIREMENT (v1.4.1 Section 20):
+    A market order submitted at T0 with latency must NOT fill using the BBO observed at T0.
+    It must evaluate against post-latency market state at T >= T0 + latency.
+    """
+    latency_ms = 20.0
+    latency_ns = int(latency_ms * 1_000_000)
+    broker = PaperBroker(
+        initial_cash_usd=100_000.0,
+        simulated_latency_ms=latency_ms,
+        taker_fee_bps=5.0,
+        base_slippage_bps=2.0,
+    )
+
+    t0 = 1_000_000_000
+    stale_bbo = {"best_bid": 60_000.0, "best_ask": 60_010.0, "bid_size": 5.0, "ask_size": 5.0}
+
+    # Order submitted at T0
+    order = broker.submit_order(
+        symbol="BTC-USDT",
+        side=PaperOrderSide.BUY,
+        order_type=PaperOrderType.MARKET,
+        quantity=1.0,
+        current_time_ns=t0,
+        current_bbo=stale_bbo,
+    )
+
+    # Must NOT be filled immediately with stale BBO!
+    assert order.status == PaperOrderStatus.SUBMITTED
+    assert order.filled_qty == 0.0
+    assert len(broker.trades) == 0
+
+    # Event arrives at T0 + 10ms (latency not yet elapsed) -> must NOT fill
+    trades_early = broker.on_market_event(
+        symbol="BTC-USDT",
+        best_bid=60_020.0,
+        best_ask=60_030.0,
+        event_time_ns=t0 + (latency_ns // 2),
+        ask_size=5.0,
+        bid_size=5.0,
+    )
+    assert len(trades_early) == 0
+    assert order.status == PaperOrderStatus.SUBMITTED
+
+    # Event arrives at T0 + 25ms (latency elapsed) with MOVED market price (ask = 60,050)
+    post_latency_ask = 60_050.0
+    trades_fill = broker.on_market_event(
+        symbol="BTC-USDT",
+        best_bid=60_040.0,
+        best_ask=post_latency_ask,
+        event_time_ns=t0 + latency_ns + 5_000_000,
+        ask_size=5.0,
+        bid_size=5.0,
+    )
+
+    assert len(trades_fill) == 1
+    assert order.status == PaperOrderStatus.FILLED
+    # Must fill against the post-latency ask 60,050 (with slippage), NOT stale 60,010!
+    assert order.filled_price >= post_latency_ask
+    assert trades_fill[0].is_taker is True
+    assert order.fee_paid > 0.0
+
+
+def test_marketable_limit_classified_as_taker():
+    """A limit order crossing the spread must be classified as a taker order and charged taker fees."""
+    broker = PaperBroker(
+        initial_cash_usd=100_000.0,
+        simulated_latency_ms=0.0,
+        maker_fee_bps=1.0,  # 0.01%
+        taker_fee_bps=5.0,  # 0.05%
+    )
+    bbo = {"best_bid": 60_000.0, "best_ask": 60_010.0, "bid_size": 5.0, "ask_size": 5.0}
+
+    # BUY limit with price 60,015 >= best_ask 60,010 -> crosses book
+    order = broker.submit_order(
+        symbol="BTC-USDT",
+        side=PaperOrderSide.BUY,
+        order_type=PaperOrderType.LIMIT,
+        quantity=1.0,
+        limit_price=60_015.0,
+        current_time_ns=1_000_000_000,
+        current_bbo=bbo,
+    )
+
+    assert order.status == PaperOrderStatus.FILLED
+    assert order.is_taker is True
+    # Fee paid must reflect taker fee (5 bps), not maker fee (1 bp)
+    expected_approx_fee = 1.0 * order.filled_price * (5.0 / 10_000.0)
+    assert pytest.approx(order.fee_paid, rel=1e-3) == expected_approx_fee
+
+
+def test_partial_fill_and_depth_exhaustion():
+    """Orders larger than available book depth must fill partially."""
+    broker = PaperBroker(
+        initial_cash_usd=200_000.0,
+        simulated_latency_ms=0.0,
+        taker_fee_bps=5.0,
+        base_slippage_bps=2.0,
+    )
+
+    bbo = {"best_bid": 60_000.0, "best_ask": 60_010.0, "bid_size": 5.0, "ask_size": 1.5}
+
+    # Want 3.0 BTC, but available depth at ask is only 1.5 BTC
+    order = broker.submit_order(
+        symbol="BTC-USDT",
+        side=PaperOrderSide.BUY,
+        order_type=PaperOrderType.MARKET,
+        quantity=3.0,
+        current_time_ns=1_000_000_000,
+        current_bbo=bbo,
+    )
+
+    assert order.status == PaperOrderStatus.PARTIALLY_FILLED
+    assert order.filled_qty == 1.5
+
+    # Subsequent market event brings more liquidity
+    trades2 = broker.on_market_event(
+        symbol="BTC-USDT",
+        best_bid=60_015.0,
+        best_ask=60_020.0,
+        event_time_ns=1_050_000_000,
+        ask_size=2.0,
+        bid_size=2.0,
+    )
+
+    assert len(trades2) == 1
+    assert order.status == PaperOrderStatus.FILLED
+    assert order.filled_qty == 3.0
 
 
 def test_limit_order_queue_and_fill():
@@ -103,28 +235,42 @@ def test_limit_order_queue_and_fill():
     assert order.fee_paid == 59_990.0 * 1.0 * (1.0 / 10_000.0)
 
 
-def test_order_cancellation():
-    broker = PaperBroker(initial_cash_usd=100_000.0)
+def test_order_cancellation_and_replace():
+    broker = PaperBroker(initial_cash_usd=100_000.0, simulated_latency_ms=10.0)
+    t0 = 1_000_000_000
     order = broker.submit_order(
         symbol="BTC-USDT",
         side=PaperOrderSide.BUY,
         order_type=PaperOrderType.LIMIT,
         quantity=1.0,
         limit_price=50_000.0,
-        current_time_ns=1_000_000_000,
+        current_time_ns=t0,
     )
     assert order.status == PaperOrderStatus.SUBMITTED
 
-    cancelled = broker.cancel_order(order.order_id)
-    assert cancelled is True
+    # Replace order
+    t1 = t0 + 5_000_000
+    new_order = broker.replace_order(
+        order_id=order.order_id,
+        new_quantity=2.0,
+        new_limit_price=50_500.0,
+        current_time_ns=t1,
+    )
     assert order.status == PaperOrderStatus.CANCELLED
-
-    # Cancelling again returns False
-    assert broker.cancel_order(order.order_id) is False
+    assert new_order.status == PaperOrderStatus.SUBMITTED
+    assert new_order.quantity == 2.0
+    assert new_order.limit_price == 50_500.0
+    assert new_order.available_at_ns == t1 + broker.latency_ns
 
 
 def test_realized_and_unrealized_pnl():
-    broker = PaperBroker(initial_cash_usd=100_000.0, maker_fee_bps=0.0, taker_fee_bps=0.0, base_slippage_bps=0.0)
+    broker = PaperBroker(
+        initial_cash_usd=100_000.0,
+        simulated_latency_ms=0.0,
+        maker_fee_bps=0.0,
+        taker_fee_bps=0.0,
+        base_slippage_bps=0.0,
+    )
 
     # Buy 1 BTC @ 50,000
     broker.submit_order(
@@ -133,7 +279,7 @@ def test_realized_and_unrealized_pnl():
         order_type=PaperOrderType.MARKET,
         quantity=1.0,
         current_time_ns=1_000_000_000,
-        current_bbo={"best_bid": 50_000.0, "best_ask": 50_000.0},
+        current_bbo={"best_bid": 50_000.0, "best_ask": 50_000.0, "ask_size": 10.0, "bid_size": 10.0},
     )
 
     # Mark price goes to 55,000 -> unrealized PnL = +$5,000
@@ -148,7 +294,7 @@ def test_realized_and_unrealized_pnl():
         order_type=PaperOrderType.MARKET,
         quantity=0.5,
         current_time_ns=2_000_000_000,
-        current_bbo={"best_bid": 56_000.0, "best_ask": 56_000.0},
+        current_bbo={"best_bid": 56_000.0, "best_ask": 56_000.0, "ask_size": 10.0, "bid_size": 10.0},
     )
 
     summary2 = broker.get_portfolio_summary({"BTC-USDT": 56_000.0})
