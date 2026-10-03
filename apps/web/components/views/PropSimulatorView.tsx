@@ -122,7 +122,7 @@ export function PropSimulatorView() {
           <div>
             <button
               disabled={true}
-              className="w-full py-2 rounded text-xs font-bold font-mono-code flex items-center justify-center gap-1.5 bg-slate-800/80 text-slate-500 cursor-not-allowed border border-slate-700"
+              className="w-full py-2 rounded text-xs font-bold font-mono-code flex items-center justify-center gap-1.5 bg-slate-200 text-slate-500 cursor-not-allowed border border-slate-300 dark:bg-slate-800/80 dark:text-slate-500 dark:border-slate-700"
             >
               <Play className="w-3.5 h-3.5 fill-current" />
               LOCKED: REQUIRES N &ge; 30 (N = {empiricalTradeCount})

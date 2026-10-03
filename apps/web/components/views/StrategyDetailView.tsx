@@ -16,7 +16,7 @@ export function StrategyDetailView({ strategy, onBack }: StrategyDetailViewProps
       <div className="space-y-4">
         <button
           onClick={onBack}
-          className="text-xs font-mono-code text-cyan-400 hover:text-cyan-300 flex items-center gap-1"
+          className="text-xs font-mono-code text-sky-700 hover:text-sky-900 dark:text-cyan-400 dark:hover:text-cyan-300 flex items-center gap-1 font-semibold"
         >
           <ArrowLeft className="w-4 h-4" /> Back to Strategy Registry
         </button>
@@ -37,7 +37,7 @@ export function StrategyDetailView({ strategy, onBack }: StrategyDetailViewProps
       <div className="flex items-center justify-between pb-2 border-b border-slate-800">
         <button
           onClick={onBack}
-          className="text-xs font-mono-code text-cyan-400 hover:text-cyan-300 flex items-center gap-1.5"
+          className="text-xs font-mono-code text-sky-700 hover:text-sky-900 dark:text-cyan-400 dark:hover:text-cyan-300 flex items-center gap-1.5 font-semibold"
         >
           <ArrowLeft className="w-4 h-4" /> Back to Strategy Registry
         </button>

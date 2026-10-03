@@ -20,30 +20,30 @@ export function HoldoutsView({ holdoutsData }: HoldoutsViewProps) {
   return (
     <div className="space-y-6">
       {/* HEADER */}
-      <div className="pb-2 border-b border-slate-800">
-        <h2 className="text-lg font-bold text-slate-100 font-mono-code flex items-center gap-2">
-          <Lock className="w-5 h-5 text-rose-400" />
+      <div className="pb-2 border-b border-slate-200 dark:border-slate-800">
+        <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100 font-mono-code flex items-center gap-2">
+          <Lock className="w-5 h-5 text-rose-600 dark:text-rose-400" />
           Sealed Holdout Data Partition Manager & Anti-Leakage Vault
         </h2>
-        <p className="text-xs text-slate-400 mt-1">
+        <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 font-mono-code">
           Cryptographically isolated out-of-sample data partitions strictly reserved for final gate evaluation.
         </p>
       </div>
 
       {/* PROMINENT SEALED WARNING BANNER */}
-      <div className="rounded-lg border border-rose-800/80 bg-gradient-to-r from-rose-950/60 via-[#180a0e] to-rose-950/30 p-5 shadow-lg space-y-2">
+      <div className="rounded-lg border border-rose-300 dark:border-rose-800/80 bg-rose-50 dark:bg-gradient-to-r dark:from-rose-950/60 dark:via-[#180a0e] dark:to-rose-950/30 p-5 shadow-sm dark:shadow-lg space-y-2">
         <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-full bg-rose-900/50 border border-rose-600 text-rose-300 animate-pulse-subtle">
+          <div className="p-2.5 rounded-full bg-rose-100 dark:bg-rose-900/50 border border-rose-300 dark:border-rose-600 text-rose-800 dark:text-rose-300 animate-pulse-subtle">
             <AlertOctagon className="w-6 h-6" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-sm font-bold text-rose-100 tracking-wider uppercase font-mono-code">
+              <span className="text-sm font-bold text-rose-950 dark:text-rose-100 tracking-wider uppercase font-mono-code">
                 CRITICAL PROTOCOL: ZERO LEAKAGE HOLDOUT ENFORCEMENT
               </span>
               <Badge variant="rose" size="xs">SEALED</Badge>
             </div>
-            <p className="text-xs text-rose-200/90 mt-1 leading-relaxed font-mono-code">
+            <p className="text-xs text-rose-900/90 dark:text-rose-200/90 mt-1 leading-relaxed font-mono-code">
               Holdout partitions must remain strictly unobserved during model hyperparameter selection and exploratory data analysis.
               Opening a sealed holdout dataset irreversibly burns that partition and permanently invalidates further model iteration on that timeframe.
             </p>

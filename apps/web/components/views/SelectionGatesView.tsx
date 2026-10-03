@@ -75,23 +75,23 @@ export function SelectionGatesView({ gates, provenanceInvariant }: SelectionGate
   return (
     <div className="space-y-6">
       {/* HEADER */}
-      <div className="pb-2 border-b border-slate-800">
-        <h2 className="text-lg font-bold text-slate-100 font-mono-code flex items-center gap-2">
-          <ShieldCheck className="w-5 h-5 text-cyan-400" />
+      <div className="pb-2 border-b border-slate-200 dark:border-slate-800">
+        <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100 font-mono-code flex items-center gap-2">
+          <ShieldCheck className="w-5 h-5 text-sky-600 dark:text-cyan-400" />
           Quant Strategy Selection Gates (A / B / C / D Architecture)
         </h2>
-        <p className="text-xs text-slate-400 mt-1">
+        <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 font-mono-code">
           Four invariant gatekeepers eliminating data-snooping bias, execution illusions, and latency decay before paper or live allocation.
         </p>
       </div>
 
       {/* PROVENANCE INVARIANT CALLOUT */}
-      <div className="rounded-lg border border-cyan-800/80 bg-[#0e1624] p-4 text-xs font-mono-code space-y-1">
-        <div className="flex items-center gap-2 text-cyan-300 font-bold uppercase">
+      <div className="rounded-lg border border-sky-300 dark:border-cyan-800/80 bg-sky-50 dark:bg-[#0e1624] p-4 text-xs font-mono-code space-y-1 shadow-sm">
+        <div className="flex items-center gap-2 text-sky-900 dark:text-cyan-300 font-bold uppercase">
           <ShieldCheck className="w-4 h-4" />
           Gate Evaluation Provenance Invariant
         </div>
-        <p className="text-slate-300 leading-relaxed">
+        <p className="text-slate-700 dark:text-slate-300 leading-relaxed font-mono-code">
           {provenanceInvariant ||
             "Gate rules and execution thresholds are mathematically identical across backtest evaluation, paper trading monitoring, and capital allocation. No strategy may bypass any gate through manual operator override."}
         </p>

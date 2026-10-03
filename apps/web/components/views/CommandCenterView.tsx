@@ -68,7 +68,7 @@ export function CommandCenterView({
         <div className="flex items-center gap-2">
           <button
             onClick={() => onNavigate("risk-engine")}
-            className="px-3 py-1.5 rounded bg-rose-950/80 hover:bg-rose-900/60 border border-rose-800/80 text-xs font-mono-code text-rose-200 transition"
+            className="px-3 py-1.5 rounded bg-rose-100 hover:bg-rose-200 text-rose-900 border border-rose-300 font-semibold shadow-xs dark:bg-rose-950/80 dark:hover:bg-rose-900/60 dark:border-rose-800/80 dark:text-rose-200 text-xs font-mono-code transition"
           >
             Inspect Risk Engine
           </button>
@@ -200,7 +200,7 @@ export function CommandCenterView({
             action={
               <button
                 onClick={() => onNavigate("recorder")}
-                className="text-xs font-mono-code text-cyan-400 hover:text-cyan-300"
+                className="text-xs font-mono-code text-sky-700 hover:text-sky-900 dark:text-cyan-400 dark:hover:text-cyan-300 font-semibold"
               >
                 View Full Telemetry →
               </button>

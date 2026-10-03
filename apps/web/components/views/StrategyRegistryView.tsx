@@ -34,7 +34,7 @@ export function StrategyRegistryView({
         <div>
           <button
             onClick={() => onNavigate("str002-specialized")}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-amber-950/60 hover:bg-amber-900/60 text-xs font-mono-code text-amber-300 border border-amber-800/80 transition"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-amber-50 hover:bg-amber-100 text-xs font-mono-code text-amber-900 border border-amber-300 font-semibold shadow-xs dark:bg-amber-950/60 dark:hover:bg-amber-900/60 dark:text-amber-300 dark:border-amber-800/80 transition"
           >
             Open STR-002 v2 Specialized Cockpit →
           </button>
@@ -158,14 +158,14 @@ export function StrategyRegistryView({
                 {isStr002 ? (
                   <button
                     onClick={() => onNavigate("str002-specialized")}
-                    className="text-xs font-mono-code text-amber-400 hover:text-amber-300 flex items-center gap-1 font-semibold"
+                    className="text-xs font-mono-code text-amber-700 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-300 flex items-center gap-1 font-semibold"
                   >
                     Open STR-002 Specialized Cockpit →
                   </button>
                 ) : (
                   <button
                     onClick={() => onSelectStrategy(strat.strategy_id)}
-                    className="text-xs font-mono-code text-cyan-400 hover:text-cyan-300 flex items-center gap-1"
+                    className="text-xs font-mono-code text-sky-700 dark:text-cyan-400 hover:text-sky-900 dark:hover:text-cyan-300 flex items-center gap-1 font-semibold"
                   >
                     View Strategy Details & Rules →
                   </button>

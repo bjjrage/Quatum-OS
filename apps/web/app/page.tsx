@@ -37,6 +37,38 @@ import { ConfigurationView } from "../components/views/ConfigurationView";
 export default function QuantCockpitPage() {
   const [activeTab, setActiveTab] = useState<NavTabId>("command-center");
   const [selectedStrategyId, setSelectedStrategyId] = useState<string | null>(null);
+  const [theme, setTheme] = useState<"dark" | "light">("dark");
+
+  // Synchronize theme with localStorage and html class
+  useEffect(() => {
+    try {
+      const savedTheme = localStorage.getItem("quant_cockpit_theme");
+      if (savedTheme === "light") {
+        setTheme("light");
+        document.documentElement.classList.remove("dark");
+        document.documentElement.classList.add("light");
+      } else {
+        setTheme("dark");
+        document.documentElement.classList.add("dark");
+        document.documentElement.classList.remove("light");
+      }
+    } catch (e) {}
+  }, []);
+
+  const toggleTheme = () => {
+    const nextTheme = theme === "dark" ? "light" : "dark";
+    setTheme(nextTheme);
+    try {
+      localStorage.setItem("quant_cockpit_theme", nextTheme);
+      if (nextTheme === "dark") {
+        document.documentElement.classList.add("dark");
+        document.documentElement.classList.remove("light");
+      } else {
+        document.documentElement.classList.remove("dark");
+        document.documentElement.classList.add("light");
+      }
+    } catch (e) {}
+  };
 
   // Live state
   const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null);
@@ -160,9 +192,15 @@ export default function QuantCockpitPage() {
   };
 
   return (
-    <div className="flex h-screen w-screen flex-col overflow-hidden bg-[#0a0b0d] text-[#f0f3f8]">
+    <div className="flex h-screen w-screen flex-col overflow-hidden bg-slate-100 dark:bg-[#0a0b0d] text-slate-900 dark:text-[#f0f3f8] transition-colors">
       {/* 1. TOP OPERATIONAL STATUS STRIP (PINNED) */}
-      <TopStatusStrip status={systemStatus} recorder={recorderStatus} onRefresh={refreshAll} />
+      <TopStatusStrip
+        status={systemStatus}
+        recorder={recorderStatus}
+        onRefresh={refreshAll}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+      />
 
       {/* 2. BODY LAYOUT: SIDEBAR + MAIN VIEWPORT */}
       <div className="flex flex-1 overflow-hidden">
@@ -175,7 +213,7 @@ export default function QuantCockpitPage() {
         />
 
         {/* SCROLLABLE MAIN CONTENT AREA */}
-        <main className="flex-1 overflow-y-auto p-6 bg-[#0a0b0d]">
+        <main className="flex-1 overflow-y-auto p-6 bg-slate-100 dark:bg-[#0a0b0d] transition-colors">
           <div className="max-w-[1600px] mx-auto pb-16">
             {activeTab === "command-center" && (
               <CommandCenterView

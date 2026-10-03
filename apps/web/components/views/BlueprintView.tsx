@@ -99,12 +99,12 @@ export function BlueprintView({ onNavigate }: BlueprintViewProps) {
   return (
     <div className="space-y-6">
       {/* HEADER */}
-      <div className="pb-2 border-b border-slate-800">
-        <h2 className="text-lg font-bold text-slate-100 font-mono-code flex items-center gap-2">
-          <Layers className="w-5 h-5 text-cyan-400" />
+      <div className="pb-2 border-b border-slate-200 dark:border-slate-800">
+        <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100 font-mono-code flex items-center gap-2">
+          <Layers className="w-5 h-5 text-sky-600 dark:text-cyan-400" />
           Quant OS End-to-End Architectural Blueprint
         </h2>
-        <p className="text-xs text-slate-400 mt-1">
+        <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 font-mono-code">
           Interactive pipeline overview tracing market data ingestion, algorithmic evaluation, risk gating, and simulated settlement.
         </p>
       </div>
@@ -115,31 +115,31 @@ export function BlueprintView({ onNavigate }: BlueprintViewProps) {
           <div
             key={l.step}
             onClick={() => onNavigate(l.domain)}
-            className="cursor-pointer rounded-lg border border-[#1b2230] bg-[#0c0f16] p-4 hover:border-cyan-500/60 hover:bg-[#10141f] transition-all flex flex-col md:flex-row md:items-center justify-between gap-4 group"
+            className="cursor-pointer rounded-lg border border-slate-300 dark:border-[#1b2230] bg-white dark:bg-[#0c0f16] p-4 hover:border-sky-500 dark:hover:border-cyan-500/60 hover:bg-slate-50 dark:hover:bg-[#10141f] transition-all flex flex-col md:flex-row md:items-center justify-between gap-4 group shadow-sm"
           >
             <div className="flex items-start gap-3">
-              <div className="p-2 rounded bg-slate-900 border border-slate-800 group-hover:border-cyan-500/40 transition">
+              <div className="p-2 rounded bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 group-hover:border-sky-500/40 dark:group-hover:border-cyan-500/40 transition">
                 {l.icon}
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-cyan-400 font-mono-code">
+                  <span className="text-xs font-bold text-sky-700 dark:text-cyan-400 font-mono-code">
                     LAYER 0{l.step}
                   </span>
-                  <h3 className="text-sm font-bold text-slate-100 font-mono-code group-hover:text-cyan-300 transition">
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 font-mono-code group-hover:text-sky-600 dark:group-hover:text-cyan-300 transition">
                     {l.title}
                   </h3>
                   <Badge variant="cyan" size="xs">
                     {l.badge}
                   </Badge>
                 </div>
-                <p className="text-xs text-slate-400 mt-1 leading-relaxed max-w-3xl font-mono-code">
+                <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 leading-relaxed max-w-3xl font-mono-code">
                   {l.description}
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-1 text-xs font-mono-code text-cyan-400 group-hover:translate-x-1 transition-transform self-end md:self-center">
+            <div className="flex items-center gap-1 text-xs font-mono-code text-sky-700 dark:text-cyan-400 group-hover:translate-x-1 transition-transform self-end md:self-center font-semibold">
               <span>Inspect Layer</span>
               <ArrowRight className="w-4 h-4" />
             </div>

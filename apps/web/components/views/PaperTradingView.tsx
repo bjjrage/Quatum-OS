@@ -90,8 +90,8 @@ export function PaperTradingView({ paperAccount, onRefresh }: PaperTradingViewPr
                 onClick={() => setActiveTab(t.id as any)}
                 className={`px-3 py-1.5 rounded text-xs font-mono-code transition ${
                   activeTab === t.id
-                    ? "bg-cyan-950 text-cyan-300 border border-cyan-700"
-                    : "bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800"
+                    ? "bg-sky-100 text-sky-900 border border-sky-400 font-bold shadow-xs dark:bg-cyan-950 dark:text-cyan-300 dark:border-cyan-700"
+                    : "bg-slate-100 text-slate-700 border border-slate-300 hover:bg-slate-200 hover:text-slate-900 dark:bg-slate-900 dark:text-slate-400 dark:hover:text-slate-200 dark:border-slate-800"
                 }`}
               >
                 {t.label}
@@ -101,7 +101,7 @@ export function PaperTradingView({ paperAccount, onRefresh }: PaperTradingViewPr
           {onRefresh && (
             <button
               onClick={onRefresh}
-              className="text-xs font-mono-code text-slate-400 hover:text-slate-200 flex items-center gap-1"
+              className="text-xs font-mono-code text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 flex items-center gap-1 font-medium"
             >
               <RefreshCw className="w-3.5 h-3.5" /> Refresh
             </button>
