@@ -152,3 +152,59 @@ def test_all_gates_pass_orchestrator():
     assert all_gates_pass({"A": passing_result}) is True
     assert all_gates_pass({"A": passing_result, "B": failing_result}) is False
     assert all_gates_pass({}) is False
+    # Test list input and PENDING status
+    pending_result = StrategyGateResult(
+        gate_name="Gate C",
+        status=GateStatus.PENDING,
+        score=0.0,
+        threshold=0.5,
+    )
+    assert all_gates_pass([passing_result]) is True
+    assert all_gates_pass([passing_result, pending_result]) is False
+
+
+def test_strategy_gate_result_audit_contract():
+    """Verify StrategyGateResult enforces audit invariants and rejects illegal PASS."""
+    # 1. Reject status=PASS with falsification evidence
+    with pytest.raises(ValueError, match="cannot declare status=PASS with falsification_evidence"):
+        StrategyGateResult(
+            strategy_id="STR-002",
+            gate_type="LATENCY",
+            status=GateStatus.PASS,
+            falsification_evidence="Failed half-life",
+        )
+
+    # 2. Complete auditable record on FAIL
+    fail_res = StrategyGateResult(
+        strategy_id="STR-002",
+        strategy_version="2.0.0",
+        gate_type="LATENCY_SENSITIVITY",
+        status=GateStatus.FAIL,
+        metrics={"decay_at_5s": 0.25, "edge_half_life_s": 2.1},
+        thresholds={"max_sharpe_drop_pct_at_5s": 0.50, "min_edge_half_life_s": 5.0},
+        reasons=["Edge half-life 2.1s < 5.0s"],
+    )
+    assert fail_res.falsification_evidence == "Edge half-life 2.1s < 5.0s"
+    assert len(fail_res.evaluated_at) > 0
+    assert fail_res.metrics["decay_at_5s"] == 0.25
+
+
+def test_latency_gate_operational_stack_budget():
+    """Verify LatencySensitivityGate incorporates the operational execution stack's observed latency."""
+    # Stack with slow p99 latency: 2500ms * 2.0 safety margin = 5.0s budget
+    gate = LatencySensitivityGate(
+        max_sharpe_drop_pct_at_5s=0.50,
+        min_edge_half_life_s=3.0,
+        observed_p99_latency_ms=2500.0,
+        latency_safety_margin_multiplier=2.0,
+    )
+
+    # Strategy with 4.0s half-life: would pass min_edge_half_life_s=3.0,
+    # but FAILS because operational stack needs 5.0s
+    sharpes = {0.0: 2.0, 1.0: 1.8, 4.0: 1.0, 5.0: 0.8, 30.0: 0.2}
+    result = gate.evaluate(sharpes)
+
+    assert result.status == GateStatus.FAIL
+    assert result.metrics["operational_budget_s"] == 5.0
+    assert result.metrics["edge_half_life_s"] < 5.0
+    assert "LATENCY_RACE" in result.falsification_evidence
