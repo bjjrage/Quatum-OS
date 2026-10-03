@@ -180,6 +180,7 @@ def test_end_to_end_replay_pipeline():
         venue=proposed_order.venue,
         current_time_ns=int(latest_tick["ts_exchange_ns"]),
         current_bbo=bbo,
+        permit=risk_decision,
     )
 
     # Deliver order after transit latency

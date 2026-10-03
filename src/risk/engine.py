@@ -73,19 +73,34 @@ class DeterministicRiskEngine:
         self,
         initial_equity_usd: float = 100_000.0,
         limits: Optional[RiskLimits] = None,
+        auto_register_in_flight: bool = False,
     ):
         self.limits = limits or RiskLimits()
         self.initial_equity_usd = initial_equity_usd
         self.peak_equity_usd = initial_equity_usd
         self.current_equity_usd = initial_equity_usd
+        self.auto_register_in_flight = auto_register_in_flight
 
         self.positions: Dict[str, float] = {}  # symbol -> net qty
         self.mark_prices: Dict[str, float] = {}  # symbol -> price
         self.event_clusters: Dict[str, EventCluster] = {}
+        self.in_flight_orders: Dict[str, ProposedOrder] = {}
 
         self.kill_switch_active: bool = False
         self.kill_switch_reason: Optional[str] = None
         self.order_timestamps: List[float] = []
+
+    def register_in_flight(self, order: ProposedOrder) -> None:
+        """Register an order currently in-flight / pending execution."""
+        self.in_flight_orders[order.order_id] = order
+
+    def release_in_flight(self, order_id: str) -> None:
+        """Release an in-flight order when filled, cancelled, or rejected."""
+        self.in_flight_orders.pop(order_id, None)
+
+    def clear_in_flight(self) -> None:
+        """Clear all in-flight orders."""
+        self.in_flight_orders.clear()
 
     def register_event_cluster(self, cluster: EventCluster) -> None:
         self.event_clusters[cluster.cluster_id] = cluster
@@ -104,6 +119,8 @@ class DeterministicRiskEngine:
         positions: Optional[Dict[str, float]] = None,
         mark_prices: Optional[Dict[str, float]] = None,
     ) -> None:
+        if not math.isfinite(equity_usd):
+            raise ValueError(f"Invalid non-finite equity: {equity_usd}")
         self.current_equity_usd = equity_usd
         if equity_usd > self.peak_equity_usd:
             self.peak_equity_usd = equity_usd
@@ -114,15 +131,18 @@ class DeterministicRiskEngine:
             self.mark_prices = dict(mark_prices)
 
     def current_drawdown_pct(self) -> float:
-        if self.peak_equity_usd <= 0.0:
-            return 0.0
+        if self.peak_equity_usd <= 0.0 or not math.isfinite(self.current_equity_usd):
+            return 1.0
         return max(0.0, (self.peak_equity_usd - self.current_equity_usd) / self.peak_equity_usd)
 
     def current_gross_notional(self) -> float:
         gross = 0.0
         for sym, qty in self.positions.items():
-            price = self.mark_prices.get(sym, 0.0)
-            gross += abs(qty * price)
+            if abs(qty) > 1e-9:
+                price = self.mark_prices.get(sym)
+                if price is None or not math.isfinite(price) or price <= 0.0:
+                    raise ValueError(f"Missing or invalid mark price for open position in '{sym}'")
+                gross += abs(qty * price)
         return gross
 
     def evaluate_order(
@@ -130,6 +150,7 @@ class DeterministicRiskEngine:
         order: ProposedOrder,
         is_live: bool = False,
         current_time_s: Optional[float] = None,
+        auto_register_in_flight: Optional[bool] = None,
     ) -> RiskDecision:
         """
         Evaluate order against all deterministic risk invariants.
@@ -153,15 +174,30 @@ class DeterministicRiskEngine:
                 reason=f"Emergency Kill Switch is active: {self.kill_switch_reason}",
             )
 
-        # 3. Basic Order Validity
-        if order.quantity <= 0 or order.price <= 0:
+        # 3. Input Sanitization & Basic Order Validity (fail-closed on NaN / Inf / non-positive)
+        if (
+            not isinstance(order.quantity, (int, float))
+            or not math.isfinite(order.quantity)
+            or order.quantity <= 0
+            or not isinstance(order.price, (int, float))
+            or not math.isfinite(order.price)
+            or order.price <= 0
+        ):
             return RiskDecision(
                 approved=False,
                 violation_code=RiskViolationCode.INVALID_ORDER,
-                reason=f"Order quantity ({order.quantity}) and price ({order.price}) must be positive.",
+                reason=f"Order quantity ({order.quantity}) and price ({order.price}) must be positive finite numbers.",
             )
 
-        side_sign = 1.0 if order.side.upper() == "BUY" else -1.0
+        side_str = order.side.upper() if isinstance(order.side, str) else ""
+        if side_str not in ("BUY", "SELL"):
+            return RiskDecision(
+                approved=False,
+                violation_code=RiskViolationCode.INVALID_ORDER,
+                reason=f"Invalid order side '{order.side}'. Must be strictly 'BUY' or 'SELL'.",
+            )
+
+        side_sign = 1.0 if side_str == "BUY" else -1.0
         delta_qty = side_sign * order.quantity
         curr_qty = self.positions.get(order.symbol, 0.0)
         new_qty = curr_qty + delta_qty
@@ -170,8 +206,37 @@ class DeterministicRiskEngine:
         is_risk_reducing = (curr_qty > 0 and delta_qty < 0 and new_qty >= 0) or \
                             (curr_qty < 0 and delta_qty > 0 and new_qty <= 0)
 
+        # Missing mark price validation for open positions (fail-closed if holding open positions without mark price)
+        for s, q in self.positions.items():
+            if abs(q) > 1e-9:
+                p = self.mark_prices.get(s)
+                if p is None or not math.isfinite(p) or p <= 0.0:
+                    if not is_risk_reducing or s != order.symbol:
+                        return RiskDecision(
+                            approved=False,
+                            violation_code=RiskViolationCode.INVALID_ORDER,
+                            reason=f"Missing or non-positive mark price for open position in '{s}'.",
+                        )
+
+        # Non-positive or invalid equity check
+        if not math.isfinite(self.current_equity_usd) or self.current_equity_usd <= 0.0:
+            if not is_risk_reducing:
+                return RiskDecision(
+                    approved=False,
+                    violation_code=RiskViolationCode.MAX_DRAWDOWN_EXCEEDED,
+                    reason=f"Current portfolio equity (${self.current_equity_usd:,.2f}) is non-positive or invalid.",
+                )
+
+        # In-flight orders aggregation
+        in_flight_symbol_delta = sum(
+            (1.0 if o.side.upper() == "BUY" else -1.0) * o.quantity
+            for o_id, o in self.in_flight_orders.items()
+            if o.symbol == order.symbol and o_id != order.order_id
+        )
+        effective_curr_qty = curr_qty + in_flight_symbol_delta
+        effective_new_qty = effective_curr_qty + delta_qty
+
         # 4. Burst Rate Limiter
-        # Prune old timestamps
         cutoff = eval_time - self.limits.rate_limit_window_seconds
         self.order_timestamps = [t for t in self.order_timestamps if t >= cutoff]
         if len(self.order_timestamps) >= self.limits.max_orders_per_window:
@@ -198,8 +263,8 @@ class DeterministicRiskEngine:
                     metrics={"drawdown_pct": dd},
                 )
 
-        # 6. Single Asset Concentration Cap
-        new_asset_notional = abs(new_qty * order.price)
+        # 6. Single Asset Concentration Cap (including in-flight orders)
+        new_asset_notional = abs(effective_new_qty * order.price)
         max_allowed_single = self.current_equity_usd * self.limits.max_single_position_pct
         if new_asset_notional > max_allowed_single and not is_risk_reducing:
             return RiskDecision(
@@ -212,16 +277,22 @@ class DeterministicRiskEngine:
                 metrics={"new_notional": new_asset_notional, "limit": max_allowed_single},
             )
 
-        # 7. Gross Leverage Ceiling
+        # 7. Gross Leverage Ceiling (including in-flight orders)
         simulated_positions = dict(self.positions)
-        simulated_positions[order.symbol] = new_qty
+        simulated_positions[order.symbol] = effective_new_qty
         simulated_prices = dict(self.mark_prices)
         simulated_prices[order.symbol] = order.price
 
         simulated_gross = 0.0
         for s, q in simulated_positions.items():
-            p = simulated_prices.get(s, 0.0)
+            p = simulated_prices.get(s, order.price if s == order.symbol else 0.0)
             simulated_gross += abs(q * p)
+
+        # Add all in-flight orders for other symbols
+        for o_id, o in self.in_flight_orders.items():
+            if o_id != order.order_id and o.symbol != order.symbol:
+                p_inflight = simulated_prices.get(o.symbol, o.price)
+                simulated_gross += abs(o.quantity * p_inflight)
 
         if self.current_equity_usd > 0:
             simulated_leverage = simulated_gross / self.current_equity_usd
@@ -256,6 +327,10 @@ class DeterministicRiskEngine:
 
         # Order passed all deterministic checks
         self.order_timestamps.append(eval_time)
+        do_auto = self.auto_register_in_flight if auto_register_in_flight is None else auto_register_in_flight
+        if do_auto:
+            self.register_in_flight(order)
+
         return RiskDecision(
             approved=True,
             violation_code=RiskViolationCode.NONE,

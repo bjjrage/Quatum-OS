@@ -74,6 +74,9 @@ def generate_quality_report(
             f"Corrected physical transit latency: P50={integrity.corrected_latency_p50_ms}ms, P95={integrity.corrected_latency_p95_ms}ms, P99={integrity.corrected_latency_p99_ms}ms."
         )
 
+    if manifest and not health.is_process_alive:
+        hard_failure_reasons.append("Recorder process is NOT alive (dead or terminated PID).")
+
     base_criteria_pass = len(hard_failure_reasons) == 0
 
     # 6. Evaluate 24h Gate
@@ -81,6 +84,8 @@ def generate_quality_report(
         gate_name="24h",
         elapsed_seconds=elapsed_seconds,
         metrics_pass=base_criteria_pass,
+        is_process_alive=health.is_process_alive if manifest else None,
+        total_row_count=storage.total_row_count,
         reasons=list(hard_failure_reasons),
     )
 
@@ -89,6 +94,8 @@ def generate_quality_report(
         gate_name="72h",
         elapsed_seconds=elapsed_seconds,
         metrics_pass=base_criteria_pass,
+        is_process_alive=health.is_process_alive if manifest else None,
+        total_row_count=storage.total_row_count,
         reasons=list(hard_failure_reasons),
     )
 

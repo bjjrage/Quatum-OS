@@ -16,6 +16,7 @@ def test_zero_latency_immediate_market_fill():
         simulated_latency_ms=0.0,
         taker_fee_bps=5.0,  # 0.05%
         base_slippage_bps=2.0,  # 0.02%
+        enforce_risk_permit=False,
     )
 
     bbo = {"best_bid": 60_000.0, "best_ask": 60_010.0, "bid_size": 2.0, "ask_size": 2.0}
@@ -56,6 +57,7 @@ def test_delayed_market_order_fills_against_post_latency_market_state():
         simulated_latency_ms=latency_ms,
         taker_fee_bps=5.0,
         base_slippage_bps=2.0,
+        enforce_risk_permit=False,
     )
 
     t0 = 1_000_000_000
@@ -114,6 +116,7 @@ def test_marketable_limit_classified_as_taker():
         simulated_latency_ms=0.0,
         maker_fee_bps=1.0,  # 0.01%
         taker_fee_bps=5.0,  # 0.05%
+        enforce_risk_permit=False,
     )
     bbo = {"best_bid": 60_000.0, "best_ask": 60_010.0, "bid_size": 5.0, "ask_size": 5.0}
 
@@ -142,6 +145,7 @@ def test_partial_fill_and_depth_exhaustion():
         simulated_latency_ms=0.0,
         taker_fee_bps=5.0,
         base_slippage_bps=2.0,
+        enforce_risk_permit=False,
     )
 
     bbo = {"best_bid": 60_000.0, "best_ask": 60_010.0, "bid_size": 5.0, "ask_size": 1.5}
@@ -179,6 +183,7 @@ def test_limit_order_queue_and_fill():
         initial_cash_usd=50_000.0,
         simulated_latency_ms=20.0,
         maker_fee_bps=1.0,  # 0.01%
+        enforce_risk_permit=False,
     )
 
     bbo = {"best_bid": 59_990.0, "best_ask": 60_000.0, "bid_size": 3.0, "ask_size": 3.0}
@@ -236,7 +241,7 @@ def test_limit_order_queue_and_fill():
 
 
 def test_order_cancellation_and_replace():
-    broker = PaperBroker(initial_cash_usd=100_000.0, simulated_latency_ms=10.0)
+    broker = PaperBroker(initial_cash_usd=100_000.0, simulated_latency_ms=10.0, enforce_risk_permit=False)
     t0 = 1_000_000_000
     order = broker.submit_order(
         symbol="BTC-USDT",
@@ -270,6 +275,7 @@ def test_realized_and_unrealized_pnl():
         maker_fee_bps=0.0,
         taker_fee_bps=0.0,
         base_slippage_bps=0.0,
+        enforce_risk_permit=False,
     )
 
     # Buy 1 BTC @ 50,000
@@ -301,3 +307,43 @@ def test_realized_and_unrealized_pnl():
     assert summary2["positions"]["BTC-USDT"]["quantity"] == 0.5
     assert summary2["positions"]["BTC-USDT"]["realized_pnl"] == 3_000.0
     assert summary2["total_equity_usd"] == 106_000.0
+
+
+def test_paper_broker_blocks_direct_order_without_risk_permit():
+    """Default PaperBroker must strictly reject any order submitted without valid risk permit."""
+    broker = PaperBroker()  # Default enforce_risk_permit=True
+    with pytest.raises(PermissionError, match="Pre-trade Risk permit is mandatory"):
+        broker.submit_order(
+            symbol="BTC-USDT",
+            side=PaperOrderSide.BUY,
+            order_type=PaperOrderType.MARKET,
+            quantity=0.1,
+            current_bbo={"best_bid": 60_000.0, "best_ask": 60_010.0},
+        )
+
+
+def test_paper_broker_accepts_valid_permit():
+    """PaperBroker accepts order when valid approved permit is provided."""
+    from src.execution_plane.adapters.base import issue_permit
+    from src.execution_plane.models import ExecutionMode
+
+    broker = PaperBroker(simulated_latency_ms=0.0)
+    permit = issue_permit(
+        kind="SUBMIT",
+        venue="paper",
+        client_order_id="test_ord_1",
+        mode=ExecutionMode.PAPER,
+        authorized_live_capital_usd=0.0,
+        risk_approved=True,
+        issued_ns=1_000_000_000,
+    )
+    bbo = {"best_bid": 60_000.0, "best_ask": 60_010.0, "bid_size": 5.0, "ask_size": 5.0}
+    order = broker.submit_order(
+        symbol="BTC-USDT",
+        side=PaperOrderSide.BUY,
+        order_type=PaperOrderType.MARKET,
+        quantity=0.1,
+        current_bbo=bbo,
+        permit=permit,
+    )
+    assert order.status == PaperOrderStatus.FILLED
