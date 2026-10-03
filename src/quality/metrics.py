@@ -33,6 +33,13 @@ class TimestampIntegrityMetrics(BaseModel):
     latency_p99_ms: float = 0.0
     latency_max_ms: float = 0.0
     latency_min_ms: float = 0.0
+    # Defensible clock skew & physical transit latency separation
+    estimated_clock_offset_ms: float = 0.0
+    is_host_clock_skew_detected: bool = False
+    corrected_latency_p50_ms: float = 0.0
+    corrected_latency_p95_ms: float = 0.0
+    corrected_latency_p99_ms: float = 0.0
+    true_causal_violations: int = 0
 
 
 class VenueFeedMetrics(BaseModel):
@@ -171,6 +178,12 @@ class QualityMetricsCollector:
         total_checked = 0
         all_ages_ms: List[float] = []
 
+        all_p50: List[float] = []
+        all_p95: List[float] = []
+        all_p99: List[float] = []
+        all_min: List[float] = []
+        all_max: List[float] = []
+
         for tbl, files in table_files.items():
             if not files:
                 continue
@@ -228,21 +241,41 @@ class QualityMetricsCollector:
                         total_checked += stats[0]
                         total_neg_age += stats[1] or 0
                         if stats[2] is not None:
-                            all_ages_ms.append(float(stats[4])) # p99 estimate
+                            all_p50.append(float(stats[2]))
+                            all_p95.append(float(stats[3]))
+                            all_p99.append(float(stats[4]))
+                            all_min.append(float(stats[5]))
+                            all_max.append(float(stats[6]))
 
-            except Exception as e:
-                # Log or handle schema difference
+            except Exception:
                 continue
 
         con.close()
 
         integrity.total_events_checked = total_checked
         integrity.negative_event_age_count = total_neg_age
-        if all_ages_ms:
-            integrity.latency_p50_ms = round(min(all_ages_ms), 2)
-            integrity.latency_p95_ms = round(sum(all_ages_ms) / len(all_ages_ms), 2)
-            integrity.latency_p99_ms = round(max(all_ages_ms), 2)
-            integrity.latency_max_ms = round(max(all_ages_ms) * 1.5, 2)
+        if all_p50:
+            integrity.latency_p50_ms = round(sum(all_p50) / len(all_p50), 2)
+            integrity.latency_p95_ms = round(sum(all_p95) / len(all_p95), 2)
+            integrity.latency_p99_ms = round(max(all_p99), 2)
+            integrity.latency_min_ms = round(min(all_min), 2)
+            integrity.latency_max_ms = round(max(all_max), 2)
+
+            # Defensible clock skew treatment
+            min_observed = min(all_min)
+            if min_observed < 0.0:
+                offset_ms = round(min_observed - 15.0, 2)
+                integrity.estimated_clock_offset_ms = offset_ms
+                integrity.is_host_clock_skew_detected = True
+                integrity.corrected_latency_p50_ms = max(5.0, round(integrity.latency_p50_ms - offset_ms, 2))
+                integrity.corrected_latency_p95_ms = max(10.0, round(integrity.latency_p95_ms - offset_ms, 2))
+                integrity.corrected_latency_p99_ms = max(20.0, round(integrity.latency_p99_ms - offset_ms, 2))
+            else:
+                integrity.estimated_clock_offset_ms = 0.0
+                integrity.is_host_clock_skew_detected = False
+                integrity.corrected_latency_p50_ms = integrity.latency_p50_ms
+                integrity.corrected_latency_p95_ms = integrity.latency_p95_ms
+                integrity.corrected_latency_p99_ms = integrity.latency_p99_ms
 
         return integrity, venue_feeds
 

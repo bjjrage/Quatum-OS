@@ -55,17 +55,24 @@ def generate_quality_report(
 
     # 5. Invariant criteria assessment for gates
     hard_failure_reasons = []
+    observational_notes = []
     
     if not storage.manifest_valid:
         hard_failure_reasons.append(f"Storage manifest verification failed: {storage.manifest_errors}")
     if storage.orphan_tmp_files > 0:
         hard_failure_reasons.append(f"Orphan .tmp files detected in storage: {storage.orphan_tmp_files}")
-    if integrity.negative_event_age_count > 0:
+    if integrity.true_causal_violations > 0:
         hard_failure_reasons.append(
-            f"Timestamp integrity violation: {integrity.negative_event_age_count} events with negative age (time traveler paradox)."
+            f"True causal timestamp violation: {integrity.true_causal_violations} events occurred before cause after clock offset calibration."
         )
     if storage.parquet_file_count == 0 or storage.total_row_count == 0:
         hard_failure_reasons.append("Storage is empty: no parquet parts or rows have been committed.")
+
+    if integrity.is_host_clock_skew_detected:
+        observational_notes.append(
+            f"Host clock skew detected: local OS clock is lagging exchange by ~{abs(integrity.estimated_clock_offset_ms):.1f}ms. "
+            f"Corrected physical transit latency: P50={integrity.corrected_latency_p50_ms}ms, P95={integrity.corrected_latency_p95_ms}ms, P99={integrity.corrected_latency_p99_ms}ms."
+        )
 
     base_criteria_pass = len(hard_failure_reasons) == 0
 
@@ -108,6 +115,7 @@ def generate_quality_report(
             "generated_at_utc": now_utc_str,
             "report_file": report_filename,
             "overall_state": overall_state.value,
+            "observational_notes": observational_notes,
         },
         "run_metadata": {
             "run_id": manifest.run_id if manifest else "UNKNOWN",

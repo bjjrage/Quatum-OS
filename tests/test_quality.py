@@ -278,3 +278,45 @@ def test_generate_quality_report_end_to_end(tmp_path: Path) -> None:
     with open(report_files[0], "r", encoding="utf-8") as f:
         loaded_report = json.load(f)
     assert loaded_report["run_metadata"]["run_id"] == manifest.run_id
+
+
+def test_clock_sync_inference_and_latency_correction() -> None:
+    """Infer host clock offset from raw ages and verify corrected physical transit latency."""
+    from src.quality.clock_sync import infer_clock_offset_from_distribution, analyze_timestamp_latencies
+
+    # Raw ages centered around -3500ms (local clock lagging exchange by ~3.5s)
+    # with genuine transit latency ~20-80ms
+    raw_ages = [-3500.0 + i * 2.0 for i in range(50)]
+    
+    offset = infer_clock_offset_from_distribution(raw_ages, assumed_min_transit_latency_ms=15.0)
+    assert offset < -3500.0
+    assert abs(offset - (-3515.0)) < 5.0
+
+    analysis = analyze_timestamp_latencies(raw_ages)
+    assert analysis.is_skew_detected is True
+    assert analysis.raw_negative_count == 50
+    assert analysis.corrected_p50_ms > 0.0
+    assert analysis.true_causal_violations == 0
+
+
+def test_clock_sync_detects_true_causal_violation() -> None:
+    """Flag genuine causal paradoxes where an event claims to occur in the future beyond clock drift."""
+    from src.quality.clock_sync import analyze_timestamp_latencies
+
+    # Normal ages with offset -3500ms, plus one extreme corrupted event with age -50000ms
+    raw_ages = [-3500.0] * 50 + [-50000.0]
+    analysis = analyze_timestamp_latencies(raw_ages, explicit_offset_ms=-3500.0)
+    assert analysis.true_causal_violations == 1
+
+
+def test_clock_sync_synchronized_system_no_false_skew() -> None:
+    """Synchronized hosts with normal positive network latencies report no skew."""
+    from src.quality.clock_sync import analyze_timestamp_latencies
+
+    normal_ages = [20.0, 25.0, 30.0, 35.0, 40.0, 45.0, 50.0]
+    analysis = analyze_timestamp_latencies(normal_ages)
+    assert analysis.is_skew_detected is False
+    assert analysis.clock_offset_ms == 0.0
+    assert analysis.raw_negative_count == 0
+    assert analysis.corrected_p50_ms == 35.0
+
