@@ -6,6 +6,7 @@ from src.strategies.models import (
     StrategyStage,
     StrategyFamily,
     StrategySpec,
+    CounterpartyThesis,
 )
 from src.strategies.registry import (
     StrategyRegistry,
@@ -75,6 +76,15 @@ def test_represent_all_lifecycle_stages():
     ]
     assert len(expected_stages) == 11
 
+    thesis = CounterpartyThesis(
+        counterparty_type="Informed liquidity takers",
+        economic_mechanism="Microstructure inventory imbalance",
+        why_trade_now="Execution urgency",
+        why_impact_may_be_transient="Inventory rebalancing",
+        why_it_may_be_information="Macro news",
+        observable_evidence=["Spread widening"],
+        falsification_conditions=["Persistent adverse selection"],
+    )
     registry = StrategyRegistry()
     spec = StrategySpec(
         strategy_id="STR-STAGE-01",
@@ -82,6 +92,7 @@ def test_represent_all_lifecycle_stages():
         family="CUSTOM_TEST",
         origin=StrategyOrigin.QUANT,
         stage=StrategyStage.IDEA,
+        counterparty_thesis=thesis,
     )
     registry.register(spec)
 
@@ -252,6 +263,15 @@ def test_evidence_gated_lifecycle_transitions():
       KILLED -> ARCHIVED
       ARCHIVED -> anything (terminal, must be rejected)
     """
+    thesis = CounterpartyThesis(
+        counterparty_type="Informed liquidity takers",
+        economic_mechanism="Microstructure inventory imbalance",
+        why_trade_now="Execution urgency",
+        why_impact_may_be_transient="Inventory rebalancing",
+        why_it_may_be_information="Macro news",
+        observable_evidence=["Spread widening"],
+        falsification_conditions=["Persistent adverse selection"],
+    )
     registry = StrategyRegistry()
     spec = StrategySpec(
         strategy_id="STR-GATE-01",
@@ -259,6 +279,7 @@ def test_evidence_gated_lifecycle_transitions():
         family="RELATIVE_VALUE",
         origin=StrategyOrigin.QUANT,
         stage=StrategyStage.RESEARCH,
+        counterparty_thesis=thesis,
     )
     registry.register(spec)
 

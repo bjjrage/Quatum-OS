@@ -1,14 +1,16 @@
-"""Strategy domain models and lifecycle specifications for Trading / Quant OS.
+"""Strategy domain models, counterparty thesis, and lifecycle specifications for Trading / Quant OS.
 
-Core Governance Rule:
-NO STRATEGY IS PRIVILEGED BY ORIGIN.
-Human hypotheses, quantitative research, statistical discovery, ML-discovered signals
-and AI-assisted research hypotheses must compete under the exact same evidence gates.
-Origin is metadata. Origin is NOT evidence.
+Core Governance Rules:
+1. NO STRATEGY IS PRIVILEGED BY ORIGIN.
+2. THE OS DOES NOT SELECT THE BEST BACKTEST.
+3. RESEARCH -> VALIDATION IS FORBIDDEN WITHOUT A COMPLETE COUNTERPARTY THESIS.
+4. ALL MANUAL OR HEURISTIC RULES START AS INTUITION_UNVALIDATED.
+5. ZERO LIVE CAPITAL INVARIANT ($0 LIVE RISK).
 """
 
 from enum import Enum
-from typing import Dict, Any, Optional, Set
+import time
+from typing import Dict, Any, List, Optional, Set
 from pydantic import BaseModel, Field, computed_field, model_validator
 
 
@@ -22,7 +24,10 @@ class StrategyOrigin(str, Enum):
 
 
 class StrategyStage(str, Enum):
-    """Lifecycle stages through evidence-gated promotion pipeline."""
+    """Lifecycle stages through evidence-gated promotion pipeline.
+    Note: DISCOVERY is a Strategy Factory process, NOT a StrategyStage.
+    The primary gate is RESEARCH -> VALIDATION.
+    """
     IDEA = "IDEA"
     RESEARCH = "RESEARCH"
     VALIDATION = "VALIDATION"
@@ -54,7 +59,72 @@ class StrategyFamily(str, Enum):
     ML_ALPHA = "ML_ALPHA"
     REGIME_SPECIFIC = "REGIME_SPECIFIC"
     PREDICTION_MARKETS = "PREDICTION_MARKETS"
+    ON_CHAIN = "ON_CHAIN"
     CUSTOM = "CUSTOM"
+
+
+class CounterpartyThesisStatus(str, Enum):
+    UNVALIDATED = "UNVALIDATED"
+    RESEARCH_HYPOTHESIS = "RESEARCH_HYPOTHESIS"
+    SUPPORTED = "SUPPORTED"
+    FALSIFIED = "FALSIFIED"
+
+
+class CounterpartyThesis(BaseModel):
+    """Structured economic thesis identifying who is paying the edge and why.
+    
+    Must answer:
+    - WHO IS PAYING US?
+    - WHY ARE THEY PAYING US?
+    - WHY CAN'T OR WON'T THEY WAIT?
+    - WHY SHOULD THE IMPACT BE TRANSIENT?
+    - WHEN WOULD IT INSTEAD REPRESENT PERSISTENT INFORMATION?
+    - WHAT WOULD FALSIFY THIS THESIS?
+    """
+    counterparty_type: str = Field(..., description="Who is paying us? (e.g. Urgent liquidity demander, hedger, segmented arbitrageur)")
+    economic_mechanism: str = Field(..., description="Why are they paying us? (e.g. Inventory imbalance, forced liquidation, structural barrier)")
+    why_trade_now: str = Field(..., description="Why can't or won't they wait? (e.g. Stop cascade, margin call, time constraint)")
+    why_impact_may_be_transient: str = Field(..., description="Why should the price impact revert rather than persist?")
+    why_it_may_be_information: str = Field(..., description="Under what conditions does this move represent persistent informational repricing?")
+    observable_evidence: List[str] = Field(default_factory=list, description="Measurable market signals supporting this thesis")
+    falsification_conditions: List[str] = Field(..., description="Explicit conditions that falsify and reject this thesis")
+    evidence_status: CounterpartyThesisStatus = Field(default=CounterpartyThesisStatus.RESEARCH_HYPOTHESIS)
+
+    def is_complete_for_validation(self) -> bool:
+        """RESEARCH -> VALIDATION is strictly FORBIDDEN without a complete counterparty thesis."""
+        return (
+            bool(self.counterparty_type.strip()) and
+            bool(self.economic_mechanism.strip()) and
+            bool(self.why_trade_now.strip()) and
+            bool(self.why_impact_may_be_transient.strip()) and
+            bool(self.why_it_may_be_information.strip()) and
+            len(self.falsification_conditions) > 0 and
+            all(bool(c.strip()) for c in self.falsification_conditions) and
+            self.evidence_status != CounterpartyThesisStatus.FALSIFIED
+        )
+
+
+class StrategyRuleEvidenceStatus(str, Enum):
+    """Evidence provenance hierarchy for strategy heuristics and rules."""
+    INTUITION_UNVALIDATED = "INTUITION_UNVALIDATED"
+    RESEARCH_SUPPORTED = "RESEARCH_SUPPORTED"
+    BACKTEST_VALIDATED = "BACKTEST_VALIDATED"
+    HOLDOUT_VALIDATED = "HOLDOUT_VALIDATED"
+    PAPER_VALIDATED = "PAPER_VALIDATED"
+    LIVE_OBSERVED = "LIVE_OBSERVED"
+
+
+class StrategyRuleEvidence(BaseModel):
+    """Evidence provenance tracking for an individual heuristic or rule."""
+    rule_id: str
+    strategy_id: str
+    description: str
+    status: StrategyRuleEvidenceStatus = StrategyRuleEvidenceStatus.INTUITION_UNVALIDATED
+    experiment_ids: List[str] = Field(default_factory=list)
+    strategy_version: str = "1.0.0"
+    first_proposed_at: str = Field(default_factory=lambda: time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()))
+    last_validated_at: Optional[str] = None
+    notes: str = ""
 
 
 # Deterministic lifecycle stage transition graph
@@ -110,8 +180,8 @@ VALID_STAGE_TRANSITIONS: Dict[StrategyStage, Set[StrategyStage]] = {
 class StrategySpec(BaseModel):
     """Specification and registration record of a strategy candidate.
 
-    Contains metadata, origin, lifecycle stage, and empirical validation flags.
-    No execution authority is granted by this specification.
+    Contains metadata, origin, lifecycle stage, counterparty thesis, rule evidence,
+    and empirical validation flags. No execution authority is granted by this specification.
     """
     strategy_id: str = Field(..., description="Unique strategy identifier (e.g. STR-001)")
     name: str = Field(..., description="Descriptive human-readable strategy name")
@@ -119,6 +189,18 @@ class StrategySpec(BaseModel):
     origin: StrategyOrigin = Field(..., description="Discovery source / origin (metadata only)")
     stage: StrategyStage = Field(default=StrategyStage.IDEA, description="Current lifecycle stage")
     description: str = Field(default="", description="Detailed thesis and hypothesis description")
+    counterparty_thesis: Optional[CounterpartyThesis] = Field(
+        default=None,
+        description="Structured economic thesis. Mandatory before promotion to VALIDATION."
+    )
+    rules_evidence: List[StrategyRuleEvidence] = Field(
+        default_factory=list,
+        description="Evidence provenance for individual rules"
+    )
+    trial_count: int = Field(
+        default=0,
+        description="Number of empirical trials / parameter variants tested (selection bias tracking)"
+    )
     math_foundation_validated: bool = Field(
         default=False,
         description="Whether mathematical foundations are validated"

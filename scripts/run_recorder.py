@@ -42,13 +42,31 @@ async def main() -> None:
     except Exception:
         git_sha = "UNKNOWN"
 
-    manifest = RuntimeManifest.create_new(
-        pid=os.getpid(),
-        git_sha=git_sha,
-        config_fingerprint=compute_config_fingerprint(),
-    )
+    fingerprint = compute_config_fingerprint()
+    manifest = None
+
+    if manifest_path.exists():
+        try:
+            existing = RuntimeManifest.load(manifest_path)
+            if existing.config_fingerprint == fingerprint:
+                existing.pid = os.getpid()
+                existing.git_sha = git_sha
+                existing.status = AcceptanceState.RUNNING
+                existing.update_heartbeat()
+                manifest = existing
+                logger.info(f"Resuming continuous acceptance run: {manifest.run_id} (Elapsed: {manifest.elapsed_seconds():.1f}s)")
+        except Exception as e:
+            logger.warning(f"Could not resume manifest: {e}. Starting fresh.")
+
+    if manifest is None:
+        manifest = RuntimeManifest.create_new(
+            pid=os.getpid(),
+            git_sha=git_sha,
+            config_fingerprint=fingerprint,
+        )
+        logger.info(f"Initialized new runtime manifest: {manifest.run_id} (PID: {os.getpid()}, SHA: {git_sha[:8]})")
+
     manifest.save(manifest_path)
-    logger.info(f"Initialized runtime manifest: {manifest.run_id} (PID: {os.getpid()}, SHA: {git_sha[:8]})")
 
     try:
         await manager.start()

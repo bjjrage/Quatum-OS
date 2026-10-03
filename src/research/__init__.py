@@ -2,6 +2,7 @@
 from .pit_loader import PointInTimeDataLoader, SyntheticMarketGenerator
 from .features import FeatureEngine, BarAggregator
 from .events import EventDetector, PriceImpulseEvent
+from .experiments import ExperimentRecord, ExperimentRegistry
 
 __all__ = [
     "PointInTimeDataLoader",
@@ -10,4 +11,6 @@ __all__ = [
     "BarAggregator",
     "EventDetector",
     "PriceImpulseEvent",
+    "ExperimentRecord",
+    "ExperimentRegistry",
 ]
