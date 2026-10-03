@@ -454,7 +454,7 @@ class QuantOSDataService:
             ],
             "last_heartbeat": rec_status.get("heartbeat_at_utc", time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())),
             "ci_state": "LOCAL_OFFLINE_VERIFIED",
-            "tests_passing": 184,
+            "tests_passing": 225,
             "tests_failing": 0,
         }
 

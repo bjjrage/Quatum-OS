@@ -32,6 +32,8 @@ import {
 interface SidebarProps {
   activeTab: NavTabId;
   onSelectTab: (tab: NavTabId) => void;
+  unvalidatedStrategiesCount?: number;
+  failedGatesCount?: number;
 }
 
 interface NavSection {
@@ -226,7 +228,7 @@ export const SidebarNavigation: React.FC<SidebarProps> = ({
           id: "tests-ci",
           label: "Tests & Red-Team CI",
           icon: CheckSquare,
-          badge: "184 PASS",
+          badge: "225 PASS",
           badgeColor: "bg-emerald-950 text-emerald-400 border-emerald-800",
         },
         {

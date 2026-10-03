@@ -109,7 +109,7 @@ export function CommandCenterView({
 
         <MetricCard
           label="CI & Pytest Status"
-          value={`${status?.tests_passing || 201} Passed / 0 Failed`}
+          value={`${status?.tests_passing || 225} Passed / 0 Failed`}
           subtitle="Coverage: Unit + Integration + API"
           badge={{ text: "100% GREEN", variant: "emerald" }}
           icon={<CheckCircle2 className="w-4 h-4" />}

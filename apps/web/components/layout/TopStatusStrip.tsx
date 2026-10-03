@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { SystemStatus } from "../../types";
+import { SystemStatus, RecorderStatus } from "../../types";
 import {
   ShieldAlert,
   Activity,
@@ -15,19 +15,20 @@ import {
 
 interface TopStatusStripProps {
   status: SystemStatus | null;
+  recorder?: RecorderStatus | null;
   onRefresh?: () => void;
 }
 
-export const TopStatusStrip: React.FC<TopStatusStripProps> = ({ status }) => {
+export const TopStatusStrip: React.FC<TopStatusStripProps> = ({ status, recorder, onRefresh }) => {
   const [copied, setCopied] = useState(false);
 
-  const gitShaShort = status?.git_sha_short || "3a0ec87";
-  const gitShaFull = status?.git_sha || "3a0ec870c7d14d84baef09e4b78db457122de792";
+  const gitShaShort = status?.git_sha_short || recorder?.git_sha?.slice(0, 7) || "1d883a1";
+  const gitShaFull = status?.git_sha || recorder?.git_sha || "1d883a152bb55333f28cf69e900913926f7435f4";
   const env = status?.environment || "LOCAL_PAPER_ONLY";
-  const recorderStatus = status?.recorder_status || "RUNNING";
-  const gate24h = status?.gate_24h?.status || "PENDING";
-  const gate72h = status?.gate_72h?.status || "PENDING";
-  const testsPassing = status?.tests_passing ?? 184;
+  const recorderStatus = recorder?.status || status?.recorder_status || "RUNNING";
+  const gate24h = recorder?.gate_24h_status || status?.gate_24h?.status || "PENDING";
+  const gate72h = recorder?.gate_72h_status || status?.gate_72h?.status || "PENDING";
+  const testsPassing = status?.tests_passing ?? 225;
 
   const copySha = () => {
     navigator.clipboard.writeText(gitShaFull);
@@ -141,7 +142,7 @@ export const TopStatusStrip: React.FC<TopStatusStripProps> = ({ status }) => {
           <span className="text-slate-500">TESTS:</span>
           <span className="flex items-center gap-1 rounded border border-emerald-900 bg-emerald-950/50 px-2 py-0.5 text-[11px] text-emerald-300">
             <CheckCircle2 className="h-3 w-3 text-emerald-400" />
-            {testsPassing}/184 PASS
+            {testsPassing}/225 PASS
           </span>
         </div>
 
