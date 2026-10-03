@@ -87,7 +87,7 @@ def test_multiple_selection_gate_dsr_and_trial_count_penalty():
     gate = MultipleSelectionGate(min_dsr=0.95, max_adjusted_pvalue=0.05)
 
     # Strategy with Sharpe = 1.2, 100 observations
-    res_1_trial = gate.evaluate(
+    res_1_trial = gate.evaluate_math(
         sharpe_ratio=1.2,
         trial_count=1,
         sample_length=100,
@@ -98,7 +98,7 @@ def test_multiple_selection_gate_dsr_and_trial_count_penalty():
     assert res_1_trial.diagnostics["expected_max_null_sharpe"] == 0.0
 
     # Same strategy evaluated after 200 trials in ExperimentRegistry
-    res_200_trials = gate.evaluate(
+    res_200_trials = gate.evaluate_math(
         sharpe_ratio=1.2,
         trial_count=200,
         sample_length=100,
@@ -110,10 +110,10 @@ def test_multiple_selection_gate_dsr_and_trial_count_penalty():
     assert res_200_trials.status == GateStatus.FAIL
     assert res_200_trials.diagnostics["expected_max_null_sharpe"] > 1.5
     assert res_200_trials.diagnostics["deflated_sharpe_ratio"] < 0.95
-    assert "multiple testing correction" in res_200_trials.falsification_evidence
+    assert "multiple testing correction" in res_200_trials.falsification_evidence.lower()
 
     # Highly robust strategy with Sharpe = 3.5 surviving 200 trials
-    res_exceptional = gate.evaluate(
+    res_exceptional = gate.evaluate_math(
         sharpe_ratio=3.5,
         trial_count=200,
         sample_length=250,
@@ -146,6 +146,8 @@ def test_correlation_capacity_gate():
         avg_5m_volume_usd=1_000_000.0,
         proposed_allocation_usd=5_000.0,
         regimes=regimes,
+        candidate_event_clusters=[],
+        active_event_clusters={"STR-001": []},
         dataset_fingerprint="ds_prov_test",
         config_fingerprint="cfg_prov_test",
     )
@@ -158,6 +160,8 @@ def test_correlation_capacity_gate():
         avg_5m_volume_usd=1_000_000.0,
         proposed_allocation_usd=25_000.0,
         regimes=regimes,
+        candidate_event_clusters=[],
+        active_event_clusters={"STR-001": []},
         dataset_fingerprint="ds_prov_test",
         config_fingerprint="cfg_prov_test",
     )
@@ -172,6 +176,8 @@ def test_correlation_capacity_gate():
         avg_5m_volume_usd=1_000_000.0,
         proposed_allocation_usd=5_000.0,
         regimes=regimes,
+        candidate_event_clusters=[],
+        active_event_clusters={"STR-002": []},
         dataset_fingerprint="ds_prov_test",
         config_fingerprint="cfg_prov_test",
     )

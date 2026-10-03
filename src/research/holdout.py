@@ -40,21 +40,34 @@ class HoldoutAuditIntegrityError(HoldoutViolationError):
     pass
 
 
+FORBIDDEN_PROVENANCE_PLACEHOLDERS: Set[str] = {
+    "unknown",
+    "unspecified",
+    "provenance_missing",
+    "ds_prov_unspecified",
+    "cfg_prov_unspecified",
+    "provenance_unspecified",
+    "none",
+    "null",
+    "undefined",
+}
+
+
 class HoldoutPreRegistration(BaseModel):
     """Immutable preregistration record required BEFORE accessing holdout data."""
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     preregistration_id: str
     strategy_id: str
-    strategy_version: str = "1.0.0"
-    git_sha: str = "UNKNOWN"
+    strategy_version: str
+    git_sha: str
     dataset_fingerprint: str
     config_fingerprint: str
     parameter_set_fingerprint: str
     hypothesis_description: str
     falsification_criteria: Union[Dict[str, Any], List[str], str]
-    primary_metrics: List[str] = Field(default_factory=list)
-    analysis_plan_fingerprint: str = ""
+    primary_metrics: List[str]
+    analysis_plan_fingerprint: str
     created_at_ns: int = Field(default_factory=lambda: time.time_ns())
     created_at_utc: str = Field(default_factory=lambda: time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()))
     status: HoldoutStatus = HoldoutStatus.PREREGISTERED
@@ -63,13 +76,30 @@ class HoldoutPreRegistration(BaseModel):
     @classmethod
     def _validate_fields(cls, data: Any) -> Any:
         if isinstance(data, dict):
-            for f in ("strategy_id", "dataset_fingerprint", "config_fingerprint", "parameter_set_fingerprint", "hypothesis_description"):
+            required_str_fields = (
+                "strategy_id",
+                "strategy_version",
+                "git_sha",
+                "dataset_fingerprint",
+                "config_fingerprint",
+                "parameter_set_fingerprint",
+                "hypothesis_description",
+                "analysis_plan_fingerprint",
+            )
+            for f in required_str_fields:
                 v = data.get(f, "")
                 if not str(v).strip():
                     raise ValueError(f"HoldoutPreRegistration field '{f}' must be a non-empty string.")
+                if str(v).strip().lower() in FORBIDDEN_PROVENANCE_PLACEHOLDERS:
+                    raise ValueError(
+                        f"HoldoutPreRegistration field '{f}' contains prohibited placeholder '{v}'."
+                    )
             fc = data.get("falsification_criteria")
             if not fc:
                 raise ValueError("HoldoutPreRegistration field 'falsification_criteria' must be non-empty.")
+            pm = data.get("primary_metrics")
+            if not pm or not isinstance(pm, list) or len(pm) == 0:
+                raise ValueError("HoldoutPreRegistration field 'primary_metrics' must be an explicitly preregistered non-empty list.")
         return data
 
 
@@ -264,8 +294,8 @@ class SealedHoldoutManager:
         parameter_set_fingerprint: str,
         hypothesis_description: str,
         falsification_criteria: Union[Dict[str, Any], List[str], str],
-        primary_metrics: Optional[List[str]] = None,
-        analysis_plan_fingerprint: str = "",
+        primary_metrics: List[str],
+        analysis_plan_fingerprint: str,
         preregistration_id: Optional[str] = None,
     ) -> HoldoutPreRegistration:
         """Create a tamper-evident preregistration before accessing holdout."""
@@ -298,8 +328,8 @@ class SealedHoldoutManager:
             parameter_set_fingerprint=parameter_set_fingerprint,
             hypothesis_description=hypothesis_description,
             falsification_criteria=falsification_criteria,
-            primary_metrics=primary_metrics or ["sharpe", "max_drawdown"],
-            analysis_plan_fingerprint=analysis_plan_fingerprint or config_fingerprint,
+            primary_metrics=primary_metrics,
+            analysis_plan_fingerprint=analysis_plan_fingerprint,
             created_at_ns=now_ns,
             created_at_utc=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             status=HoldoutStatus.PREREGISTERED,
@@ -486,83 +516,22 @@ class SealedHoldoutManager:
             raise HoldoutAuditIntegrityError(f"Storage corrupted: {self._corruption_error}")
         return [a for a in self._audits if a.strategy_id == strategy_id]
 
-    def evaluate_holdout(
-        self,
-        strategy_id: str,
-        strategy_version: str,
-        git_sha: str,
-        parameter_set_fingerprint: str,
-        hypothesis_description: str,
-        holdout_dataset_bytes_or_hash: str,
-        metrics: Dict[str, Any],
-        opened_by: str = "SYSTEM_RESEARCH_GATE",
-        config_fingerprint: str = "",
-        allow_dataset_reuse: bool = False,
-    ) -> HoldoutAuditRecord:
+    def evaluate_holdout(self, *args, **kwargs) -> Any:
         """
-        Backwards-compatible convenience method.
-        Under the hood creates a preregistration, executes one-time access,
-        and records evaluation result.
+        Legacy operational method disabled by Pre-Paper Hardening 03B.
+        Holdout data evaluation must follow the explicit governance lifecycle:
+        create_preregistration() -> open_holdout() -> record_evaluation_result()
         """
         if self._is_corrupted:
             raise HoldoutAuditIntegrityError(
                 f"Cannot evaluate holdout: audit log at '{self.audit_storage_path}' is corrupted: {self._corruption_error}. "
                 "Holdout dataset access is strictly locked."
             )
-
-        # Hash holdout dataset representation if not already a 64-char hash
-        if len(holdout_dataset_bytes_or_hash) == 64 and all(c in "0123456789abcdefABCDEF" for c in holdout_dataset_bytes_or_hash):
-            ds_hash = holdout_dataset_bytes_or_hash
-        else:
-            ds_hash = hashlib.sha256(holdout_dataset_bytes_or_hash.encode("utf-8")).hexdigest()
-
-        # Check if this strategy version was already tested on holdout
-        for past_audit in self._audits:
-            if past_audit.strategy_id == strategy_id and past_audit.strategy_version == strategy_version:
-                raise HoldoutViolationError(
-                    f"Governance Invariant Violated: Holdout dataset is sealed for '{strategy_id}' version '{strategy_version}'. "
-                    f"It was previously evaluated at {past_audit.timestamp_utc} (Audit ID: {past_audit.audit_id}). "
-                    "Re-tuning on the holdout is strictly forbidden. You must increment the strategy semantic version."
-                )
-
-        # Check dataset reuse
-        if not allow_dataset_reuse:
-            if (strategy_id, ds_hash) in self._burned_lineages or any(a.strategy_id == strategy_id and a.holdout_dataset_hash == ds_hash for a in self._audits):
-                raise HoldoutViolationError(
-                    f"Governance Invariant Violated: Dataset fingerprint '{ds_hash}' for strategy '{strategy_id}' "
-                    "has already been opened or burned. Dataset reuse across strategy iterations is forbidden."
-                )
-
-        cfg_fp = config_fingerprint or parameter_set_fingerprint
-        prereg = self.create_preregistration(
-            strategy_id=strategy_id,
-            strategy_version=strategy_version,
-            git_sha=git_sha,
-            dataset_fingerprint=ds_hash,
-            config_fingerprint=cfg_fp,
-            parameter_set_fingerprint=parameter_set_fingerprint,
-            hypothesis_description=hypothesis_description,
-            falsification_criteria="Negative out-of-sample expectancy",
+        raise HoldoutViolationError(
+            "LEGACY_HOLDOUT_EVALUATION_DISABLED: Production holdout evaluation cannot retroactively "
+            "preregister after observing metrics or auto-pass. Use create_preregistration() -> "
+            "open_holdout() -> record_evaluation_result()."
         )
-
-        acc = self.open_holdout(
-            preregistration_id=prereg.preregistration_id,
-            strategy_id=strategy_id,
-            strategy_version=strategy_version,
-            git_sha=git_sha,
-            config_fingerprint=cfg_fp,
-            parameter_set_fingerprint=parameter_set_fingerprint,
-            opened_by=opened_by,
-        )
-
-        self.record_evaluation_result(
-            access_id=acc.access_id,
-            result_metrics=metrics,
-            passed=True,
-            reasons=[],
-        )
-
-        return self._audits[-1]
 
     def burn_holdout(self, strategy_id: str, dataset_fingerprint: str, reason: str = "Manual burn") -> None:
         """Mark a holdout partition as burned for a strategy lineage."""

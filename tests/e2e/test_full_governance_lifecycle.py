@@ -44,7 +44,7 @@ from src.strategies.models import (
     PromotionEvidenceBundle,
 )
 from src.strategies.registry import StrategyRegistry
-from src.research.experiments import ExperimentRegistry, ExperimentRecord
+from src.research.experiments import ExperimentRegistry, ExperimentRecord, MultipleTestingContext
 from src.research.parameters import ResearchParameterSet
 from src.research.holdout import SealedHoldoutManager, HoldoutViolationError
 from src.portfolio.gates import (
@@ -193,6 +193,8 @@ def test_full_governance_lifecycle_end_to_end():
             parameter_set_fingerprint=param_set.fingerprint,
             hypothesis_description="Out of sample holdout validation across September 2026",
             falsification_criteria=["Sharpe < 1.0", "Max drawdown > 10%"],
+            primary_metrics=["sharpe", "max_drawdown"],
+            analysis_plan_fingerprint="plan_hash_12345678",
         )
         assert prereg.strategy_id == spec.strategy_id
 
@@ -250,6 +252,13 @@ def test_full_governance_lifecycle_end_to_end():
         # -------------------------------------------------------------
         # Build 4-gate bundle
         ms_gate = MultipleSelectionGate()
+        ctx_ms = MultipleTestingContext(
+            strategy_id=spec.strategy_id,
+            experiment_ids=["exp-001", "exp-002", "exp-003"],
+            trial_count=3,
+            raw_p_values=[0.01, 0.02, 0.03],
+            candidate_raw_p_value=0.01,
+        )
         ms_result = ms_gate.evaluate(
             sharpe_ratio=2.5,
             trial_count=3,
@@ -258,8 +267,7 @@ def test_full_governance_lifecycle_end_to_end():
             strategy_version="1.0.0",
             config_fingerprint=param_set.fingerprint,
             dataset_fingerprint=ds_hash,
-            raw_p_value=0.01,
-            all_raw_p_values=[0.01, 0.02, 0.03],
+            multiple_testing_context=ctx_ms,
         )
         assert ms_result.status == GateStatus.PASS
 

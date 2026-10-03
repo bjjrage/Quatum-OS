@@ -10,6 +10,7 @@ Total: 68 tests.
 """
 
 import math
+import inspect
 import tempfile
 import time
 from pathlib import Path
@@ -80,6 +81,8 @@ def test_holdout_status_preregistered():
             parameter_set_fingerprint="param_hash_12345678",
             hypothesis_description="Validating momentum persistence in crypto holdout",
             falsification_criteria=["Sharpe < 1.0"],
+            primary_metrics=["sharpe", "max_drawdown"],
+            analysis_plan_fingerprint="plan_hash_12345678",
         )
         assert mgr.get_status() == HoldoutStatus.PREREGISTERED.value
 
@@ -98,6 +101,8 @@ def test_holdout_preregistration_requires_hypothesis_and_falsification():
                 parameter_set_fingerprint="param_hash_12345678",
                 hypothesis_description="   ",
                 falsification_criteria=["Sharpe < 1.0"],
+                primary_metrics=["sharpe", "max_drawdown"],
+                analysis_plan_fingerprint="plan_hash_12345678",
             )
         # Empty falsification criteria
         with pytest.raises(ValueError, match="falsification_criteria"):
@@ -110,6 +115,8 @@ def test_holdout_preregistration_requires_hypothesis_and_falsification():
                 parameter_set_fingerprint="param_hash_12345678",
                 hypothesis_description="Valid hypothesis",
                 falsification_criteria=[],
+                primary_metrics=["sharpe", "max_drawdown"],
+                analysis_plan_fingerprint="plan_hash_12345678",
             )
 
 
@@ -126,6 +133,8 @@ def test_holdout_preregistration_requires_exact_provenance_fingerprints():
                 parameter_set_fingerprint="param_hash_12345678",
                 hypothesis_description="Valid hypothesis",
                 falsification_criteria=["Sharpe < 1.0"],
+                primary_metrics=["sharpe", "max_drawdown"],
+                analysis_plan_fingerprint="plan_hash_12345678",
             )
 
 
@@ -155,6 +164,8 @@ def test_holdout_open_once_succeeds_and_transitions_to_opened():
             parameter_set_fingerprint="param_hash_12345678",
             hypothesis_description="Validating momentum persistence",
             falsification_criteria=["Sharpe < 1.0"],
+            primary_metrics=["sharpe", "max_drawdown"],
+            analysis_plan_fingerprint="plan_hash_12345678",
         )
         rec = mgr.open_holdout(
             preregistration_id=prereg.preregistration_id,
@@ -180,6 +191,8 @@ def test_holdout_second_open_fails_closed_with_violation_error():
             parameter_set_fingerprint="param_hash_12345678",
             hypothesis_description="Validating momentum persistence",
             falsification_criteria=["Sharpe < 1.0"],
+            primary_metrics=["sharpe", "max_drawdown"],
+            analysis_plan_fingerprint="plan_hash_12345678",
         )
         mgr.open_holdout(
             preregistration_id=prereg.preregistration_id,
@@ -212,6 +225,8 @@ def test_holdout_dataset_reuse_forbidden_for_same_strategy_lineage():
             parameter_set_fingerprint="param_hash_12345678",
             hypothesis_description="Initial run",
             falsification_criteria=["Sharpe < 1.0"],
+            primary_metrics=["sharpe", "max_drawdown"],
+            analysis_plan_fingerprint="plan_hash_12345678",
         )
         mgr.open_holdout(
             preregistration_id=prereg.preregistration_id,
@@ -232,6 +247,8 @@ def test_holdout_dataset_reuse_forbidden_for_same_strategy_lineage():
                 parameter_set_fingerprint="param_hash_87654321",
                 hypothesis_description="Tuned attempt",
                 falsification_criteria=["Sharpe < 1.0"],
+                primary_metrics=["sharpe", "max_drawdown"],
+                analysis_plan_fingerprint="plan_hash_12345678",
             )
 
 
@@ -247,6 +264,8 @@ def test_holdout_dataset_reuse_forbidden_across_versions():
             parameter_set_fingerprint="param_hash_12345678",
             hypothesis_description="Initial run",
             falsification_criteria=["Sharpe < 1.0"],
+            primary_metrics=["sharpe", "max_drawdown"],
+            analysis_plan_fingerprint="plan_hash_12345678",
         )
         mgr.open_holdout(
             preregistration_id=prereg.preregistration_id,
@@ -267,6 +286,8 @@ def test_holdout_dataset_reuse_forbidden_across_versions():
                 parameter_set_fingerprint="param_hash_87654321",
                 hypothesis_description="New version on burned holdout",
                 falsification_criteria=["Sharpe < 1.0"],
+                primary_metrics=["sharpe", "max_drawdown"],
+                analysis_plan_fingerprint="plan_hash_12345678",
             )
 
 
@@ -282,6 +303,8 @@ def test_holdout_eval_record_immutable_and_matches_preregistration():
             parameter_set_fingerprint="param_hash_12345678",
             hypothesis_description="Initial run",
             falsification_criteria=["Sharpe < 1.0"],
+            primary_metrics=["sharpe", "max_drawdown"],
+            analysis_plan_fingerprint="plan_hash_12345678",
         )
         acc = mgr.open_holdout(
             preregistration_id=prereg.preregistration_id,
@@ -315,6 +338,8 @@ def test_holdout_burned_status_when_evaluation_fails_or_burn_triggered():
             parameter_set_fingerprint="param_hash_12345678",
             hypothesis_description="Initial run",
             falsification_criteria=["Sharpe < 1.0"],
+            primary_metrics=["sharpe", "max_drawdown"],
+            analysis_plan_fingerprint="plan_hash_12345678",
         )
         acc = mgr.open_holdout(
             preregistration_id=prereg.preregistration_id,
@@ -350,6 +375,8 @@ def test_holdout_tampered_audit_log_fails_closed_governance_locked():
                 parameter_set_fingerprint="param_hash_12345678",
                 hypothesis_description="Initial run",
                 falsification_criteria=["Sharpe < 1.0"],
+                primary_metrics=["sharpe", "max_drawdown"],
+                analysis_plan_fingerprint="plan_hash_12345678",
             )
 
 
@@ -637,7 +664,7 @@ def test_dsr_penalty_increases_with_positive_excess_kurtosis():
 
 def test_dsr_fails_closed_on_sample_length_under_30():
     gate = MultipleSelectionGate()
-    res = gate.evaluate(
+    res = gate.evaluate_math(
         sharpe_ratio=2.5,
         trial_count=10,
         sample_length=20,
@@ -702,6 +729,13 @@ def test_bh_fdr_strictly_bounded_zero_to_one():
 def test_gate_c_pending_when_raw_p_values_missing_or_incomplete():
     gate = MultipleSelectionGate()
     # Missing all_raw_p_values when trial_count > 1
+    ctx = MultipleTestingContext(
+        strategy_id="STR-001",
+        experiment_ids=[f"exp-{i}" for i in range(5)],
+        trial_count=5,
+        raw_p_values=[0.01],
+        candidate_raw_p_value=0.01,
+    )
     res = gate.evaluate(
         sharpe_ratio=2.5,
         trial_count=5,
@@ -709,16 +743,22 @@ def test_gate_c_pending_when_raw_p_values_missing_or_incomplete():
         strategy_id="STR-001",
         dataset_fingerprint="ds_hash_12345678",
         config_fingerprint="cfg_hash_12345678",
-        raw_p_value=0.01,
-        all_raw_p_values=None,
+        multiple_testing_context=ctx,
     )
     assert res.status == GateStatus.PENDING
-    assert any("incomplete" in r.lower() or "pending" in r.lower() for r in res.reasons)
+    assert any("incomplete" in r.lower() or "pending" in r.lower() or "match" in r.lower() for r in res.reasons)
 
 
 def test_gate_c_passes_only_when_both_dsr_and_fdr_pass():
     gate = MultipleSelectionGate()
     # Both pass
+    ctx_pass = MultipleTestingContext(
+        strategy_id="STR-001",
+        experiment_ids=["exp-1", "exp-2", "exp-3"],
+        trial_count=3,
+        raw_p_values=[0.005, 0.01, 0.02],
+        candidate_raw_p_value=0.005,
+    )
     res_pass = gate.evaluate(
         sharpe_ratio=2.8,
         trial_count=3,
@@ -726,12 +766,18 @@ def test_gate_c_passes_only_when_both_dsr_and_fdr_pass():
         strategy_id="STR-001",
         dataset_fingerprint="ds_hash_12345678",
         config_fingerprint="cfg_hash_12345678",
-        raw_p_value=0.005,
-        all_raw_p_values=[0.005, 0.01, 0.02],
+        multiple_testing_context=ctx_pass,
     )
     assert res_pass.status == GateStatus.PASS
 
     # FDR fails (p-values too high)
+    ctx_fail = MultipleTestingContext(
+        strategy_id="STR-001",
+        experiment_ids=["exp-1", "exp-2", "exp-3"],
+        trial_count=3,
+        raw_p_values=[0.40, 0.50, 0.60],
+        candidate_raw_p_value=0.40,
+    )
     res_fail = gate.evaluate(
         sharpe_ratio=2.8,
         trial_count=3,
@@ -739,8 +785,7 @@ def test_gate_c_passes_only_when_both_dsr_and_fdr_pass():
         strategy_id="STR-001",
         dataset_fingerprint="ds_hash_12345678",
         config_fingerprint="cfg_hash_12345678",
-        raw_p_value=0.40,
-        all_raw_p_values=[0.40, 0.50, 0.60],
+        multiple_testing_context=ctx_fail,
     )
     assert res_fail.status == GateStatus.FAIL
 
@@ -772,6 +817,9 @@ def test_gate_d_zero_variance_returns_none_correlation_not_zero():
         active_returns_by_strategy={"STR-ACTIVE": [0.01 + (0.005 if i % 2 == 0 else -0.005) for i in range(100)]},
         avg_5m_volume_usd=1_000_000.0,
         proposed_allocation_usd=5_000.0,
+        candidate_event_clusters=[],
+        active_event_clusters={"STR-ACTIVE": []},
+        regimes=["NORMAL"] * 80 + ["STRESS"] * 20,
         strategy_id="STR-001",
         dataset_fingerprint="ds_hash_12345678",
         config_fingerprint="cfg_hash_12345678",
@@ -789,6 +837,9 @@ def test_gate_d_fails_when_normal_correlation_exceeds_threshold():
         active_returns_by_strategy={"STR-ACTIVE": active_ret},
         avg_5m_volume_usd=1_000_000.0,
         proposed_allocation_usd=5_000.0,
+        candidate_event_clusters=[],
+        active_event_clusters={"STR-ACTIVE": []},
+        regimes=["NORMAL"] * 80 + ["STRESS"] * 20,
         strategy_id="STR-001",
         dataset_fingerprint="ds_hash_12345678",
         config_fingerprint="cfg_hash_12345678",
@@ -808,6 +859,8 @@ def test_gate_d_fails_when_stress_correlation_exceeds_threshold():
         active_returns_by_strategy={"STR-ACTIVE": active_ret},
         avg_5m_volume_usd=1_000_000.0,
         proposed_allocation_usd=5_000.0,
+        candidate_event_clusters=[],
+        active_event_clusters={"STR-ACTIVE": []},
         regimes=regimes,
         strategy_id="STR-001",
         dataset_fingerprint="ds_hash_12345678",
@@ -888,12 +941,14 @@ def test_gate_d_evaluates_across_multiple_regimes():
     gate = CorrelationCapacityGate()
     cand_ret = [0.01 if i % 2 == 0 else -0.008 for i in range(100)]
     active_ret = [0.005 if i % 3 == 0 else -0.005 for i in range(100)]
-    regimes = ["BULL"] * 40 + ["BEAR"] * 30 + ["SIDEWAYS"] * 30
+    regimes = ["NORMAL"] * 40 + ["BEAR"] * 30 + ["STRESS"] * 30
     res = gate.evaluate(
         candidate_returns=cand_ret,
         active_returns_by_strategy={"STR-ACTIVE": active_ret},
         avg_5m_volume_usd=2_000_000.0,
         proposed_allocation_usd=10_000.0,
+        candidate_event_clusters=[],
+        active_event_clusters={"STR-ACTIVE": []},
         regimes=regimes,
         strategy_id="STR-001",
         dataset_fingerprint="ds_hash_12345678",
@@ -1039,6 +1094,8 @@ def test_validation_to_holdout_fails_if_holdout_already_opened():
             parameter_set_fingerprint="param_hash_12345678",
             hypothesis_description="Initial run",
             falsification_criteria=["Sharpe < 1.0"],
+            primary_metrics=["sharpe", "max_drawdown"],
+            analysis_plan_fingerprint="plan_hash_12345678",
         )
         # Prematurely open holdout
         mgr.open_holdout(
@@ -1088,6 +1145,8 @@ def test_validation_to_holdout_fails_if_holdout_already_burned():
             parameter_set_fingerprint="param_hash_12345678",
             hypothesis_description="Initial run",
             falsification_criteria=["Sharpe < 1.0"],
+            primary_metrics=["sharpe", "max_drawdown"],
+            analysis_plan_fingerprint="plan_hash_12345678",
         )
         mgr.burn_holdout("STR-001", "ds_hash_12345678", reason="Manual burn")
         bundle = PromotionEvidenceBundle(
@@ -1129,6 +1188,8 @@ def test_validation_to_holdout_fails_on_provenance_mismatch():
             parameter_set_fingerprint="param_hash_12345678",
             hypothesis_description="Initial run",
             falsification_criteria=["Sharpe < 1.0"],
+            primary_metrics=["sharpe", "max_drawdown"],
+            analysis_plan_fingerprint="plan_hash_12345678",
         )
         bundle = PromotionEvidenceBundle(
             strategy_id="STR-001",
@@ -1169,6 +1230,8 @@ def test_holdout_to_paper_requires_prereg_access_result_and_gate_bundle():
             parameter_set_fingerprint="param_hash_12345678",
             hypothesis_description="Initial run",
             falsification_criteria=["Sharpe < 1.0"],
+            primary_metrics=["sharpe", "max_drawdown"],
+            analysis_plan_fingerprint="plan_hash_12345678",
         )
         bundle_holdout = PromotionEvidenceBundle(
             strategy_id="STR-001",
@@ -1223,6 +1286,8 @@ def test_holdout_to_paper_fails_if_gate_bundle_incomplete():
             parameter_set_fingerprint="param_hash_12345678",
             hypothesis_description="Initial run",
             falsification_criteria=["Sharpe < 1.0"],
+            primary_metrics=["sharpe", "max_drawdown"],
+            analysis_plan_fingerprint="plan_hash_12345678",
         )
         bundle_holdout = PromotionEvidenceBundle(
             strategy_id="STR-001",
@@ -1291,6 +1356,8 @@ def test_holdout_to_paper_fails_if_any_gate_in_bundle_not_pass():
             parameter_set_fingerprint="param_hash_12345678",
             hypothesis_description="Initial run",
             falsification_criteria=["Sharpe < 1.0"],
+            primary_metrics=["sharpe", "max_drawdown"],
+            analysis_plan_fingerprint="plan_hash_12345678",
         )
         bundle_holdout = PromotionEvidenceBundle(
             strategy_id="STR-001",
@@ -1366,6 +1433,8 @@ def test_holdout_to_paper_fails_if_holdout_evaluation_did_not_pass():
             parameter_set_fingerprint="param_hash_12345678",
             hypothesis_description="Initial run",
             falsification_criteria=["Sharpe < 1.0"],
+            primary_metrics=["sharpe", "max_drawdown"],
+            analysis_plan_fingerprint="plan_hash_12345678",
         )
         bundle_holdout = PromotionEvidenceBundle(
             strategy_id="STR-001",
@@ -1549,4 +1618,147 @@ def test_api_holdouts_endpoint_reports_honest_governance_status():
         HoldoutStatus.GOVERNANCE_LOCKED.value,
     )
     assert "warning" in holdouts
-    assert "HOLDOUT GOVERNANCE" in holdouts["warning"] or "HOLDOUT SEALED" in holdouts["warning"]
+    assert "holdout governance" in holdouts["warning"].lower() or "holdout sealed" in holdouts["warning"].lower()
+
+
+# =====================================================================
+# COUNTERAUDIT 03B: Specific Bypass Closure Vectors (Sections 17-20)
+# =====================================================================
+
+def test_counteraudit_17_holdout_manager_required_for_holdout_and_paper_promotions():
+    """Verify promotion to HOLDOUT or PAPER without holdout_manager raises HOLDOUT_GOVERNANCE_STORE_REQUIRED."""
+    registry = StrategyRegistry()
+    spec = StrategySpec(
+        strategy_id="STR-001",
+        name="Candidate Alpha",
+        family=StrategyFamily.MOMENTUM,
+        origin=StrategyOrigin.QUANT,
+        stage=StrategyStage.RESEARCH,
+        counterparty_thesis=_make_thesis(),
+    )
+    registry.register(spec)
+    registry.update_stage("STR-001", StrategyStage.VALIDATION)
+
+    bundle_val_to_holdout = PromotionEvidenceBundle(
+        strategy_id="STR-001",
+        strategy_version="1.0.0",
+        source_stage=StrategyStage.VALIDATION,
+        target_stage=StrategyStage.HOLDOUT,
+        dataset_fingerprint="ds_hash_12345678",
+        config_fingerprint="cfg_hash_12345678",
+        parameter_set_fingerprint="param_hash_12345678",
+        git_sha="abcdef1234567890",
+        holdout_preregistration_id="prereg-001",
+    )
+
+    # 1. VALIDATION -> HOLDOUT with holdout_manager=None fails closed
+    with pytest.raises(InvalidStageTransitionError, match="HOLDOUT_GOVERNANCE_STORE_REQUIRED"):
+        registry.update_stage("STR-001", StrategyStage.HOLDOUT, evidence_bundle=bundle_val_to_holdout, holdout_manager=None)
+
+    # Now promote properly with a real manager to test HOLDOUT -> PAPER
+    with tempfile.TemporaryDirectory() as tmp:
+        mgr = SealedHoldoutManager(audit_storage_path=Path(tmp) / "audits.json")
+        prereg = mgr.create_preregistration(
+            strategy_id="STR-001",
+            strategy_version="1.0.0",
+            git_sha="abcdef1234567890",
+            dataset_fingerprint="ds_hash_12345678",
+            config_fingerprint="cfg_hash_12345678",
+            parameter_set_fingerprint="param_hash_12345678",
+            hypothesis_description="Validating momentum persistence",
+            falsification_criteria=["Sharpe < 1.0"],
+            primary_metrics=["sharpe", "max_drawdown"],
+            analysis_plan_fingerprint="plan_hash_12345678",
+        )
+        bundle_val_to_holdout_real = PromotionEvidenceBundle(
+            strategy_id="STR-001",
+            strategy_version="1.0.0",
+            source_stage=StrategyStage.VALIDATION,
+            target_stage=StrategyStage.HOLDOUT,
+            dataset_fingerprint="ds_hash_12345678",
+            config_fingerprint="cfg_hash_12345678",
+            parameter_set_fingerprint="param_hash_12345678",
+            git_sha="abcdef1234567890",
+            holdout_preregistration_id=prereg.preregistration_id,
+        )
+        registry.update_stage("STR-001", StrategyStage.HOLDOUT, evidence_bundle=bundle_val_to_holdout_real, holdout_manager=mgr)
+
+        acc = mgr.open_holdout(
+            preregistration_id=prereg.preregistration_id,
+            strategy_id="STR-001",
+            strategy_version="1.0.0",
+            git_sha="abcdef1234567890",
+            config_fingerprint="cfg_hash_12345678",
+            parameter_set_fingerprint="param_hash_12345678",
+        )
+        eval_res = mgr.record_evaluation_result(
+            access_id=acc.access_id,
+            result_metrics={"sharpe": 2.0},
+            passed=True,
+            reasons=["All thresholds met"],
+        )
+
+        bundle_holdout_to_paper = PromotionEvidenceBundle(
+            strategy_id="STR-001",
+            strategy_version="1.0.0",
+            source_stage=StrategyStage.HOLDOUT,
+            target_stage=StrategyStage.PAPER,
+            dataset_fingerprint="ds_hash_12345678",
+            config_fingerprint="cfg_hash_12345678",
+            parameter_set_fingerprint="param_hash_12345678",
+            git_sha="abcdef1234567890",
+            holdout_preregistration_id=prereg.preregistration_id,
+            holdout_access_id=acc.access_id,
+            holdout_result_id=eval_res.result_id,
+            gate_bundle=_make_canonical_gates(),
+        )
+
+        # 2. HOLDOUT -> PAPER with holdout_manager=None fails closed
+        with pytest.raises(InvalidStageTransitionError, match="HOLDOUT_GOVERNANCE_STORE_REQUIRED"):
+            registry.update_stage("STR-001", StrategyStage.PAPER, evidence_bundle=bundle_holdout_to_paper, holdout_manager=None)
+
+
+def test_counteraudit_18_legacy_evaluate_holdout_fails_closed():
+    """Verify legacy evaluate_holdout method fails closed with LEGACY_HOLDOUT_EVALUATION_DISABLED."""
+    with tempfile.TemporaryDirectory() as tmp:
+        mgr = SealedHoldoutManager(audit_storage_path=Path(tmp) / "audits.json")
+        with pytest.raises(HoldoutViolationError, match="LEGACY_HOLDOUT_EVALUATION_DISABLED"):
+            mgr.evaluate_holdout(
+                strategy_id="STR-001",
+                dataset_hash="ds_hash_12345678",
+                metrics={"sharpe": 2.5},
+            )
+
+
+def test_counteraudit_19_allow_dataset_reuse_parameter_completely_absent():
+    """Verify allow_dataset_reuse parameter is completely removed from SealedHoldoutManager."""
+    sig_prereg = inspect.signature(SealedHoldoutManager.create_preregistration)
+    assert "allow_dataset_reuse" not in sig_prereg.parameters
+
+    sig_eval = inspect.signature(SealedHoldoutManager.evaluate_holdout)
+    assert "allow_dataset_reuse" not in sig_eval.parameters
+
+    sig_init = inspect.signature(SealedHoldoutManager.__init__)
+    assert "allow_dataset_reuse" not in sig_init.parameters
+
+    with tempfile.TemporaryDirectory() as tmp:
+        mgr = SealedHoldoutManager(audit_storage_path=Path(tmp) / "audits.json")
+        assert not hasattr(mgr, "allow_dataset_reuse")
+
+
+def test_counteraudit_20_gate_c_evaluate_without_multiple_testing_context_fails_closed_pending():
+    """Verify Gate C evaluate without MultipleTestingContext returns PENDING AUTHORITATIVE_TRIAL_CONTEXT_REQUIRED, never PASS."""
+    gate = MultipleSelectionGate()
+    res = gate.evaluate(
+        sharpe_ratio=3.5,
+        trial_count=1,
+        sample_length=200,
+        strategy_id="STR-001",
+        dataset_fingerprint="ds_hash_12345678",
+        config_fingerprint="cfg_hash_12345678",
+        multiple_testing_context=None,
+    )
+    assert res.status == GateStatus.PENDING
+    assert res.status != GateStatus.PASS
+    assert any("AUTHORITATIVE_TRIAL_CONTEXT_REQUIRED" in r for r in res.reasons)
+

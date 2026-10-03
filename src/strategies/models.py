@@ -214,6 +214,19 @@ VALID_STAGE_TRANSITIONS: Dict[StrategyStage, Set[StrategyStage]] = {
 }
 
 
+FORBIDDEN_PROVENANCE_PLACEHOLDERS: Set[str] = {
+    "unknown",
+    "unspecified",
+    "provenance_missing",
+    "ds_prov_unspecified",
+    "cfg_prov_unspecified",
+    "provenance_unspecified",
+    "none",
+    "null",
+    "undefined",
+}
+
+
 class PromotionEvidenceBundle(BaseModel):
     """Immutable evidence bundle binding research artifacts, gate evaluations, and holdout records."""
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -236,10 +249,12 @@ class PromotionEvidenceBundle(BaseModel):
     @classmethod
     def _validate_bundle_provenance(cls, data: Any) -> Any:
         if isinstance(data, dict):
-            for field in ("strategy_id", "dataset_fingerprint", "config_fingerprint", "parameter_set_fingerprint", "git_sha"):
+            for field in ("strategy_id", "strategy_version", "dataset_fingerprint", "config_fingerprint", "parameter_set_fingerprint", "git_sha"):
                 v = data.get(field, "")
                 if not str(v).strip():
                     raise ValueError(f"PromotionEvidenceBundle requires non-empty '{field}'.")
+                if str(v).strip().lower() in FORBIDDEN_PROVENANCE_PLACEHOLDERS:
+                    raise ValueError(f"PromotionEvidenceBundle field '{field}' contains prohibited placeholder '{v}'.")
         return data
 
 
@@ -252,6 +267,7 @@ class StrategySpec(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     strategy_id: str = Field(..., description="Unique strategy identifier (e.g. STR-001)")
+    version: str = Field(default="1.0.0", description="Authoritative semantic version of the strategy specification")
     name: str = Field(..., description="Descriptive human-readable strategy name")
     family: str = Field(..., description="Strategy family classification")
     origin: StrategyOrigin = Field(..., description="Discovery source / origin (metadata only)")

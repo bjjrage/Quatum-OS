@@ -129,6 +129,32 @@ class StrategyRegistry:
                 f"cannot transition from {current_stage.value} to {new_stage.value}."
             )
 
+        # General EvidenceBundle validation if provided
+        if evidence_bundle is not None:
+            if evidence_bundle.strategy_id != strategy_id:
+                raise InvalidStageTransitionError(
+                    f"Strategy ID mismatch in evidence bundle: '{evidence_bundle.strategy_id}' != '{strategy_id}'."
+                )
+            if evidence_bundle.source_stage != current_stage:
+                raise InvalidStageTransitionError(
+                    f"Promotion evidence bundle source stage '{evidence_bundle.source_stage.value}' "
+                    f"does not match current strategy stage '{current_stage.value}'."
+                )
+            if evidence_bundle.target_stage != new_stage:
+                raise InvalidStageTransitionError(
+                    f"Promotion evidence bundle target stage '{evidence_bundle.target_stage.value}' "
+                    f"does not match requested new stage '{new_stage.value}'."
+                )
+            spec_version = getattr(spec, "version", None) or (spec.parameters.version if spec.parameters else None)
+            if not spec_version:
+                raise InvalidStageTransitionError(
+                    f"Strategy '{strategy_id}' lacks authoritative version specification."
+                )
+            if evidence_bundle.strategy_version != spec_version:
+                raise InvalidStageTransitionError(
+                    f"Strategy version mismatch: bundle '{evidence_bundle.strategy_version}' != spec '{spec_version}'."
+                )
+
         # 1. RESEARCH -> VALIDATION requires complete CounterpartyThesis
         if current_stage == StrategyStage.RESEARCH and new_stage == StrategyStage.VALIDATION:
             if spec.counterparty_thesis is None or not spec.counterparty_thesis.is_complete_for_validation():
@@ -137,61 +163,122 @@ class StrategyRegistry:
                     "Counterparty thesis is missing, incomplete, or lacks falsification conditions."
                 )
 
-        # 2. VALIDATION -> HOLDOUT requires PromotionEvidenceBundle with valid preregistration
+        # 2. VALIDATION -> HOLDOUT requires PromotionEvidenceBundle with valid preregistration AND holdout_manager
         elif current_stage == StrategyStage.VALIDATION and new_stage == StrategyStage.HOLDOUT:
             if evidence_bundle is None:
                 raise InvalidStageTransitionError(
                     f"Strategy '{strategy_id}' cannot transition from VALIDATION to HOLDOUT: "
                     "PromotionEvidenceBundle is required."
                 )
-            if evidence_bundle.strategy_id != strategy_id:
-                raise InvalidStageTransitionError(
-                    f"Strategy ID mismatch in evidence bundle: '{evidence_bundle.strategy_id}' != '{strategy_id}'."
-                )
             if not evidence_bundle.holdout_preregistration_id:
                 raise InvalidStageTransitionError(
                     f"Strategy '{strategy_id}' cannot transition to HOLDOUT: "
                     "Evidence bundle lacks holdout_preregistration_id. Preregistration must exist before promotion."
                 )
-            if holdout_manager is not None:
-                if holdout_manager.is_corrupted:
-                    raise InvalidStageTransitionError(
-                        f"Cannot promote strategy '{strategy_id}' to HOLDOUT: "
-                        "Holdout governance storage is corrupted (GOVERNANCE_LOCKED)."
-                    )
-                prereg = holdout_manager.get_preregistration(evidence_bundle.holdout_preregistration_id)
-                if not prereg:
-                    raise InvalidStageTransitionError(
-                        f"Preregistration '{evidence_bundle.holdout_preregistration_id}' not found in holdout manager."
-                    )
-                if prereg.status not in (HoldoutStatus.PREREGISTERED, HoldoutStatus.UNOPENED):
-                    raise InvalidStageTransitionError(
-                        f"Cannot promote to HOLDOUT: holdout preregistration is already {prereg.status.value}. "
-                        "Holdout must remain unopened during promotion."
-                    )
-                if (
-                    prereg.strategy_id != strategy_id
-                    or prereg.dataset_fingerprint != evidence_bundle.dataset_fingerprint
-                    or prereg.config_fingerprint != evidence_bundle.config_fingerprint
-                ):
-                    raise InvalidStageTransitionError("Provenance mismatch between holdout preregistration and promotion evidence bundle.")
+            if holdout_manager is None:
+                raise InvalidStageTransitionError(
+                    "HOLDOUT_GOVERNANCE_STORE_REQUIRED: Strategy cannot transition from VALIDATION to HOLDOUT without authoritative holdout_manager."
+                )
+            if holdout_manager.is_corrupted:
+                raise InvalidStageTransitionError(
+                    f"Cannot promote strategy '{strategy_id}' to HOLDOUT: "
+                    "Holdout governance storage is corrupted (GOVERNANCE_LOCKED)."
+                )
+            prereg = holdout_manager.get_preregistration(evidence_bundle.holdout_preregistration_id)
+            if not prereg:
+                raise InvalidStageTransitionError(
+                    f"Preregistration '{evidence_bundle.holdout_preregistration_id}' not found in holdout manager."
+                )
+            if prereg.status not in (HoldoutStatus.PREREGISTERED, HoldoutStatus.UNOPENED):
+                raise InvalidStageTransitionError(
+                    f"Cannot promote to HOLDOUT: holdout preregistration is already {prereg.status.value}. "
+                    "Holdout must remain unopened during promotion."
+                )
+            if (strategy_id, prereg.dataset_fingerprint) in holdout_manager._burned_lineages:
+                raise InvalidStageTransitionError(
+                    f"Cannot promote to HOLDOUT: dataset fingerprint '{prereg.dataset_fingerprint}' for strategy "
+                    f"'{strategy_id}' has already been accessed or burned."
+                )
+            if (
+                prereg.strategy_id != strategy_id
+                or prereg.strategy_version != evidence_bundle.strategy_version
+                or prereg.dataset_fingerprint != evidence_bundle.dataset_fingerprint
+                or prereg.config_fingerprint != evidence_bundle.config_fingerprint
+                or prereg.parameter_set_fingerprint != evidence_bundle.parameter_set_fingerprint
+                or prereg.git_sha != evidence_bundle.git_sha
+            ):
+                raise InvalidStageTransitionError(
+                    "Provenance mismatch between holdout preregistration and promotion evidence bundle."
+                )
 
-        # 3. HOLDOUT -> PAPER requires verified PromotionEvidenceBundle with valid gate bundle and holdout evaluation
+        # 3. HOLDOUT -> PAPER requires verified PromotionEvidenceBundle with valid gate bundle, holdout evaluation, and holdout_manager
         elif current_stage == StrategyStage.HOLDOUT and new_stage == StrategyStage.PAPER:
             if evidence_bundle is None:
                 raise InvalidStageTransitionError(
                     f"Strategy '{strategy_id}' cannot transition from HOLDOUT to PAPER: "
                     "PromotionEvidenceBundle is required."
                 )
-            if evidence_bundle.strategy_id != strategy_id:
-                raise InvalidStageTransitionError(
-                    f"Strategy ID mismatch in evidence bundle: '{evidence_bundle.strategy_id}' != '{strategy_id}'."
-                )
             if not evidence_bundle.holdout_preregistration_id or not evidence_bundle.holdout_access_id or not evidence_bundle.holdout_result_id:
                 raise InvalidStageTransitionError(
                     f"Strategy '{strategy_id}' cannot transition to PAPER: "
                     "Evidence bundle must contain holdout_preregistration_id, holdout_access_id, and holdout_result_id."
                 )
+            if holdout_manager is None:
+                raise InvalidStageTransitionError(
+                    "HOLDOUT_GOVERNANCE_STORE_REQUIRED: Strategy cannot transition from HOLDOUT to PAPER without authoritative holdout_manager."
+                )
+            if holdout_manager.is_corrupted:
+                raise InvalidStageTransitionError(
+                    f"Cannot promote strategy '{strategy_id}' to PAPER: "
+                    "Holdout governance storage is corrupted (GOVERNANCE_LOCKED)."
+                )
+            prereg = holdout_manager.get_preregistration(evidence_bundle.holdout_preregistration_id)
+            if not prereg:
+                raise InvalidStageTransitionError(f"Preregistration '{evidence_bundle.holdout_preregistration_id}' not found.")
+            acc = holdout_manager.get_access_record(evidence_bundle.holdout_access_id)
+            if not acc:
+                raise InvalidStageTransitionError(f"Access record '{evidence_bundle.holdout_access_id}' not found.")
+            eval_res = holdout_manager.get_evaluation_result(evidence_bundle.holdout_result_id)
+            if not eval_res:
+                raise InvalidStageTransitionError(f"Evaluation result '{evidence_bundle.holdout_result_id}' not found.")
+
+            # Linking check
+            if acc.preregistration_id != prereg.preregistration_id:
+                raise InvalidStageTransitionError(
+                    f"Holdout access record '{acc.access_id}' links to preregistration '{acc.preregistration_id}', "
+                    f"expected '{prereg.preregistration_id}'."
+                )
+            if eval_res.preregistration_id != prereg.preregistration_id:
+                raise InvalidStageTransitionError(
+                    f"Holdout evaluation result '{eval_res.result_id}' links to preregistration '{eval_res.preregistration_id}', "
+                    f"expected '{prereg.preregistration_id}'."
+                )
+            if eval_res.access_id != acc.access_id:
+                raise InvalidStageTransitionError(
+                    f"Holdout evaluation result '{eval_res.result_id}' links to access record '{eval_res.access_id}', "
+                    f"expected '{acc.access_id}'."
+                )
+
+            # Full provenance check across artifacts
+            for art_name, art in (("preregistration", prereg), ("access_record", acc), ("evaluation_result", eval_res)):
+                if (
+                    art.strategy_id != strategy_id
+                    or art.strategy_version != evidence_bundle.strategy_version
+                    or art.dataset_fingerprint != evidence_bundle.dataset_fingerprint
+                    or art.config_fingerprint != evidence_bundle.config_fingerprint
+                    or art.git_sha != evidence_bundle.git_sha
+                ):
+                    raise InvalidStageTransitionError(
+                        f"Provenance mismatch between holdout {art_name} and promotion evidence bundle."
+                    )
+            if prereg.parameter_set_fingerprint != evidence_bundle.parameter_set_fingerprint or acc.parameter_set_fingerprint != evidence_bundle.parameter_set_fingerprint:
+                raise InvalidStageTransitionError(
+                    "Parameter set fingerprint mismatch across holdout artifacts and promotion evidence bundle."
+                )
+
+            if not eval_res.passed:
+                raise InvalidStageTransitionError(f"Holdout evaluation result did not pass: {eval_res.reasons}.")
+
             if not evidence_bundle.gate_bundle:
                 raise InvalidStageTransitionError(
                     f"Strategy '{strategy_id}' cannot transition to PAPER: "
@@ -213,21 +300,6 @@ class StrategyRegistry:
                 raise InvalidStageTransitionError(
                     "Provenance mismatch between Gate Bundle and PromotionEvidenceBundle."
                 )
-
-            if holdout_manager is not None:
-                if holdout_manager.is_corrupted:
-                    raise InvalidStageTransitionError(
-                        f"Cannot promote strategy '{strategy_id}' to PAPER: "
-                        "Holdout governance storage is corrupted (GOVERNANCE_LOCKED)."
-                    )
-                acc = holdout_manager.get_access_record(evidence_bundle.holdout_access_id)
-                if not acc:
-                    raise InvalidStageTransitionError(f"Access record '{evidence_bundle.holdout_access_id}' not found.")
-                eval_res = holdout_manager.get_evaluation_result(evidence_bundle.holdout_result_id)
-                if not eval_res:
-                    raise InvalidStageTransitionError(f"Evaluation result '{evidence_bundle.holdout_result_id}' not found.")
-                if not eval_res.passed:
-                    raise InvalidStageTransitionError(f"Holdout evaluation result did not pass: {eval_res.reasons}.")
 
         # 4. Transitions to SMALL_LIVE or ACTIVE are permanently BLOCKED under USD 0 live capital invariant
         elif new_stage in (StrategyStage.SMALL_LIVE, StrategyStage.ACTIVE):

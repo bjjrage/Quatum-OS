@@ -457,24 +457,43 @@ def test_attack_22_reused_holdout_after_parameter_tuning():
     with tempfile.TemporaryDirectory() as temp_dir:
         audit_file = Path(temp_dir) / "audits.json"
         mgr = SealedHoldoutManager(audit_storage_path=audit_file)
-        mgr.evaluate_holdout(
+        prereg = mgr.create_preregistration(
             strategy_id="STR-001",
-            strategy_version="1.0",
-            git_sha="sha1",
+            strategy_version="1.0.0",
+            git_sha="sha1_valid_hash",
+            dataset_fingerprint="dataset-1-hash-12345678",
+            config_fingerprint="cfg_hash_12345678",
             parameter_set_fingerprint="fp-initial",
             hypothesis_description="Initial holdout evaluation",
-            holdout_dataset_bytes_or_hash="dataset-1",
-            metrics={"sharpe": 1.5},
+            falsification_criteria=["Sharpe < 1.0"],
+            primary_metrics=["sharpe", "max_drawdown"],
+            analysis_plan_fingerprint="plan_hash_12345678",
+        )
+        acc = mgr.open_holdout(
+            preregistration_id=prereg.preregistration_id,
+            strategy_id="STR-001",
+            strategy_version="1.0.0",
+            git_sha="sha1_valid_hash",
+            config_fingerprint="cfg_hash_12345678",
+            parameter_set_fingerprint="fp-initial",
+        )
+        mgr.record_evaluation_result(
+            access_id=acc.access_id,
+            result_metrics={"sharpe": 1.5},
+            passed=True,
         )
         with pytest.raises(HoldoutViolationError):
-            mgr.evaluate_holdout(
+            mgr.create_preregistration(
                 strategy_id="STR-001",
-                strategy_version="1.0",
-                git_sha="sha1",
+                strategy_version="1.0.1",
+                git_sha="sha1_valid_hash",
+                dataset_fingerprint="dataset-1-hash-12345678",
+                config_fingerprint="cfg_hash_12345678",
                 parameter_set_fingerprint="fp-tuned",
                 hypothesis_description="Tuned parameters on same holdout",
-                holdout_dataset_bytes_or_hash="dataset-1",
-                metrics={"sharpe": 2.2},
+                falsification_criteria=["Sharpe < 1.0"],
+                primary_metrics=["sharpe", "max_drawdown"],
+                analysis_plan_fingerprint="plan_hash_12345678",
             )
 
 

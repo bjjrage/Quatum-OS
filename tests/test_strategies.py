@@ -1,6 +1,8 @@
 """Unit tests for Strategy Domain and Registry with hardened governance invariants."""
 
 import pytest
+import tempfile
+from pathlib import Path
 from src.strategies.models import (
     StrategyOrigin,
     StrategyStage,
@@ -9,6 +11,7 @@ from src.strategies.models import (
     CounterpartyThesis,
     PromotionEvidenceBundle,
 )
+from src.research.holdout import SealedHoldoutManager
 from src.portfolio.gates import StrategyGateResult
 from src.strategies.registry import (
     StrategyRegistry,
@@ -291,48 +294,76 @@ def test_evidence_gated_lifecycle_transitions():
     registry.update_stage("STR-GATE-01", StrategyStage.VALIDATION)
     assert registry.get("STR-GATE-01").stage == StrategyStage.VALIDATION
 
-    # VALIDATION -> HOLDOUT requires PromotionEvidenceBundle with preregistration
-    bundle_holdout = PromotionEvidenceBundle(
-        strategy_id="STR-GATE-01",
-        strategy_version="1.0.0",
-        source_stage=StrategyStage.VALIDATION,
-        target_stage=StrategyStage.HOLDOUT,
-        dataset_fingerprint="ds_fp_test",
-        config_fingerprint="cfg_fp_test",
-        parameter_set_fingerprint="param_fp_test",
-        git_sha="git_sha_test",
-        holdout_preregistration_id="prereg_test_01",
-    )
-    registry.update_stage("STR-GATE-01", StrategyStage.HOLDOUT, evidence_bundle=bundle_holdout)
-    assert registry.get("STR-GATE-01").stage == StrategyStage.HOLDOUT
+    with tempfile.TemporaryDirectory() as tmp:
+        mgr = SealedHoldoutManager(audit_storage_path=Path(tmp) / "audits.json")
+        prereg = mgr.create_preregistration(
+            strategy_id="STR-GATE-01",
+            strategy_version="1.0.0",
+            git_sha="git_sha_test",
+            dataset_fingerprint="ds_fp_test",
+            config_fingerprint="cfg_fp_test",
+            parameter_set_fingerprint="param_fp_test",
+            hypothesis_description="Validating momentum persistence",
+            falsification_criteria=["Sharpe < 1.0"],
+            primary_metrics=["sharpe", "max_drawdown"],
+            analysis_plan_fingerprint="plan_hash_12345678",
+        )
+        bundle_holdout = PromotionEvidenceBundle(
+            strategy_id="STR-GATE-01",
+            strategy_version="1.0.0",
+            source_stage=StrategyStage.VALIDATION,
+            target_stage=StrategyStage.HOLDOUT,
+            dataset_fingerprint="ds_fp_test",
+            config_fingerprint="cfg_fp_test",
+            parameter_set_fingerprint="param_fp_test",
+            git_sha="git_sha_test",
+            holdout_preregistration_id=prereg.preregistration_id,
+        )
+        registry.update_stage("STR-GATE-01", StrategyStage.HOLDOUT, evidence_bundle=bundle_holdout, holdout_manager=mgr)
+        assert registry.get("STR-GATE-01").stage == StrategyStage.HOLDOUT
 
-    # HOLDOUT -> PAPER requires PromotionEvidenceBundle with valid 4-gate bundle
-    gate_a = StrategyGateResult.create_pass("STR-GATE-01", "LATENCY_SENSITIVITY", "ds_fp_test", "cfg_fp_test", {"ok": True})
-    gate_b = StrategyGateResult.create_pass("STR-GATE-01", "TEMPORAL_STABILITY", "ds_fp_test", "cfg_fp_test", {"ok": True})
-    gate_c = StrategyGateResult.create_pass("STR-GATE-01", "MULTIPLE_SELECTION", "ds_fp_test", "cfg_fp_test", {"ok": True})
-    gate_d = StrategyGateResult.create_pass("STR-GATE-01", "CORRELATION_CAPACITY", "ds_fp_test", "cfg_fp_test", {"ok": True})
-    gate_bundle = {"A": gate_a, "B": gate_b, "C": gate_c, "D": gate_d}
+        acc = mgr.open_holdout(
+            preregistration_id=prereg.preregistration_id,
+            strategy_id="STR-GATE-01",
+            strategy_version="1.0.0",
+            git_sha="git_sha_test",
+            config_fingerprint="cfg_fp_test",
+            parameter_set_fingerprint="param_fp_test",
+        )
+        eval_res = mgr.record_evaluation_result(
+            access_id=acc.access_id,
+            result_metrics={"sharpe": 1.5},
+            passed=True,
+            reasons=["All thresholds met"],
+        )
 
-    bundle_paper = PromotionEvidenceBundle(
-        strategy_id="STR-GATE-01",
-        strategy_version="1.0.0",
-        source_stage=StrategyStage.HOLDOUT,
-        target_stage=StrategyStage.PAPER,
-        dataset_fingerprint="ds_fp_test",
-        config_fingerprint="cfg_fp_test",
-        parameter_set_fingerprint="param_fp_test",
-        git_sha="git_sha_test",
-        gate_bundle=gate_bundle,
-        holdout_preregistration_id="prereg_test_01",
-        holdout_access_id="access_test_01",
-        holdout_result_id="eval_test_01",
-    )
-    registry.update_stage("STR-GATE-01", StrategyStage.PAPER, evidence_bundle=bundle_paper)
-    assert registry.get("STR-GATE-01").stage == StrategyStage.PAPER
+        # HOLDOUT -> PAPER requires PromotionEvidenceBundle with valid 4-gate bundle
+        gate_a = StrategyGateResult.create_pass("STR-GATE-01", "LATENCY_SENSITIVITY", "ds_fp_test", "cfg_fp_test", {"ok": True})
+        gate_b = StrategyGateResult.create_pass("STR-GATE-01", "TEMPORAL_STABILITY", "ds_fp_test", "cfg_fp_test", {"ok": True})
+        gate_c = StrategyGateResult.create_pass("STR-GATE-01", "MULTIPLE_SELECTION", "ds_fp_test", "cfg_fp_test", {"ok": True})
+        gate_d = StrategyGateResult.create_pass("STR-GATE-01", "CORRELATION_CAPACITY", "ds_fp_test", "cfg_fp_test", {"ok": True})
+        gate_bundle = {"A": gate_a, "B": gate_b, "C": gate_c, "D": gate_d}
 
-    # PAPER -> SMALL_LIVE is permanently blocked while live capital is USD 0
-    with pytest.raises(InvalidStageTransitionError, match="Authorized live capital is USD 0"):
-        registry.update_stage("STR-GATE-01", StrategyStage.SMALL_LIVE)
+        bundle_paper = PromotionEvidenceBundle(
+            strategy_id="STR-GATE-01",
+            strategy_version="1.0.0",
+            source_stage=StrategyStage.HOLDOUT,
+            target_stage=StrategyStage.PAPER,
+            dataset_fingerprint="ds_fp_test",
+            config_fingerprint="cfg_fp_test",
+            parameter_set_fingerprint="param_fp_test",
+            git_sha="git_sha_test",
+            gate_bundle=gate_bundle,
+            holdout_preregistration_id=prereg.preregistration_id,
+            holdout_access_id=acc.access_id,
+            holdout_result_id=eval_res.result_id,
+        )
+        registry.update_stage("STR-GATE-01", StrategyStage.PAPER, evidence_bundle=bundle_paper, holdout_manager=mgr)
+        assert registry.get("STR-GATE-01").stage == StrategyStage.PAPER
+
+        # PAPER -> SMALL_LIVE is permanently blocked while live capital is USD 0
+        with pytest.raises(InvalidStageTransitionError, match="Authorized live capital is USD 0"):
+            registry.update_stage("STR-GATE-01", StrategyStage.SMALL_LIVE)
 
     # 3. Illegal gate-skipping tests
     spec_research = StrategySpec(
@@ -581,49 +612,80 @@ def test_lifecycle_governance_fail_closed_transitions():
     with pytest.raises(InvalidStageTransitionError, match="PromotionEvidenceBundle is required"):
         registry.update_stage("STR-LIFECYCLE-TEST", StrategyStage.HOLDOUT)
 
-    bundle_val_holdout = PromotionEvidenceBundle(
-        strategy_id="STR-LIFECYCLE-TEST",
-        source_stage=StrategyStage.VALIDATION,
-        target_stage=StrategyStage.HOLDOUT,
-        dataset_fingerprint="ds_fp",
-        config_fingerprint="cfg_fp",
-        parameter_set_fingerprint="param_fp",
-        git_sha="git_sha",
-        holdout_preregistration_id="prereg_01",
-    )
-    registry.update_stage("STR-LIFECYCLE-TEST", StrategyStage.HOLDOUT, evidence_bundle=bundle_val_holdout)
-    assert registry.get("STR-LIFECYCLE-TEST").stage == StrategyStage.HOLDOUT
+    with tempfile.TemporaryDirectory() as tmp:
+        mgr = SealedHoldoutManager(audit_storage_path=Path(tmp) / "audits.json")
+        prereg = mgr.create_preregistration(
+            strategy_id="STR-LIFECYCLE-TEST",
+            strategy_version="1.0.0",
+            git_sha="git_sha",
+            dataset_fingerprint="ds_fp",
+            config_fingerprint="cfg_fp",
+            parameter_set_fingerprint="param_fp",
+            hypothesis_description="Validating momentum persistence",
+            falsification_criteria=["Sharpe < 1.0"],
+            primary_metrics=["sharpe", "max_drawdown"],
+            analysis_plan_fingerprint="plan_hash_12345678",
+        )
+        bundle_val_holdout = PromotionEvidenceBundle(
+            strategy_id="STR-LIFECYCLE-TEST",
+            strategy_version="1.0.0",
+            source_stage=StrategyStage.VALIDATION,
+            target_stage=StrategyStage.HOLDOUT,
+            dataset_fingerprint="ds_fp",
+            config_fingerprint="cfg_fp",
+            parameter_set_fingerprint="param_fp",
+            git_sha="git_sha",
+            holdout_preregistration_id=prereg.preregistration_id,
+        )
+        registry.update_stage("STR-LIFECYCLE-TEST", StrategyStage.HOLDOUT, evidence_bundle=bundle_val_holdout, holdout_manager=mgr)
+        assert registry.get("STR-LIFECYCLE-TEST").stage == StrategyStage.HOLDOUT
 
-    # 3. HOLDOUT -> ACTIVE MUST FAIL
-    with pytest.raises(InvalidStageTransitionError, match="cannot transition from HOLDOUT to ACTIVE"):
-        registry.update_stage("STR-LIFECYCLE-TEST", StrategyStage.ACTIVE)
+        # 3. HOLDOUT -> ACTIVE MUST FAIL
+        with pytest.raises(InvalidStageTransitionError, match="cannot transition from HOLDOUT to ACTIVE"):
+            registry.update_stage("STR-LIFECYCLE-TEST", StrategyStage.ACTIVE)
 
-    # Valid: HOLDOUT -> PAPER requires PromotionEvidenceBundle with valid gate bundle
-    gate_a = StrategyGateResult.create_pass("STR-LIFECYCLE-TEST", "LATENCY_SENSITIVITY", "ds_fp", "cfg_fp", {"ok": True})
-    gate_b = StrategyGateResult.create_pass("STR-LIFECYCLE-TEST", "TEMPORAL_STABILITY", "ds_fp", "cfg_fp", {"ok": True})
-    gate_c = StrategyGateResult.create_pass("STR-LIFECYCLE-TEST", "MULTIPLE_SELECTION", "ds_fp", "cfg_fp", {"ok": True})
-    gate_d = StrategyGateResult.create_pass("STR-LIFECYCLE-TEST", "CORRELATION_CAPACITY", "ds_fp", "cfg_fp", {"ok": True})
-    gate_bundle = {"A": gate_a, "B": gate_b, "C": gate_c, "D": gate_d}
+        acc = mgr.open_holdout(
+            preregistration_id=prereg.preregistration_id,
+            strategy_id="STR-LIFECYCLE-TEST",
+            strategy_version="1.0.0",
+            git_sha="git_sha",
+            config_fingerprint="cfg_fp",
+            parameter_set_fingerprint="param_fp",
+        )
+        eval_res = mgr.record_evaluation_result(
+            access_id=acc.access_id,
+            result_metrics={"sharpe": 1.5},
+            passed=True,
+            reasons=["All thresholds met"],
+        )
 
-    bundle_paper = PromotionEvidenceBundle(
-        strategy_id="STR-LIFECYCLE-TEST",
-        source_stage=StrategyStage.HOLDOUT,
-        target_stage=StrategyStage.PAPER,
-        dataset_fingerprint="ds_fp",
-        config_fingerprint="cfg_fp",
-        parameter_set_fingerprint="param_fp",
-        git_sha="git_sha",
-        gate_bundle=gate_bundle,
-        holdout_preregistration_id="prereg_01",
-        holdout_access_id="acc_01",
-        holdout_result_id="res_01",
-    )
-    registry.update_stage("STR-LIFECYCLE-TEST", StrategyStage.PAPER, evidence_bundle=bundle_paper)
-    assert registry.get("STR-LIFECYCLE-TEST").stage == StrategyStage.PAPER
+        # Valid: HOLDOUT -> PAPER requires PromotionEvidenceBundle with valid gate bundle
+        gate_a = StrategyGateResult.create_pass("STR-LIFECYCLE-TEST", "LATENCY_SENSITIVITY", "ds_fp", "cfg_fp", {"ok": True})
+        gate_b = StrategyGateResult.create_pass("STR-LIFECYCLE-TEST", "TEMPORAL_STABILITY", "ds_fp", "cfg_fp", {"ok": True})
+        gate_c = StrategyGateResult.create_pass("STR-LIFECYCLE-TEST", "MULTIPLE_SELECTION", "ds_fp", "cfg_fp", {"ok": True})
+        gate_d = StrategyGateResult.create_pass("STR-LIFECYCLE-TEST", "CORRELATION_CAPACITY", "ds_fp", "cfg_fp", {"ok": True})
+        gate_bundle = {"A": gate_a, "B": gate_b, "C": gate_c, "D": gate_d}
 
-    # 4. PAPER -> SMALL_LIVE is permanently blocked while authorized live capital is USD 0
-    with pytest.raises(InvalidStageTransitionError, match="Authorized live capital is USD 0"):
-        registry.update_stage("STR-LIFECYCLE-TEST", StrategyStage.SMALL_LIVE)
+        bundle_paper = PromotionEvidenceBundle(
+            strategy_id="STR-LIFECYCLE-TEST",
+            strategy_version="1.0.0",
+            source_stage=StrategyStage.HOLDOUT,
+            target_stage=StrategyStage.PAPER,
+            dataset_fingerprint="ds_fp",
+            config_fingerprint="cfg_fp",
+            parameter_set_fingerprint="param_fp",
+            git_sha="git_sha",
+            gate_bundle=gate_bundle,
+            holdout_preregistration_id=prereg.preregistration_id,
+            holdout_access_id=acc.access_id,
+            holdout_result_id=eval_res.result_id,
+        )
+        registry.update_stage("STR-LIFECYCLE-TEST", StrategyStage.PAPER, evidence_bundle=bundle_paper, holdout_manager=mgr)
+        assert registry.get("STR-LIFECYCLE-TEST").stage == StrategyStage.PAPER
+
+        # 4. PAPER -> SMALL_LIVE is permanently blocked while authorized live capital is USD 0
+        with pytest.raises(InvalidStageTransitionError, match="Authorized live capital is USD 0"):
+            registry.update_stage("STR-LIFECYCLE-TEST", StrategyStage.SMALL_LIVE)
 
     # Kill and Archive
     registry.update_stage("STR-LIFECYCLE-TEST", StrategyStage.KILLED)

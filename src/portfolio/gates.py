@@ -803,7 +803,7 @@ class MultipleSelectionGate:
             euler_mascheroni=self.euler_mascheroni,
         )
 
-    def evaluate(
+    def evaluate_math(
         self,
         sharpe_ratio: float,
         trial_count: int,
@@ -815,11 +815,10 @@ class MultipleSelectionGate:
         dataset_fingerprint: str = "",
         config_fingerprint: str = "",
         experiment_ids: Optional[List[str]] = None,
-        multiple_testing_context: Optional[MultipleTestingContext] = None,
         raw_p_value: Optional[float] = None,
         all_raw_p_values: Optional[List[float]] = None,
     ) -> StrategyGateResult:
-        gate_name = "Gate C: Multiple Selection Correction"
+        """Low-level pure numerical evaluation of DSR and FDR for statistical testing."""
         gate_type = "MULTIPLE_SELECTION"
         ds_fp = dataset_fingerprint or "PROVENANCE_MISSING"
         cfg_fp = config_fingerprint or "PROVENANCE_MISSING"
@@ -851,35 +850,15 @@ class MultipleSelectionGate:
                 reasons=[f"Insufficient sample length ({sample_length} < 30 provisional floor)."],
             )
 
-        # Context extraction
-        if multiple_testing_context is not None:
-            if multiple_testing_context.registry_integrity_status != RegistryIntegrityStatus.HEALTHY:
-                return StrategyGateResult.create_pending(
-                    strategy_id=strategy_id,
-                    strategy_version=strategy_version,
-                    gate_type=gate_type,
-                    dataset_fingerprint=ds_fp,
-                    config_fingerprint=cfg_fp,
-                    score=0.0,
-                    threshold=self.min_dsr,
-                    reasons=[f"Registry integrity status is {multiple_testing_context.registry_integrity_status.value}: GOVERNANCE_BLOCKED."],
-                )
-            effective_trials = max(trial_count, multiple_testing_context.trial_count, 1)
-            candidate_p = raw_p_value if raw_p_value is not None else multiple_testing_context.candidate_raw_p_value
-            p_vals = list(multiple_testing_context.raw_p_values)
-            if candidate_p is not None and (not p_vals or p_vals[-1] != candidate_p):
-                p_vals.append(candidate_p)
-            exp_ids = experiment_ids or multiple_testing_context.experiment_ids
+        effective_trials = max(trial_count, 1)
+        candidate_p = raw_p_value
+        if all_raw_p_values is not None:
+            p_vals = list(all_raw_p_values)
+        elif candidate_p is not None:
+            p_vals = [candidate_p]
         else:
-            effective_trials = max(trial_count, 1)
-            candidate_p = raw_p_value
-            if all_raw_p_values is not None:
-                p_vals = list(all_raw_p_values)
-            elif candidate_p is not None:
-                p_vals = [candidate_p]
-            else:
-                p_vals = []
-            exp_ids = experiment_ids or []
+            p_vals = []
+        exp_ids = experiment_ids or []
 
         # DSR evaluation
         dsr = self.deflated_sharpe_ratio(
@@ -903,7 +882,6 @@ class MultipleSelectionGate:
         else:
             try:
                 q_vals, passes = benjamini_hochberg(p_vals, alpha=self.max_adjusted_pvalue)
-                # Candidate is the last entry in p_vals
                 q_val = q_vals[-1]
                 fdr_pass = (q_val <= self.max_adjusted_pvalue)
                 fdr_computed = True
@@ -971,7 +949,6 @@ class MultipleSelectionGate:
                     reasons=["Provenance unverified: dataset_fingerprint and config_fingerprint must be specified."],
                     diagnostics=diagnostics,
                 )
-
             return StrategyGateResult.create_pass(
                 strategy_id=strategy_id,
                 strategy_version=strategy_version,
@@ -987,16 +964,11 @@ class MultipleSelectionGate:
                 diagnostics=diagnostics,
             )
 
-        failures = []
+        reasons = []
         if not dsr_pass:
-            failures.append(
-                f"Deflated Sharpe Ratio ({dsr:.3f} < {self.min_dsr:.3f}) fails multiple testing correction "
-                f"after {effective_trials} historical trials (expected null max: {e_max:.2f})."
-            )
+            reasons.append(f"Multiple testing correction failure: DSR {dsr:.4f} < threshold {self.min_dsr:.4f} (under {effective_trials} trials).")
         if not fdr_pass:
-            failures.append(
-                f"Benjamini-Hochberg FDR adjusted p-value ({q_val:.4f} > {self.max_adjusted_pvalue:.4f}) breaches significance threshold."
-            )
+            reasons.append(f"Multiple testing correction failure: FDR adjusted p-value {q_val:.4f} > threshold {self.max_adjusted_pvalue:.4f}.")
 
         return StrategyGateResult.create_fail(
             strategy_id=strategy_id,
@@ -1010,10 +982,111 @@ class MultipleSelectionGate:
             thresholds=thresholds,
             criteria_evaluations=criteria,
             experiment_ids=exp_ids,
-            reasons=failures,
-            falsification_evidence="; ".join(failures),
+            reasons=reasons,
+            falsification_evidence=" ".join(reasons),
             diagnostics=diagnostics,
         )
+
+    def evaluate(
+        self,
+        sharpe_ratio: float,
+        trial_count: int,
+        sample_length: int = 100,
+        skewness: float = 0.0,
+        kurtosis: float = 3.0,
+        strategy_id: str = "STR-CANDIDATE",
+        strategy_version: str = "1.0.0",
+        dataset_fingerprint: str = "",
+        config_fingerprint: str = "",
+        experiment_ids: Optional[List[str]] = None,
+        multiple_testing_context: Optional[MultipleTestingContext] = None,
+        raw_p_value: Optional[float] = None,
+        all_raw_p_values: Optional[List[float]] = None,
+    ) -> StrategyGateResult:
+        gate_name = "Gate C: Multiple Selection Correction"
+        gate_type = "MULTIPLE_SELECTION"
+        ds_fp = dataset_fingerprint or "PROVENANCE_MISSING"
+        cfg_fp = config_fingerprint or "PROVENANCE_MISSING"
+
+        # Production governance rule (Sections 7 & 20): Authoritative MultipleTestingContext is mandatory
+        if multiple_testing_context is None:
+            return StrategyGateResult.create_pending(
+                strategy_id=strategy_id,
+                strategy_version=strategy_version,
+                gate_type=gate_type,
+                dataset_fingerprint=ds_fp,
+                config_fingerprint=cfg_fp,
+                score=0.0,
+                threshold=self.min_dsr,
+                reasons=["AUTHORITATIVE_TRIAL_CONTEXT_REQUIRED: Gate C production evaluation requires an authoritative MultipleTestingContext."],
+            )
+
+        if multiple_testing_context.registry_integrity_status != RegistryIntegrityStatus.HEALTHY:
+            return StrategyGateResult.create_pending(
+                strategy_id=strategy_id,
+                strategy_version=strategy_version,
+                gate_type=gate_type,
+                dataset_fingerprint=ds_fp,
+                config_fingerprint=cfg_fp,
+                score=0.0,
+                threshold=self.min_dsr,
+                reasons=[f"Registry integrity status is {multiple_testing_context.registry_integrity_status.value}: GOVERNANCE_BLOCKED."],
+            )
+
+        # Authoritative trial count from context: no overriding downward or upward
+        effective_trials = multiple_testing_context.trial_count
+        candidate_p = multiple_testing_context.candidate_raw_p_value if multiple_testing_context.candidate_raw_p_value is not None else raw_p_value
+        p_vals = list(multiple_testing_context.raw_p_values)
+        if candidate_p is not None and (not p_vals or candidate_p not in p_vals):
+            p_vals.append(candidate_p)
+        exp_ids = experiment_ids or multiple_testing_context.experiment_ids
+
+        # Section 8: FDR evidence must match authoritative trial set exactly
+        if candidate_p is None or len(p_vals) != effective_trials:
+            return StrategyGateResult.create_pending(
+                strategy_id=strategy_id,
+                strategy_version=strategy_version,
+                gate_type=gate_type,
+                dataset_fingerprint=ds_fp,
+                config_fingerprint=cfg_fp,
+                score=0.0,
+                threshold=self.min_dsr,
+                reasons=[
+                    f"FDR_EVIDENCE_MISMATCH: Authoritative trial count is {effective_trials}, "
+                    f"but {len(p_vals)} raw p-values were provided (candidate_p={'present' if candidate_p is not None else 'missing'})."
+                ],
+            )
+
+        return self.evaluate_math(
+            sharpe_ratio=sharpe_ratio,
+            trial_count=effective_trials,
+            sample_length=sample_length,
+            skewness=skewness,
+            kurtosis=kurtosis,
+            strategy_id=strategy_id,
+            strategy_version=strategy_version,
+            dataset_fingerprint=dataset_fingerprint,
+            config_fingerprint=config_fingerprint,
+            experiment_ids=exp_ids,
+            raw_p_value=candidate_p,
+            all_raw_p_values=p_vals,
+        )
+
+
+CANONICAL_STRESS_REGIMES: Set[str] = {
+    "STRESSED_ILLIQUID",
+    "STRESS",
+    "CRASH",
+    "HIGH_VOL_STRESS",
+    "PANIC",
+}
+
+CANONICAL_NORMAL_REGIMES: Set[str] = {
+    "NORMAL_VOL",
+    "NORMAL",
+    "LOW_VOL",
+    "CALM",
+}
 
 
 # ============================================================================
@@ -1089,7 +1162,7 @@ class CorrelationCapacityGate:
                 config_fingerprint=cfg_fp,
                 score=0.0,
                 threshold=self.max_normal_corr,
-                reasons=["avg_5m_volume_usd and proposed_allocation_usd must be explicit positive finite numbers."],
+                reasons=["PROMOTION_CAPACITY_EVALUATION_REQUIRES_POSITIVE_ALLOCATION: proposed_allocation_usd and avg_5m_volume_usd must be explicit positive finite numbers (> 0)."],
                 falsification_evidence="Non-positive or non-finite volume or allocation.",
             )
 
@@ -1127,6 +1200,68 @@ class CorrelationCapacityGate:
         max_stress_found = 0.0
 
         if active_returns_by_strategy:
+            # Section 9 & 10: Active portfolio requires explicit stress regime evidence
+            if regimes is None:
+                return StrategyGateResult.create_pending(
+                    strategy_id=strategy_id,
+                    strategy_version=strategy_version,
+                    gate_type=gate_type,
+                    dataset_fingerprint=ds_fp,
+                    config_fingerprint=cfg_fp,
+                    score=0.0,
+                    threshold=self.max_stress_corr,
+                    reasons=["MISSING_STRESS_REGIME_EVIDENCE: Regimes must be provided to evaluate stress correlation against active strategies."],
+                )
+
+            stress_indices = [i for i in range(n) if str(regimes[i]).upper() in CANONICAL_STRESS_REGIMES]
+            if not stress_indices:
+                return StrategyGateResult.create_pending(
+                    strategy_id=strategy_id,
+                    strategy_version=strategy_version,
+                    gate_type=gate_type,
+                    dataset_fingerprint=ds_fp,
+                    config_fingerprint=cfg_fp,
+                    score=0.0,
+                    threshold=self.max_stress_corr,
+                    reasons=["NO_STRESS_REGIME_SAMPLE: Provided regimes contain no recognized stress regime observations."],
+                )
+
+            if len(stress_indices) < 10:
+                return StrategyGateResult.create_pending(
+                    strategy_id=strategy_id,
+                    strategy_version=strategy_version,
+                    gate_type=gate_type,
+                    dataset_fingerprint=ds_fp,
+                    config_fingerprint=cfg_fp,
+                    score=0.0,
+                    threshold=self.max_stress_corr,
+                    reasons=[f"INSUFFICIENT_STRESS_SAMPLE: Insufficient stress regime samples ({len(stress_indices)} < 10) to evaluate stress correlation."],
+                )
+
+            # Section 11: Active portfolio requires explicit event cluster evidence
+            if active_event_clusters is None:
+                return StrategyGateResult.create_pending(
+                    strategy_id=strategy_id,
+                    strategy_version=strategy_version,
+                    gate_type=gate_type,
+                    dataset_fingerprint=ds_fp,
+                    config_fingerprint=cfg_fp,
+                    score=0.0,
+                    threshold=self.max_normal_corr,
+                    reasons=["EVENT_CLUSTER_EVIDENCE_MISSING: active_event_clusters must be explicitly provided (use {} for zero active clusters)."],
+                )
+            if candidate_event_clusters is None:
+                return StrategyGateResult.create_pending(
+                    strategy_id=strategy_id,
+                    strategy_version=strategy_version,
+                    gate_type=gate_type,
+                    dataset_fingerprint=ds_fp,
+                    config_fingerprint=cfg_fp,
+                    score=0.0,
+                    threshold=self.max_normal_corr,
+                    reasons=["CANDIDATE_EVENT_CLUSTER_EVIDENCE_MISSING: candidate_event_clusters must be explicitly provided (use [] for zero candidate clusters)."],
+                )
+
             for strat_id, act_rets in active_returns_by_strategy.items():
                 if len(act_rets) != n or len(act_rets) < 30:
                     return StrategyGateResult.create_pending(
@@ -1153,43 +1288,21 @@ class CorrelationCapacityGate:
                         reasons=[f"Normal correlation against {strat_id} cannot be computed (degenerate or zero variance)."],
                     )
 
-                c_stress = c_norm
-                if regimes:
-                    stress_cand = [candidate_returns[i] for i in range(n) if str(regimes[i]).upper() in ("STRESS", "CRASH")]
-                    stress_act = [act_rets[i] for i in range(n) if str(regimes[i]).upper() in ("STRESS", "CRASH")]
-                    if stress_cand:
-                        if len(stress_cand) < 10:
-                            return StrategyGateResult.create_pending(
-                                strategy_id=strategy_id,
-                                strategy_version=strategy_version,
-                                gate_type=gate_type,
-                                dataset_fingerprint=ds_fp,
-                                config_fingerprint=cfg_fp,
-                                score=0.0,
-                                threshold=self.max_stress_corr,
-                                reasons=["Insufficient stress regime samples (< 10) to evaluate stress correlation."],
-                            )
-                        c_s = self._pearson_correlation(stress_cand, stress_act)
-                        if c_s is None:
-                            return StrategyGateResult.create_pending(
-                                strategy_id=strategy_id,
-                                strategy_version=strategy_version,
-                                gate_type=gate_type,
-                                dataset_fingerprint=ds_fp,
-                                config_fingerprint=cfg_fp,
-                                score=0.0,
-                                threshold=self.max_stress_corr,
-                                reasons=[f"Stress correlation against {strat_id} cannot be computed (degenerate or zero variance)."],
-                            )
-                        c_stress = c_s
-                    else:
-                        # Multi-regime check across distinct regime slices
-                        for reg in set(regimes):
-                            slice_c = [candidate_returns[i] for i in range(n) if regimes[i] == reg]
-                            slice_a = [act_rets[i] for i in range(n) if regimes[i] == reg]
-                            corr_reg = self._pearson_correlation(slice_c, slice_a)
-                            if corr_reg is not None and abs(corr_reg) > max_norm_found:
-                                max_norm_found = abs(corr_reg)
+                # Strict stress correlation: No fallback to c_norm permitted
+                stress_cand = [candidate_returns[i] for i in stress_indices]
+                stress_act = [act_rets[i] for i in stress_indices]
+                c_stress = self._pearson_correlation(stress_cand, stress_act)
+                if c_stress is None:
+                    return StrategyGateResult.create_pending(
+                        strategy_id=strategy_id,
+                        strategy_version=strategy_version,
+                        gate_type=gate_type,
+                        dataset_fingerprint=ds_fp,
+                        config_fingerprint=cfg_fp,
+                        score=0.0,
+                        threshold=self.max_stress_corr,
+                        reasons=[f"Stress correlation against {strat_id} cannot be computed (degenerate or zero variance in stress slice)."],
+                    )
 
                 normal_correlations[strat_id] = c_norm
                 stress_correlations[strat_id] = c_stress
@@ -1200,18 +1313,7 @@ class CorrelationCapacityGate:
         corr_breach_stress = max_stress_found > self.max_stress_corr
 
         cluster_overlap: List[str] = []
-        if active_event_clusters:
-            if candidate_event_clusters is None:
-                return StrategyGateResult.create_pending(
-                    strategy_id=strategy_id,
-                    strategy_version=strategy_version,
-                    gate_type=gate_type,
-                    dataset_fingerprint=ds_fp,
-                    config_fingerprint=cfg_fp,
-                    score=0.0,
-                    threshold=self.max_normal_corr,
-                    reasons=["candidate_event_clusters must be provided when active strategies have event clusters."],
-                )
+        if active_event_clusters is not None and candidate_event_clusters is not None:
             cand_set = set(candidate_event_clusters)
             for s_id, s_clusters in active_event_clusters.items():
                 overlap = cand_set.intersection(set(s_clusters))

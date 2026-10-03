@@ -1037,16 +1037,15 @@ class QuantOSDataService:
         try:
             manager = SealedHoldoutManager(audit_storage_path=audit_path, raise_on_corruption=False)
             audits = manager._audits
-            gov_status = manager.get_status()
-            status = "SEALED" if gov_status in (HoldoutStatus.UNOPENED.value, HoldoutStatus.PREREGISTERED.value) else gov_status
+            status = manager.get_status()
             warning_msg = (
                 "HOLDOUT GOVERNANCE LOCKED: Storage integrity issue detected."
-                if gov_status == "GOVERNANCE_LOCKED"
-                else "HOLDOUT SEALED / GOVERNANCE: Once accessed, holdout partition is burned for that strategy lineage."
+                if status == "GOVERNANCE_LOCKED"
+                else "Holdout governance active. Opening a preregistered dataset permanently burns it for this strategy lineage."
             )
             return {
                 "status": status,
-                "governance_status": gov_status,
+                "governance_status": status,
                 "warning": warning_msg,
                 "total_openings": len(audits),
                 "audits": [a.model_dump() for a in audits],
@@ -1055,7 +1054,7 @@ class QuantOSDataService:
             return {
                 "status": "GOVERNANCE_LOCKED",
                 "governance_status": "GOVERNANCE_LOCKED",
-                "warning": "HOLDOUT GOVERNANCE LOCKED",
+                "warning": "HOLDOUT GOVERNANCE LOCKED: Storage integrity issue detected.",
                 "reason": str(e),
                 "total_openings": 0,
                 "audits": [],

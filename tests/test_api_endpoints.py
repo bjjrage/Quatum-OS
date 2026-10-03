@@ -289,5 +289,5 @@ def test_holdout_sealed():
     res = client.get("/api/holdouts")
     assert res.status_code == 200
     data = res.json()
-    assert data["status"] in ("SEALED", "NOT_AVAILABLE")
-    assert "HOLDOUT SEALED" in data["warning"]
+    assert data["status"] in ("UNOPENED", "PREREGISTERED", "OPENED", "BURNED", "GOVERNANCE_LOCKED")
+    assert "Holdout governance active" in data["warning"] or "HOLDOUT GOVERNANCE" in data["warning"]

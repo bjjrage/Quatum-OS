@@ -420,16 +420,18 @@ def test_vector_21_mutation_attempt_on_experiment_record_raises():
 
 def test_vector_22_mutation_attempt_on_holdout_audit_record_raises(tmp_path: Path):
     """Vector 22: Mutation attempt on HoldoutAuditRecord must raise."""
-    audit_file = tmp_path / "holdout_audits.json"
-    manager = SealedHoldoutManager(audit_storage_path=audit_file)
-    audit = manager.evaluate_holdout(
+    audit = HoldoutAuditRecord(
+        audit_id="audit_test_001",
+        opened_by="SYSTEM_RESEARCH_GATE",
+        timestamp_ns=1000,
+        timestamp_utc="2026-10-03T12:00:00Z",
         strategy_id="STR-002",
         strategy_version="2.0.0",
         git_sha="git_sha_abc123",
         parameter_set_fingerprint="fp_params_v1",
         hypothesis_description="Post-liquidation altcoin bounce",
-        holdout_dataset_bytes_or_hash="dataset_raw_bytes",
-        metrics={"net_sharpe": 1.5},
+        holdout_dataset_hash="dataset_raw_bytes",
+        result_metrics={"net_sharpe": 1.5},
     )
     with pytest.raises(Exception):
         audit.strategy_version = "2.1.0"

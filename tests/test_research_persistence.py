@@ -101,55 +101,101 @@ def test_sealed_holdout_manager_prevents_retuning_and_logs_audit(tmp_path: Path)
     audit_file = tmp_path / "holdout_audits.json"
     manager = SealedHoldoutManager(audit_storage_path=audit_file)
 
-    # 1. First evaluation of STR-002 v2.0.0 on holdout
-    record = manager.evaluate_holdout(
+    # 1. First evaluation of STR-002 v2.0.0 on holdout via canonical governance pipeline
+    prereg = manager.create_preregistration(
         strategy_id="STR-002",
         strategy_version="2.0.0",
-        git_sha="git_sha_abc123",
-        parameter_set_fingerprint="fp_params_v1",
+        git_sha="git_sha_abc123456",
+        dataset_fingerprint="dataset_hash_part1_12345678",
+        config_fingerprint="config_hash_v1_12345678",
+        parameter_set_fingerprint="fp_params_v1_12345678",
         hypothesis_description="Post-liquidation altcoin bounce when BTC is flat/up",
-        holdout_dataset_bytes_or_hash="dataset_raw_bytes_or_hash_content",
-        metrics={"net_sharpe": 1.85, "max_drawdown": -0.042},
+        falsification_criteria=["Sharpe < 1.0"],
+        primary_metrics=["sharpe", "max_drawdown"],
+        analysis_plan_fingerprint="plan_hash_12345678",
     )
-    assert record.strategy_version == "2.0.0"
-    assert record.audit_id.startswith("holdout_STR-002_2.0.0_")
+    acc = manager.open_holdout(
+        preregistration_id=prereg.preregistration_id,
+        strategy_id="STR-002",
+        strategy_version="2.0.0",
+        git_sha="git_sha_abc123456",
+        config_fingerprint="config_hash_v1_12345678",
+        parameter_set_fingerprint="fp_params_v1_12345678",
+    )
+    eval_res = manager.record_evaluation_result(
+        access_id=acc.access_id,
+        result_metrics={"net_sharpe": 1.85, "max_drawdown": -0.042},
+        passed=True,
+    )
+    assert eval_res.strategy_version == "2.0.0"
+    assert eval_res.result_id.startswith("eval_STR-002_2.0.0_")
 
-    # 2. Re-evaluating the SAME strategy version must raise HoldoutViolationError
-    with pytest.raises(HoldoutViolationError, match="Holdout dataset is sealed"):
-        manager.evaluate_holdout(
+    # 2. Re-evaluating the SAME strategy version or reopening must raise HoldoutViolationError
+    with pytest.raises(HoldoutViolationError):
+        manager.open_holdout(
+            preregistration_id=prereg.preregistration_id,
             strategy_id="STR-002",
             strategy_version="2.0.0",
-            git_sha="git_sha_def456",
-            parameter_set_fingerprint="fp_params_v2_tweaked",
-            hypothesis_description="Tweaked parameters to improve performance",
-            holdout_dataset_bytes_or_hash="dataset_raw_bytes_or_hash_content",
-            metrics={"net_sharpe": 2.10},
+            git_sha="git_sha_abc123456",
+            config_fingerprint="config_hash_v1_12345678",
+            parameter_set_fingerprint="fp_params_v1_12345678",
         )
 
     # 3. Evaluating a bumped strategy version on the SAME holdout dataset is forbidden (dataset reuse)
-    with pytest.raises(HoldoutViolationError, match="Dataset reuse across strategy iterations is forbidden"):
-        manager.evaluate_holdout(
+    with pytest.raises(HoldoutViolationError, match="Holdout dataset reuse across iterations is forbidden"):
+        manager.create_preregistration(
             strategy_id="STR-002",
             strategy_version="2.1.0",
-            git_sha="git_sha_def456",
+            git_sha="git_sha_def456789",
+            dataset_fingerprint="dataset_hash_part1_12345678",
+            config_fingerprint="config_hash_v2_12345678",
             parameter_set_fingerprint="fp_params_v2_tweaked",
             hypothesis_description="Version bump with orthogonalized factor model",
-            holdout_dataset_bytes_or_hash="dataset_raw_bytes_or_hash_content",
-            metrics={"net_sharpe": 1.92},
+            falsification_criteria=["Sharpe < 1.0"],
+            primary_metrics=["sharpe", "max_drawdown"],
+            analysis_plan_fingerprint="plan_hash_12345678",
         )
 
     # 4. Evaluating on a fresh holdout partition succeeds
-    record_fresh = manager.evaluate_holdout(
+    prereg_fresh = manager.create_preregistration(
         strategy_id="STR-002",
         strategy_version="2.1.0",
-        git_sha="git_sha_def456",
+        git_sha="git_sha_def456789",
+        dataset_fingerprint="dataset_hash_part2_fresh_12345678",
+        config_fingerprint="config_hash_v2_12345678",
         parameter_set_fingerprint="fp_params_v2_tweaked",
         hypothesis_description="Version bump with orthogonalized factor model on fresh partition",
-        holdout_dataset_bytes_or_hash="dataset_raw_bytes_or_hash_content_fresh_v2",
-        metrics={"net_sharpe": 1.92},
+        falsification_criteria=["Sharpe < 1.0"],
+        primary_metrics=["sharpe", "max_drawdown"],
+        analysis_plan_fingerprint="plan_hash_12345678",
     )
-    assert record_fresh.strategy_version == "2.1.0"
+    acc_fresh = manager.open_holdout(
+        preregistration_id=prereg_fresh.preregistration_id,
+        strategy_id="STR-002",
+        strategy_version="2.1.0",
+        git_sha="git_sha_def456789",
+        config_fingerprint="config_hash_v2_12345678",
+        parameter_set_fingerprint="fp_params_v2_tweaked",
+    )
+    eval_fresh = manager.record_evaluation_result(
+        access_id=acc_fresh.access_id,
+        result_metrics={"net_sharpe": 1.92},
+        passed=True,
+    )
+    assert eval_fresh.strategy_version == "2.1.0"
     assert len(manager.list_audits_for_strategy("STR-002")) == 2
+
+    # 5. Legacy evaluate_holdout is disabled
+    with pytest.raises(HoldoutViolationError, match="LEGACY_HOLDOUT_EVALUATION_DISABLED"):
+        manager.evaluate_holdout(
+            strategy_id="STR-002",
+            strategy_version="2.2.0",
+            git_sha="git_sha_def456789",
+            parameter_set_fingerprint="fp_params_v3",
+            hypothesis_description="Legacy call attempt",
+            holdout_dataset_bytes_or_hash="dataset_raw_bytes",
+            metrics={"net_sharpe": 1.92},
+        )
 
 
 def test_experiment_registry_corruption_fails_closed(tmp_path: Path):
@@ -218,14 +264,30 @@ def test_sealed_holdout_audit_corruption_fails_closed(tmp_path: Path):
     manager_init = SealedHoldoutManager(audit_storage_path=audit_file)
 
     # Record valid evaluation
-    manager_init.evaluate_holdout(
+    prereg = manager_init.create_preregistration(
         strategy_id="STR-002",
         strategy_version="2.0.0",
-        git_sha="sha_valid",
-        parameter_set_fingerprint="fp_valid",
+        git_sha="sha_valid_12345678",
+        dataset_fingerprint="dataset_bytes_hash_12345678",
+        config_fingerprint="cfg_hash_12345678",
+        parameter_set_fingerprint="fp_valid_12345678",
         hypothesis_description="Initial evaluation",
-        holdout_dataset_bytes_or_hash="dataset_bytes",
-        metrics={"net_sharpe": 1.5},
+        falsification_criteria=["Sharpe < 1.0"],
+        primary_metrics=["sharpe", "max_drawdown"],
+        analysis_plan_fingerprint="plan_hash_12345678",
+    )
+    acc = manager_init.open_holdout(
+        preregistration_id=prereg.preregistration_id,
+        strategy_id="STR-002",
+        strategy_version="2.0.0",
+        git_sha="sha_valid_12345678",
+        config_fingerprint="cfg_hash_12345678",
+        parameter_set_fingerprint="fp_valid_12345678",
+    )
+    manager_init.record_evaluation_result(
+        access_id=acc.access_id,
+        result_metrics={"net_sharpe": 1.5},
+        passed=True,
     )
     assert audit_file.exists()
 
