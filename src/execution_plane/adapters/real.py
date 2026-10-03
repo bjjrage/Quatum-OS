@@ -380,7 +380,12 @@ class BybitAdapter(RestAdapter):
 
     def get_server_time(self) -> int:
         b = self._http("GET", "/v5/market/time")
-        return int(b.get("time") or int(b["result"]["timeNano"]) // 1_000_000)
+        res = b.get("result", {}) if isinstance(b, dict) else {}
+        if "timeNano" in res:
+            return int(res["timeNano"]) // 1_000_000
+        if "timeSecond" in res:
+            return int(res["timeSecond"]) * 1000
+        return int(b.get("time") or 0)
 
     def get_account(self) -> AccountSnapshot:
         if self._auth_status() != CONFIGURED:
