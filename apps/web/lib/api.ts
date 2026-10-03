@@ -160,6 +160,21 @@ export const api = {
   getMultiAccountCompliance: () =>
     fetchJson<any[]>("/api/prop/compliance", []),
 
+  getBacktests: () =>
+    fetchJson<{
+      status: string;
+      reason?: string;
+      runs: any[];
+      available_strategies: string[];
+      cost_models: string[];
+    }>("/api/backtests", {
+      status: "NOT_AVAILABLE",
+      reason: "No persisted backtest runs in active directory.",
+      runs: [],
+      available_strategies: ["STR-001", "STR-002", "STR-003", "STR-PUMP-COPY"],
+      cost_models: ["v1_taker_5bps", "v2_maker_taker_tier1"],
+    }),
+
   getAttribution: () =>
     fetchJson<any>("/api/attribution", null),
 

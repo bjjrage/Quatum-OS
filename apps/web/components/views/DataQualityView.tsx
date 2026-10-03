@@ -12,7 +12,7 @@ interface DataQualityViewProps {
 export function DataQualityView({ dataQuality }: DataQualityViewProps) {
   const storage = dataQuality?.storage_metrics;
   const timing = dataQuality?.timestamp_integrity;
-  const runtime = dataQuality?.runtime_health;
+  const history = dataQuality?.history || [];
 
   return (
     <div className="space-y-6">
@@ -33,13 +33,13 @@ export function DataQualityView({ dataQuality }: DataQualityViewProps) {
           label="Manifest Status"
           value={storage?.manifest_valid ? "VALID" : "PENDING"}
           subtitle={`${storage?.orphan_tmp_files ?? 0} Orphan tmp files detected`}
-          badge={{ text: storage?.manifest_valid ? "VALIDATED" : "PENDING", variant: "emerald" }}
+          badge={{ text: storage?.manifest_valid ? "VALIDATED" : "PENDING", variant: storage?.manifest_valid ? "emerald" : "amber" }}
           icon={<FileCheck className="w-4 h-4" />}
         />
         <MetricCard
           label="Clock Skew Detected"
           value={timing?.is_host_clock_skew_detected ? "DETECTED" : "NOMINAL"}
-          subtitle={`Offset: ${timing?.estimated_clock_offset_ms?.toFixed(1) ?? "-12.4"} ms`}
+          subtitle={`Offset: ${timing?.estimated_clock_offset_ms !== undefined ? timing.estimated_clock_offset_ms.toFixed(1) : "0.0"} ms`}
           badge={{
             text: timing?.is_host_clock_skew_detected ? "CALIBRATED" : "SYNCHRONIZED",
             variant: timing?.is_host_clock_skew_detected ? "amber" : "emerald",
@@ -50,13 +50,13 @@ export function DataQualityView({ dataQuality }: DataQualityViewProps) {
           label="True Causal Violations"
           value={timing?.true_causal_violations ?? 0}
           subtitle="Monotonic event sequence test"
-          badge={{ text: "ZERO VIOLATIONS", variant: "emerald" }}
+          badge={{ text: timing?.true_causal_violations === 0 ? "ZERO VIOLATIONS" : "VIOLATIONS DETECTED", variant: timing?.true_causal_violations === 0 ? "emerald" : "rose" }}
           icon={<ShieldCheck className="w-4 h-4" />}
         />
         <MetricCard
           label="Lakehouse Volume"
-          value={`${((storage?.total_compressed_bytes ?? 96700000) / 1024 / 1024).toFixed(1)} MB`}
-          subtitle={`Projected: ${(storage?.projected_gb_per_day ?? 1.4).toFixed(1)} GB / day`}
+          value={storage?.total_compressed_bytes !== undefined ? `${(storage.total_compressed_bytes / 1024 / 1024).toFixed(1)} MB` : "0.0 MB"}
+          subtitle={`Projected: ${storage?.projected_gb_per_day !== undefined ? storage.projected_gb_per_day.toFixed(1) : "0.0"} GB / day`}
           badge={{ text: "SNAPPY PARQUET", variant: "blue" }}
           icon={<HardDrive className="w-4 h-4" />}
         />
@@ -75,19 +75,19 @@ export function DataQualityView({ dataQuality }: DataQualityViewProps) {
               <div className="p-3 rounded bg-[#0b0e14] border border-slate-800">
                 <span className="text-slate-400 block text-[11px]">Total Row Count</span>
                 <span className="text-base font-bold text-slate-100">
-                  {storage?.total_row_count?.toLocaleString() ?? "364,800"}
+                  {storage?.total_row_count !== undefined ? storage.total_row_count.toLocaleString() : "0"}
                 </span>
               </div>
               <div className="p-3 rounded bg-[#0b0e14] border border-slate-800">
                 <span className="text-slate-400 block text-[11px]">Parquet Partitions</span>
                 <span className="text-base font-bold text-cyan-400">
-                  {storage?.parquet_file_count ?? 99} files
+                  {storage?.parquet_file_count !== undefined ? `${storage.parquet_file_count} files` : "0 files"}
                 </span>
               </div>
               <div className="p-3 rounded bg-[#0b0e14] border border-slate-800">
                 <span className="text-slate-400 block text-[11px]">Bytes per Event</span>
                 <span className="text-base font-bold text-slate-100">
-                  {storage?.bytes_per_event?.toFixed(1) ?? "265.1"} bytes
+                  {storage?.bytes_per_event !== undefined ? `${storage.bytes_per_event.toFixed(1)} bytes` : "—"}
                 </span>
               </div>
               <div className="p-3 rounded bg-[#0b0e14] border border-slate-800">
@@ -130,19 +130,19 @@ export function DataQualityView({ dataQuality }: DataQualityViewProps) {
                 <div className="p-2 rounded bg-[#121622] border border-slate-800">
                   <span className="text-[10px] text-slate-400 block">P50 (Median)</span>
                   <span className="text-sm font-bold text-cyan-400">
-                    {timing?.corrected_latency_p50_ms?.toFixed(1) ?? "14.2"} ms
+                    {timing?.corrected_latency_p50_ms !== undefined ? `${timing.corrected_latency_p50_ms.toFixed(1)} ms` : "—"}
                   </span>
                 </div>
                 <div className="p-2 rounded bg-[#121622] border border-slate-800">
                   <span className="text-[10px] text-slate-400 block">P95</span>
                   <span className="text-sm font-bold text-cyan-400">
-                    {timing?.corrected_latency_p95_ms?.toFixed(1) ?? "28.5"} ms
+                    {timing?.corrected_latency_p95_ms !== undefined ? `${timing.corrected_latency_p95_ms.toFixed(1)} ms` : "—"}
                   </span>
                 </div>
                 <div className="p-2 rounded bg-[#121622] border border-slate-800">
                   <span className="text-[10px] text-slate-400 block">P99</span>
                   <span className="text-sm font-bold text-amber-400">
-                    {timing?.corrected_latency_p99_ms?.toFixed(1) ?? "45.1"} ms
+                    {timing?.corrected_latency_p99_ms !== undefined ? `${timing.corrected_latency_p99_ms.toFixed(1)} ms` : "—"}
                   </span>
                 </div>
               </div>
@@ -155,11 +155,11 @@ export function DataQualityView({ dataQuality }: DataQualityViewProps) {
               </div>
               <div className="flex justify-between">
                 <span>Total Events Audited:</span>
-                <span className="text-slate-200">{timing?.total_events_checked?.toLocaleString() ?? "364,800"}</span>
+                <span className="text-slate-200">{timing?.total_events_checked !== undefined ? timing.total_events_checked.toLocaleString() : "0"}</span>
               </div>
               <div className="flex justify-between">
                 <span>Estimated Clock Offset:</span>
-                <span className="text-amber-400">{timing?.estimated_clock_offset_ms?.toFixed(2) ?? "-12.40"} ms</span>
+                <span className="text-amber-400">{timing?.estimated_clock_offset_ms !== undefined ? `${timing.estimated_clock_offset_ms.toFixed(2)} ms` : "0.00 ms"}</span>
               </div>
               <div className="flex justify-between">
                 <span>Clock Calibration Status:</span>
@@ -173,68 +173,49 @@ export function DataQualityView({ dataQuality }: DataQualityViewProps) {
       {/* HISTORICAL QUALITY RUNS TABLE */}
       <Card
         title="Quality Assurance Manifest Run History"
-        subtitle="Immutable validation snapshots for data recording batches"
+        subtitle="Immutable validation snapshots for data recording batches (data/quality/acceptance_*.json)"
         variant="terminal"
       >
         <div className="overflow-x-auto">
-          <table className="w-full text-xs font-mono-code text-left text-slate-300">
-            <thead className="bg-[#0b0e14] text-slate-400 uppercase text-[11px] border-b border-slate-800">
-              <tr>
-                <th className="py-2.5 px-3">Run Batch / Snapshot</th>
-                <th className="py-2.5 px-3">Generated (UTC)</th>
-                <th className="py-2.5 px-3">Events Checked</th>
-                <th className="py-2.5 px-3">Manifest</th>
-                <th className="py-2.5 px-3">Clock Offset</th>
-                <th className="py-2.5 px-3">Corrected P50 / P95</th>
-                <th className="py-2.5 px-3 text-right">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800/80">
-              {(dataQuality?.history && dataQuality.history.length > 0
-                ? dataQuality.history
-                : [
-                    {
-                      filename: "acceptance_report_20261003_000000.json",
-                      generated_at_utc: "2026-10-03T00:00:00Z",
-                      total_events: 364800,
-                      files_count: 99,
-                      orphan_tmp_files: 0,
-                      manifest_valid: true,
-                      clock_offset_ms: -12.4,
-                      corrected_p50_ms: 14.2,
-                      corrected_p95_ms: 28.5,
-                    },
-                    {
-                      filename: "acceptance_report_20261002_180000.json",
-                      generated_at_utc: "2026-10-02T18:00:00Z",
-                      total_events: 245000,
-                      files_count: 68,
-                      orphan_tmp_files: 0,
-                      manifest_valid: true,
-                      clock_offset_ms: -11.8,
-                      corrected_p50_ms: 13.9,
-                      corrected_p95_ms: 27.8,
-                    },
-                  ]
-              ).map((h, i) => (
-                <tr key={i} className="hover:bg-[#121622]/50 transition">
-                  <td className="py-2.5 px-3 font-semibold text-cyan-400">{h.filename}</td>
-                  <td className="py-2.5 px-3 text-slate-400">{h.generated_at_utc}</td>
-                  <td className="py-2.5 px-3 text-slate-200">{h.total_events?.toLocaleString()}</td>
-                  <td className="py-2.5 px-3">
-                    <Badge variant={h.manifest_valid ? "emerald" : "rose"} size="xs">
-                      {h.manifest_valid ? "VALID" : "INVALID"}
-                    </Badge>
-                  </td>
-                  <td className="py-2.5 px-3 text-amber-400">{h.clock_offset_ms} ms</td>
-                  <td className="py-2.5 px-3 text-slate-200">{h.corrected_p50_ms}ms / {h.corrected_p95_ms}ms</td>
-                  <td className="py-2.5 px-3 text-right">
-                    <Badge variant="emerald" size="xs">PASS</Badge>
-                  </td>
+          {history.length === 0 ? (
+            <div className="py-8 text-center text-xs font-mono-code text-slate-400">
+              <p className="text-slate-300 font-semibold mb-1">0 HISTORICAL QUALITY REPORTS</p>
+              <p className="text-slate-500">No acceptance quality snapshots found in data/quality/ yet.</p>
+            </div>
+          ) : (
+            <table className="w-full text-xs font-mono-code text-left text-slate-300">
+              <thead className="bg-[#0b0e14] text-slate-400 uppercase text-[11px] border-b border-slate-800">
+                <tr>
+                  <th className="py-2.5 px-3">Run Batch / Snapshot</th>
+                  <th className="py-2.5 px-3">Generated (UTC)</th>
+                  <th className="py-2.5 px-3">Events Checked</th>
+                  <th className="py-2.5 px-3">Manifest</th>
+                  <th className="py-2.5 px-3">Clock Offset</th>
+                  <th className="py-2.5 px-3">Corrected P50 / P95</th>
+                  <th className="py-2.5 px-3 text-right">Status</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-slate-800/80">
+                {history.map((h, i) => (
+                  <tr key={i} className="hover:bg-[#121622]/50 transition">
+                    <td className="py-2.5 px-3 font-semibold text-cyan-400">{h.filename}</td>
+                    <td className="py-2.5 px-3 text-slate-400">{h.generated_at_utc}</td>
+                    <td className="py-2.5 px-3 text-slate-200">{h.total_events?.toLocaleString()}</td>
+                    <td className="py-2.5 px-3">
+                      <Badge variant={h.manifest_valid ? "emerald" : "rose"} size="xs">
+                        {h.manifest_valid ? "VALID" : "INVALID"}
+                      </Badge>
+                    </td>
+                    <td className="py-2.5 px-3 text-amber-400">{h.clock_offset_ms} ms</td>
+                    <td className="py-2.5 px-3 text-slate-200">{h.corrected_p50_ms}ms / {h.corrected_p95_ms}ms</td>
+                    <td className="py-2.5 px-3 text-right">
+                      <Badge variant="emerald" size="xs">PASS</Badge>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       </Card>
     </div>

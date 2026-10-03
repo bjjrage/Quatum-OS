@@ -93,6 +93,7 @@ def test_represent_all_lifecycle_stages():
         origin=StrategyOrigin.QUANT,
         stage=StrategyStage.IDEA,
         counterparty_thesis=thesis,
+        economic_edge_validated=True,
     )
     registry.register(spec)
 
@@ -280,6 +281,7 @@ def test_evidence_gated_lifecycle_transitions():
         origin=StrategyOrigin.QUANT,
         stage=StrategyStage.RESEARCH,
         counterparty_thesis=thesis,
+        economic_edge_validated=True,
     )
     registry.register(spec)
 
@@ -498,3 +500,78 @@ def test_registry_registration_governance_invariants():
     )
     with pytest.raises(ValueError, match="without a complete CounterpartyThesis"):
         registry.register(spec_val_no_thesis)
+
+
+def test_lifecycle_governance_fail_closed_transitions():
+    """Verify Master Blueprint Section 5 Lifecycle Governance:
+    IDEA -> RESEARCH -> VALIDATION -> HOLDOUT -> PAPER -> SMALL_LIVE -> ACTIVE.
+    
+    Prohibits arbitrary jumps and unvalidated capital promotion.
+    Required failure checks:
+    - RESEARCH -> ACTIVE MUST FAIL
+    - IDEA -> PAPER MUST FAIL
+    - HOLDOUT -> ACTIVE MUST FAIL
+    - ARCHIVED -> RESEARCH MUST FAIL
+    - PAPER -> SMALL_LIVE (unvalidated) MUST FAIL
+    """
+    thesis = CounterpartyThesis(
+        counterparty_type="Informed liquidity takers",
+        economic_mechanism="Microstructure inventory imbalance",
+        why_trade_now="Execution urgency",
+        why_impact_may_be_transient="Inventory rebalancing",
+        why_it_may_be_information="Macro news",
+        observable_evidence=["Spread widening"],
+        falsification_conditions=["Persistent adverse selection"],
+    )
+    registry = StrategyRegistry()
+    spec = StrategySpec(
+        strategy_id="STR-LIFECYCLE-TEST",
+        name="Lifecycle Governance Test",
+        family="MOMENTUM",
+        origin=StrategyOrigin.QUANT,
+        stage=StrategyStage.IDEA,
+        counterparty_thesis=thesis,
+        economic_edge_validated=False,
+    )
+    registry.register(spec)
+
+    # 1. IDEA -> PAPER MUST FAIL
+    with pytest.raises(InvalidStageTransitionError, match="cannot transition from IDEA to PAPER"):
+        registry.update_stage("STR-LIFECYCLE-TEST", StrategyStage.PAPER)
+
+    # Valid: IDEA -> RESEARCH
+    registry.update_stage("STR-LIFECYCLE-TEST", StrategyStage.RESEARCH)
+    assert registry.get("STR-LIFECYCLE-TEST").stage == StrategyStage.RESEARCH
+
+    # 2. RESEARCH -> ACTIVE MUST FAIL
+    with pytest.raises(InvalidStageTransitionError, match="cannot transition from RESEARCH to ACTIVE"):
+        registry.update_stage("STR-LIFECYCLE-TEST", StrategyStage.ACTIVE)
+
+    # Valid: RESEARCH -> VALIDATION (has valid thesis)
+    registry.update_stage("STR-LIFECYCLE-TEST", StrategyStage.VALIDATION)
+    assert registry.get("STR-LIFECYCLE-TEST").stage == StrategyStage.VALIDATION
+
+    # Valid: VALIDATION -> HOLDOUT
+    registry.update_stage("STR-LIFECYCLE-TEST", StrategyStage.HOLDOUT)
+    assert registry.get("STR-LIFECYCLE-TEST").stage == StrategyStage.HOLDOUT
+
+    # 3. HOLDOUT -> ACTIVE MUST FAIL
+    with pytest.raises(InvalidStageTransitionError, match="cannot transition from HOLDOUT to ACTIVE"):
+        registry.update_stage("STR-LIFECYCLE-TEST", StrategyStage.ACTIVE)
+
+    # Valid: HOLDOUT -> PAPER
+    registry.update_stage("STR-LIFECYCLE-TEST", StrategyStage.PAPER)
+    assert registry.get("STR-LIFECYCLE-TEST").stage == StrategyStage.PAPER
+
+    # 4. PAPER -> SMALL_LIVE (without economic_edge_validated) MUST FAIL
+    with pytest.raises(InvalidStageTransitionError, match="economic_edge_validated is False"):
+        registry.update_stage("STR-LIFECYCLE-TEST", StrategyStage.SMALL_LIVE)
+
+    # Kill and Archive
+    registry.update_stage("STR-LIFECYCLE-TEST", StrategyStage.KILLED)
+    registry.update_stage("STR-LIFECYCLE-TEST", StrategyStage.ARCHIVED)
+    assert registry.get("STR-LIFECYCLE-TEST").stage == StrategyStage.ARCHIVED
+
+    # 5. ARCHIVED -> RESEARCH MUST FAIL (terminal state)
+    with pytest.raises(InvalidStageTransitionError, match="cannot transition from ARCHIVED to RESEARCH"):
+        registry.update_stage("STR-LIFECYCLE-TEST", StrategyStage.RESEARCH)

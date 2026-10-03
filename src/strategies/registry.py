@@ -135,6 +135,14 @@ class StrategyRegistry:
                     "Counterparty thesis is missing, incomplete, or lacks falsification conditions."
                 )
 
+        # Governance Gate: Transitions to SMALL_LIVE or ACTIVE require validated economic edge
+        if new_stage in (StrategyStage.SMALL_LIVE, StrategyStage.ACTIVE):
+            if not spec.economic_edge_validated:
+                raise InvalidStageTransitionError(
+                    f"Strategy '{strategy_id}' cannot transition to {new_stage.value}: "
+                    "economic_edge_validated is False. Real capital allocation requires passing portfolio evidence gates."
+                )
+
         updated = spec.model_copy(update={"stage": new_stage})
         self._strategies[strategy_id] = updated
 

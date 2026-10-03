@@ -23,59 +23,60 @@ export function RecorderView({ recorder, dataQuality, onRefresh }: RecorderViewP
   const pct24h = Math.min(100, (elapsed / 86400) * 100);
   const pct72h = Math.min(100, (elapsed / 259200) * 100);
 
-  // Venues data
+  // Real or nominal telemetry
   const venues = recorder?.venues ?? {
-    binance: {
-      venue: "Binance Futures",
-      connected: true,
-      total_events: 184520,
-      event_rate: 124.5,
-      lag_ms: 18,
-      clock_skew_detected: true,
-      clock_skew_ms: -12.4,
-      files_written: 42,
-      manifest_health: "VALID",
+    binance_perp: {
+      venue: "Binance Futures (BTC/ETH Perp)",
+      connected: recorder?.is_process_alive ?? false,
+      total_events: 0,
+      event_rate: 0.0,
+      lag_ms: 0,
+      clock_skew_detected: false,
+      clock_skew_ms: 0.0,
+      files_written: 0,
+      manifest_health: "PENDING",
       dropped_or_invalid_events: 0,
-      storage_size_bytes: 48500000,
+      storage_size_bytes: 0,
     },
     deribit: {
-      venue: "Deribit",
-      connected: true,
-      total_events: 52140,
-      event_rate: 34.2,
-      lag_ms: 28,
+      venue: "Deribit (Options & DVol)",
+      connected: recorder?.is_process_alive ?? false,
+      total_events: 0,
+      event_rate: 0.0,
+      lag_ms: 0,
       clock_skew_detected: false,
-      clock_skew_ms: -4.1,
-      files_written: 18,
-      manifest_health: "VALID",
+      clock_skew_ms: 0.0,
+      files_written: 0,
+      manifest_health: "PENDING",
       dropped_or_invalid_events: 0,
-      storage_size_bytes: 14200000,
+      storage_size_bytes: 0,
     },
     polymarket: {
-      venue: "Polymarket",
-      connected: true,
-      total_events: 8940,
-      event_rate: 4.8,
-      lag_ms: 95,
+      venue: "Polymarket (Event Gamma)",
+      connected: recorder?.is_process_alive ?? false,
+      total_events: 0,
+      event_rate: 0.0,
+      lag_ms: 0,
       clock_skew_detected: false,
-      clock_skew_ms: -2.0,
-      files_written: 8,
-      manifest_health: "VALID",
+      clock_skew_ms: 0.0,
+      files_written: 0,
+      manifest_health: "PENDING",
       dropped_or_invalid_events: 0,
-      storage_size_bytes: 2800000,
+      storage_size_bytes: 0,
     },
     bybit: {
-      venue: "Bybit",
-      connected: true,
-      total_events: 114200,
-      event_rate: 88.0,
-      lag_ms: 22,
-      clock_skew_detected: true,
-      clock_skew_ms: -14.1,
-      files_written: 31,
-      manifest_health: "VALID",
+      venue: "Bybit (Perpetuals & Liquidity)",
+      connected: false,
+      total_events: 0,
+      event_rate: 0.0,
+      lag_ms: 0,
+      clock_skew_detected: false,
+      clock_skew_ms: 0.0,
+      files_written: 0,
+      manifest_health: "EVALUATION PENDING",
       dropped_or_invalid_events: 0,
-      storage_size_bytes: 31200000,
+      storage_size_bytes: 0,
+      notes: "Batch 0: No baseline ingestion. Evaluation pending.",
     },
   };
 
@@ -112,16 +113,19 @@ export function RecorderView({ recorder, dataQuality, onRefresh }: RecorderViewP
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard
           label="Recorder Status"
-          value={recorder?.status || "RUNNING"}
-          subtitle={`PID: ${recorder?.pid ?? "34892"} | Alive: ${recorder?.is_process_alive ? "YES" : "YES"}`}
-          badge={{ text: "PROCESS OK", variant: "emerald" }}
+          value={recorder?.status || "STANDBY"}
+          subtitle={`PID: ${recorder?.pid ?? "—"} | Alive: ${recorder?.is_process_alive ? "YES" : "NO"}`}
+          badge={{
+            text: recorder?.is_process_alive ? "PROCESS OK" : "STANDBY",
+            variant: recorder?.is_process_alive ? "emerald" : "amber",
+          }}
           icon={<Server className="w-4 h-4" />}
         />
         <MetricCard
           label="Continuity State"
           value={recorder?.continuity_state || "UNBROKEN"}
           subtitle="Zero unhandled process crashes"
-          badge={{ text: "UNBROKEN", variant: "emerald" }}
+          badge={{ text: recorder?.continuity_state || "UNBROKEN", variant: "emerald" }}
           icon={<Activity className="w-4 h-4" />}
         />
         <MetricCard
@@ -133,9 +137,12 @@ export function RecorderView({ recorder, dataQuality, onRefresh }: RecorderViewP
         />
         <MetricCard
           label="Parquet Lakehouse"
-          value={`${dataQuality?.storage_metrics?.parquet_file_count ?? 99} Files`}
-          subtitle={`Size: ${((dataQuality?.storage_metrics?.total_compressed_bytes ?? 96700000) / 1024 / 1024).toFixed(1)} MB`}
-          badge={{ text: "MANIFEST VALID", variant: "emerald" }}
+          value={`${dataQuality?.storage_metrics?.parquet_file_count ?? 0} Files`}
+          subtitle={`Size: ${(((dataQuality?.storage_metrics?.total_compressed_bytes ?? 0) / 1024 / 1024).toFixed(1))} MB`}
+          badge={{
+            text: dataQuality?.storage_metrics?.manifest_valid ? "MANIFEST VALID" : "PENDING",
+            variant: dataQuality?.storage_metrics?.manifest_valid ? "emerald" : "amber",
+          }}
           icon={<HardDrive className="w-4 h-4" />}
         />
       </div>
@@ -216,8 +223,8 @@ export function RecorderView({ recorder, dataQuality, onRefresh }: RecorderViewP
                   <div className={`w-2 h-2 rounded-full ${v.connected ? "bg-emerald-400" : "bg-rose-500"} animate-pulse-subtle`} />
                   <span className="text-sm font-bold text-slate-100 font-mono-code">{v.venue}</span>
                 </div>
-                <Badge variant={v.connected ? "emerald" : "rose"} size="xs">
-                  {v.connected ? "CONNECTED" : "DISCONNECTED"}
+                <Badge variant={key === "bybit" ? "amber" : (v.connected ? "emerald" : "rose")} size="xs">
+                  {key === "bybit" ? "NO BASELINE" : (v.connected ? "CONNECTED" : "DISCONNECTED")}
                 </Badge>
               </div>
 
@@ -232,7 +239,7 @@ export function RecorderView({ recorder, dataQuality, onRefresh }: RecorderViewP
                 </div>
                 <div className="flex justify-between">
                   <span>Feed Lag:</span>
-                  <span className="text-slate-200">{v.lag_ms ?? 15} ms</span>
+                  <span className="text-slate-200">{v.lag_ms ?? 0} ms</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Clock Skew:</span>
@@ -250,12 +257,19 @@ export function RecorderView({ recorder, dataQuality, onRefresh }: RecorderViewP
                 </div>
                 <div className="flex justify-between">
                   <span>Manifest Health:</span>
-                  <span className="text-emerald-400 font-semibold">{v.manifest_health}</span>
+                  <span className={v.manifest_health === "VALID" ? "text-emerald-400 font-semibold" : "text-amber-400 font-semibold"}>
+                    {v.manifest_health}
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span>Dropped Events:</span>
-                  <span className="text-emerald-400">0 (0.00%)</span>
+                  <span className="text-emerald-400">{v.dropped_or_invalid_events ?? 0}</span>
                 </div>
+                {v.notes && (
+                  <div className="col-span-2 mt-1 text-[11px] font-mono-code text-amber-300/90 bg-amber-950/20 border border-amber-900/40 p-2 rounded">
+                    {v.notes}
+                  </div>
+                )}
               </div>
             </Card>
           ))}

@@ -56,6 +56,10 @@ export default function QuantCockpitPage() {
   const [pocketsData, setPocketsData] = useState<any>(null);
   const [propProfiles, setPropProfiles] = useState<PropRuleProfileData[]>([]);
   const [regimeData, setRegimeData] = useState<any>(null);
+  const [backtestsData, setBacktestsData] = useState<any>(null);
+  const [attributionData, setAttributionData] = useState<any>(null);
+  const [complianceData, setComplianceData] = useState<any[]>([]);
+  const [auditEvents, setAuditEvents] = useState<any[]>([]);
 
   // Initial & periodic fetch
   const refreshCore = useCallback(async () => {
@@ -90,6 +94,10 @@ export default function QuantCockpitPage() {
         pockets,
         props,
         regime,
+        bts,
+        attr,
+        comp,
+        aud,
       ] = await Promise.all([
         api.getMarketsTradability(),
         api.getStrategies(),
@@ -104,6 +112,10 @@ export default function QuantCockpitPage() {
         api.getCapitalPockets(),
         api.getPropProfiles(),
         api.getRegime(),
+        api.getBacktests(),
+        api.getAttribution(),
+        api.getMultiAccountCompliance(),
+        api.getAuditTrail(),
       ]);
 
       if (trad?.markets) setTradabilityMarkets(trad.markets);
@@ -119,6 +131,10 @@ export default function QuantCockpitPage() {
       if (pockets) setPocketsData(pockets);
       if (props) setPropProfiles(props);
       if (regime) setRegimeData(regime);
+      if (bts) setBacktestsData(bts);
+      if (attr) setAttributionData(attr);
+      if (comp) setComplianceData(comp);
+      if (aud) setAuditEvents(aud);
     } catch (err) {
       console.error("Error refreshing all data:", err);
     }
@@ -215,7 +231,7 @@ export default function QuantCockpitPage() {
               />
             )}
 
-            {activeTab === "backtests" && <BacktestsView />}
+            {activeTab === "backtests" && <BacktestsView backtestsData={backtestsData} />}
 
             {activeTab === "holdouts" && (
               <HoldoutsView holdoutsData={holdoutsData} />
@@ -236,7 +252,9 @@ export default function QuantCockpitPage() {
               <RegimesView regimeData={regimeData} />
             )}
 
-            {activeTab === "attribution" && <AttributionView />}
+            {activeTab === "attribution" && (
+              <AttributionView attributionData={attributionData} />
+            )}
 
             {(activeTab === "paper-trading" ||
               activeTab === "orders-fills" ||
@@ -267,9 +285,13 @@ export default function QuantCockpitPage() {
 
             {activeTab === "prop-simulator" && <PropSimulatorView />}
 
-            {activeTab === "multi-account" && <MultiAccountView />}
+            {activeTab === "multi-account" && (
+              <MultiAccountView complianceData={complianceData} />
+            )}
 
-            {activeTab === "audit-trail" && <AuditTrailView />}
+            {activeTab === "audit-trail" && (
+              <AuditTrailView auditEvents={auditEvents} />
+            )}
 
             {activeTab === "tests-ci" && <TestsCiView />}
 

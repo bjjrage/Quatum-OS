@@ -1,49 +1,29 @@
 import React, { useState } from "react";
-import { TrendingUp, Sliders, AlertCircle, BarChart3, Clock, DollarSign } from "lucide-react";
+import { TrendingUp, Sliders, AlertCircle, BarChart3, Clock, DollarSign, ShieldAlert, Cpu } from "lucide-react";
 import { Card } from "../common/Card";
 import { Badge } from "../common/Badge";
 import { MetricCard } from "../common/MetricCard";
 
-export function BacktestsView() {
-  const [selectedRun, setSelectedRun] = useState<string>("BT-202610-001");
+interface BacktestsViewProps {
+  backtestsData?: {
+    status: string;
+    reason?: string;
+    runs: any[];
+    available_strategies: string[];
+    cost_models: string[];
+  } | null;
+}
 
-  // Real backtest scenario metadata
-  const backtests = [
-    {
-      id: "BT-202610-001",
-      strategy: "STR-002 v2 (M3 Multi-Horizon)",
-      period: "2026-06-01 to 2026-09-30 (Validation)",
-      trials_evaluated: 8,
-      sharpe_nominal: 1.84,
-      sharpe_deflated: 1.41,
-      sortino: 2.21,
-      max_dd_pct: -6.4,
-      win_rate_pct: 61.2,
-      profit_factor: 1.68,
-      trades_count: 142,
-      slippage_model: "Almgren-Chriss + Queue Delay (P95=28ms)",
-      maker_taker_fee: "0.02% / 0.05%",
-      gate_status: "QUALIFIED_FOR_GATE_EVAL",
-    },
-    {
-      id: "BT-202610-002",
-      strategy: "STR-001 (StatArb Mean Reversion)",
-      period: "2026-06-01 to 2026-09-30 (Validation)",
-      trials_evaluated: 14,
-      sharpe_nominal: 1.32,
-      sharpe_deflated: 0.94,
-      sortino: 1.45,
-      max_dd_pct: -9.8,
-      win_rate_pct: 54.1,
-      profit_factor: 1.28,
-      trades_count: 310,
-      slippage_model: "Linear 2.0 bps + Spread Cross",
-      maker_taker_fee: "0.02% / 0.05%",
-      gate_status: "FAIL_GATE_A (Deflated Sharpe < 1.0)",
-    },
-  ];
+export function BacktestsView({ backtestsData }: BacktestsViewProps) {
+  const runs = backtestsData?.runs || [];
+  const status = backtestsData?.status || "NOT_AVAILABLE";
+  const reason = backtestsData?.reason || "Deterministic Backtest Engine available in src/backtest/engine.py; no persisted runs in active directory.";
+  const availableStrategies = backtestsData?.available_strategies || ["STR-001", "STR-002", "STR-003", "STR-PUMP-COPY"];
+  const costModels = backtestsData?.cost_models || ["v1_taker_5bps", "v2_maker_taker_tier1"];
 
-  const current = backtests.find((b) => b.id === selectedRun) || backtests[0];
+  const [selectedRunId, setSelectedRunId] = useState<string>(runs.length > 0 ? runs[0].id : "");
+
+  const current = runs.find((b: any) => b.id === selectedRunId);
 
   return (
     <div className="space-y-6">
@@ -55,145 +35,163 @@ export function BacktestsView() {
             Rigorous Backtesting & Deflated Metric Analyzer
           </h2>
           <p className="text-xs text-slate-400 mt-1">
-            Full transaction-cost adjusted simulation with multiple-testing deflation and queue priority modeling.
+            Transaction-cost adjusted event-driven simulation with multiple-testing deflation and queue priority modeling.
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {backtests.map((b) => (
-            <button
-              key={b.id}
-              onClick={() => setSelectedRun(b.id)}
-              className={`px-3 py-1.5 rounded text-xs font-mono-code transition ${
-                selectedRun === b.id
-                  ? "bg-cyan-950 text-cyan-300 border border-cyan-700"
-                  : "bg-slate-900 text-slate-400 border border-slate-800 hover:text-slate-200"
-              }`}
-            >
-              {b.id}
-            </button>
-          ))}
+          {runs.length > 0 ? (
+            runs.map((b: any) => (
+              <button
+                key={b.id}
+                onClick={() => setSelectedRunId(b.id)}
+                className={`px-3 py-1.5 rounded text-xs font-mono-code transition ${
+                  selectedRunId === b.id
+                    ? "bg-cyan-950 text-cyan-300 border border-cyan-700"
+                    : "bg-slate-900 text-slate-400 border border-slate-800 hover:text-slate-200"
+                }`}
+              >
+                {b.id}
+              </button>
+            ))
+          ) : (
+            <Badge variant="amber" size="sm">
+              0 PERSISTED RUNS
+            </Badge>
+          )}
         </div>
+      </div>
+
+      {/* CORE OS INVARIANT BANNER */}
+      <div className="rounded-lg border border-cyan-800/80 bg-cyan-950/30 p-4 text-xs font-mono-code space-y-1">
+        <div className="flex items-center gap-2 text-cyan-300 font-bold uppercase">
+          <ShieldAlert className="w-4 h-4 text-cyan-400" />
+          OS Invariant: The OS Does Not Select the Best Backtest
+        </div>
+        <p className="text-slate-300 leading-relaxed">
+          Capital allocation never picks a single "winner-take-all" strategy based on backtest metrics.
+          All simulated returns are subjected to Bailey & López de Prado (2014) Deflated Sharpe Ratio (DSR) adjustments
+          and Family-Wise Error Rate (FWER) controls to prevent p-hacking and selection bias.
+        </p>
+      </div>
+
+      {/* OPERATIONAL STATUS CALLOUT */}
+      <div className="rounded-lg border border-amber-800/80 bg-amber-950/30 p-4 text-xs font-mono-code space-y-2">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-amber-200 uppercase">Engine Status: {status}</span>
+            <Badge variant="amber" size="xs">NO PERSISTED RUNS</Badge>
+          </div>
+          <span className="text-[11px] text-slate-400">src/backtest/engine.py</span>
+        </div>
+        <p className="text-amber-300/90 leading-relaxed">
+          {reason} No synthetic backtest metrics or cherry-picked curves are displayed in the Quant Cockpit.
+        </p>
       </div>
 
       {/* METRIC STRIP */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard
           label="Deflated Sharpe Ratio (DSR)"
-          value={current.sharpe_deflated.toFixed(2)}
-          subtitle={`Nominal: ${current.sharpe_nominal.toFixed(2)} (${current.trials_evaluated} trials)`}
+          value={current ? current.sharpe_deflated.toFixed(2) : "—"}
+          subtitle={current ? `Nominal: ${current.sharpe_nominal.toFixed(2)}` : "Formula: Bailey & López de Prado"}
           badge={{
-            text: current.sharpe_deflated >= 1.0 ? "PASSES DSR" : "DEFLATED FAIL",
-            variant: current.sharpe_deflated >= 1.0 ? "emerald" : "rose",
+            text: current ? (current.sharpe_deflated >= 1.0 ? "PASSES DSR" : "FAIL DSR") : "SPECIFICATION",
+            variant: current ? (current.sharpe_deflated >= 1.0 ? "emerald" : "rose") : "purple",
           }}
           icon={<TrendingUp className="w-4 h-4" />}
         />
         <MetricCard
-          label="Max Historical Drawdown"
-          value={`${current.max_dd_pct.toFixed(1)}%`}
-          subtitle="Peak-to-trough under stress"
-          badge={{ text: "WITHIN 10% LIMIT", variant: "emerald" }}
+          label="Historical Drawdown Gate"
+          value={current ? `${current.max_dd_pct.toFixed(1)}%` : "—"}
+          subtitle="Max allowable: 10.0% drawdown"
+          badge={{ text: "THRESHOLD: 10%", variant: "emerald" }}
         />
         <MetricCard
-          label="Win Rate & Profit Factor"
-          value={`${current.win_rate_pct}% / ${current.profit_factor}x`}
-          subtitle="Net of exchange taker fees"
-          badge={{ text: "EXPONENTIALLY PROFITABLE", variant: "cyan" }}
+          label="Cost Models Configured"
+          value={`${costModels.length} Models`}
+          subtitle="Taker 5.0 bps / Maker 2.0 bps"
+          badge={{ text: "REALISTIC FEES", variant: "cyan" }}
         />
         <MetricCard
-          label="Empirical Trade Count"
-          value={`${current.trades_count} Trades`}
-          subtitle="Sufficient for Monte Carlo bootstrap"
-          badge={{ text: "N >= 30 VALID", variant: "emerald" }}
+          label="Persisted Run Count"
+          value={`${runs.length} Runs`}
+          subtitle="Empirical data required (N >= 30)"
+          badge={{ text: runs.length === 0 ? "ZERO RUNS" : "PERSISTED", variant: runs.length === 0 ? "amber" : "emerald" }}
+          icon={<Clock className="w-4 h-4" />}
         />
       </div>
 
-      {/* DETAILED EXECUTION ASSUMPTIONS & GATE STATUS */}
+      {/* SPECIFICATIONS & ENGINE DETAILS */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-4">
           <Card
-            title={`Run Specifications: ${current.id}`}
-            subtitle={current.strategy}
+            title="Deterministic Backtest Engine Architecture"
+            subtitle="src/backtest/engine.py & src/backtest/metrics.py"
             variant="terminal"
           >
-            <div className="p-3 rounded bg-[#0b0e14] border border-slate-800 space-y-2 text-xs font-mono-code">
-              <div className="flex justify-between border-b border-slate-800/80 pb-1.5">
-                <span className="text-slate-400">Simulation Period:</span>
-                <span className="text-slate-200">{current.period}</span>
+            <div className="p-3 rounded bg-[#0b0e14] border border-slate-800 space-y-3 text-xs font-mono-code">
+              <div className="flex justify-between border-b border-slate-800/80 pb-2">
+                <span className="text-slate-400">Simulation Paradigm:</span>
+                <span className="text-slate-200">Deterministic event-driven execution with microsecond order lifecycle</span>
               </div>
-              <div className="flex justify-between border-b border-slate-800/80 pb-1.5">
-                <span className="text-slate-400">Slippage & Latency Model:</span>
-                <span className="text-cyan-400">{current.slippage_model}</span>
+              <div className="flex justify-between border-b border-slate-800/80 pb-2">
+                <span className="text-slate-400">Supported Order Types:</span>
+                <span className="text-cyan-400">LIMIT, MARKET (SimulatedOrder with queue latency)</span>
               </div>
-              <div className="flex justify-between border-b border-slate-800/80 pb-1.5">
-                <span className="text-slate-400">Fee Schedule (Maker / Taker):</span>
-                <span className="text-slate-200">{current.maker_taker_fee}</span>
+              <div className="flex justify-between border-b border-slate-800/80 pb-2">
+                <span className="text-slate-400">Cost Schedule:</span>
+                <span className="text-slate-200">Maker: 2.0 bps | Taker: 5.0 bps | Base Slippage: 2.0 bps</span>
               </div>
-              <div className="flex justify-between border-b border-slate-800/80 pb-1.5">
-                <span className="text-slate-400">Deflation Adjustment Formula:</span>
-                <span className="text-purple-400">Bailey & Lopez de Prado (2014)</span>
+              <div className="flex justify-between border-b border-slate-800/80 pb-2">
+                <span className="text-slate-400">Multiple-Testing Correction:</span>
+                <span className="text-purple-400">Deflated Sharpe Ratio (DSR) + FDR Benjamini-Hochberg</span>
               </div>
               <div className="flex justify-between items-center pt-1">
-                <span className="text-slate-400">Selection Gate Result:</span>
-                <Badge
-                  variant={current.gate_status.includes("PASS") || current.gate_status.includes("QUALIFIED") ? "emerald" : "rose"}
-                  size="xs"
-                >
-                  {current.gate_status}
-                </Badge>
+                <span className="text-slate-400">Registered Strategies:</span>
+                <span className="text-slate-200">{availableStrategies.join(", ")}</span>
               </div>
             </div>
           </Card>
 
-          {/* SIMULATED EQUITY CURVE CONTAINER */}
           <Card
-            title="Out-of-Sample Cumulative Net Equity Simulation"
-            subtitle="Normalized to $100,000 initial capital"
+            title="Out-of-Sample Performance Surface"
+            subtitle="Normalized vector rendering for completed simulation runs"
             variant="terminal"
           >
-            <div className="h-48 rounded bg-[#0b0e14] border border-slate-800 flex items-center justify-center p-4">
+            <div className="h-44 rounded bg-[#0b0e14] border border-slate-800 flex items-center justify-center p-4">
               <div className="text-center space-y-2">
-                <BarChart3 className="w-8 h-8 text-cyan-500/60 mx-auto" />
+                <BarChart3 className="w-8 h-8 text-slate-600 mx-auto" />
                 <span className="text-xs font-mono-code text-slate-300 block">
-                  Cumulative Equity Vector (Net of 2.5bps Slippage + Fees)
+                  No Persisted Backtest Run Loaded
                 </span>
                 <span className="text-[11px] font-mono-code text-slate-500 block">
-                  High-resolution vector render: End Equity: $118,420 USD (+18.42% net, max DD -6.4%)
+                  Execute backtest run via CLI or research pipeline to generate Parquet performance artifacts.
                 </span>
               </div>
             </div>
           </Card>
         </div>
 
-        {/* SIDE PANEL: MULTIPLE TESTING PENALTY CALLOUT */}
+        {/* SIDE PANEL: MATHEMATICAL INVARIANTS */}
         <div className="space-y-4">
           <Card
-            title="Multiple Testing Deflation Audit"
-            subtitle="Preventing p-hacking and overfitting in crypto high-frequency research"
+            title="Deflation Math & Selection Safeguards"
+            subtitle="Bailey & López de Prado (2014) Formal Invariants"
             variant="terminal"
           >
             <div className="space-y-3 text-xs font-mono-code text-slate-300">
-              <div className="p-3 rounded bg-amber-950/20 border border-amber-900/40 text-amber-300">
-                <span className="font-bold block mb-1">DSR Mathematical Invariant:</span>
-                Every backtest variation evaluated in the experiment registry automatically penalizes the nominal Sharpe ratio of the surviving model.
+              <div className="p-3 rounded bg-purple-950/20 border border-purple-900/40 text-purple-300">
+                <span className="font-bold block mb-1">Deflated Sharpe Equation:</span>
+                DSR = PSR(SR_0), where expected maximum SR increases logarithmically with trial count K.
               </div>
-              <div className="p-3 rounded bg-[#0b0e14] border border-slate-800 space-y-1.5">
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Trials Count (K):</span>
-                  <span className="text-slate-100 font-bold">{current.trials_evaluated}</span>
+              <div className="p-3 rounded bg-[#0b0e14] border border-slate-800 space-y-2">
+                <div className="text-[11px] text-slate-400">
+                  <span className="text-slate-200 font-semibold block mb-0.5">False Discovery Rate:</span>
+                  Strategies must demonstrate FDR significance q &le; 0.05 across multiple parameter sweeps before admission to holdout.
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Nominal Sharpe:</span>
-                  <span className="text-slate-100">{current.sharpe_nominal.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-400">DSR Penalty:</span>
-                  <span className="text-rose-400">
-                    -{(current.sharpe_nominal - current.sharpe_deflated).toFixed(2)}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Final Deflated Sharpe:</span>
-                  <span className="text-cyan-400 font-bold">{current.sharpe_deflated.toFixed(2)}</span>
+                <div className="text-[11px] text-slate-400">
+                  <span className="text-slate-200 font-semibold block mb-0.5">Execution Drag Modeling:</span>
+                  Deterministic engine models queue priority, spread crosses, and fill delays to avoid optimistic fill assumptions.
                 </div>
               </div>
             </div>

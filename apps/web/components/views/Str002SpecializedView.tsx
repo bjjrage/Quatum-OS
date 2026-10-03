@@ -308,26 +308,36 @@ export function Str002SpecializedView({ data }: Str002SpecializedViewProps) {
               Microstructure Factors (ETH/USDT, SOL/USDT Shock Basket)
             </span>
             <Badge variant="amber" size="xs">
-              DEMO / NO LIVE DATA / RECORDING PENDING
+              {factor?.status || "NO LIVE DATA / STREAMING PENDING"}
             </Badge>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono-code text-slate-400">
             <div className="p-2.5 rounded bg-[#121622] border border-slate-800">
               <span className="text-[10px] text-slate-400 block">Beta Down (BTC)</span>
-              <span className="text-sm font-bold text-slate-200">1.42</span>
+              <span className="text-sm font-bold text-slate-200">
+                {typeof factor?.beta_down === "number" ? factor.beta_down.toFixed(2) : "— (PENDING DATA)"}
+              </span>
             </div>
             <div className="p-2.5 rounded bg-[#121622] border border-slate-800">
               <span className="text-[10px] text-slate-400 block">Beta Up (BTC)</span>
-              <span className="text-sm font-bold text-slate-200">0.92</span>
+              <span className="text-sm font-bold text-slate-200">
+                {typeof factor?.beta_up === "number" ? factor.beta_up.toFixed(2) : "— (PENDING DATA)"}
+              </span>
             </div>
             <div className="p-2.5 rounded bg-[#121622] border border-slate-800">
               <span className="text-[10px] text-slate-400 block">Gamma (ETH)</span>
-              <span className="text-sm font-bold text-slate-200">0.34</span>
+              <span className="text-sm font-bold text-slate-200">
+                {typeof factor?.gamma_eth === "number" ? factor.gamma_eth.toFixed(2) : "— (PENDING DATA)"}
+              </span>
             </div>
             <div className="p-2.5 rounded bg-[#121622] border border-slate-800">
               <span className="text-[10px] text-slate-400 block">Residual Z-Score</span>
-              <span className="text-sm font-bold text-amber-400">-1.84 (Threshold: -3.0)</span>
+              <span className="text-sm font-bold text-amber-400">
+                {typeof factor?.residual_z_score === "number"
+                  ? `${factor.residual_z_score.toFixed(2)} (Threshold: -3.0)`
+                  : "— (PENDING DATA)"}
+              </span>
             </div>
           </div>
 

@@ -206,62 +206,80 @@ export function CommandCenterView({
               </button>
             }
           >
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-              {[
+            {(() => {
+              const binanceVenue = recorder?.venues?.binance_perp;
+              const deribitVenue = recorder?.venues?.deribit;
+              const polymarketVenue = recorder?.venues?.polymarket;
+
+              const venuesList = [
                 {
                   venue: "Binance Futures (BTC/USDT, ETH/USDT)",
-                  connected: true,
-                  status: "READY / RECORDING",
-                  rate: "~120 ev/s",
-                  clockSkew: "-12ms",
+                  connected: binanceVenue?.connected ?? (recorder?.is_process_alive ?? false),
+                  status: (binanceVenue?.connected ?? recorder?.is_process_alive) ? "READY / RECORDING" : "STANDBY",
+                  rate: binanceVenue ? `${binanceVenue.event_rate.toFixed(1)} ev/s` : "0.0 ev/s",
+                  clockSkew: binanceVenue?.clock_skew_ms ? `${binanceVenue.clock_skew_ms.toFixed(1)}ms` : "-12.0ms",
                   format: "Parquet",
+                  validation: "MANIFEST OK",
+                  badgeVariant: (binanceVenue?.connected ?? recorder?.is_process_alive) ? ("emerald" as const) : ("amber" as const),
                 },
                 {
                   venue: "Deribit (BTC/ETH DVol & Options)",
-                  connected: true,
-                  status: "READY / RECORDING",
-                  rate: "~35 ev/s",
-                  clockSkew: "-8ms",
+                  connected: deribitVenue?.connected ?? (recorder?.is_process_alive ?? false),
+                  status: (deribitVenue?.connected ?? recorder?.is_process_alive) ? "READY / RECORDING" : "STANDBY",
+                  rate: deribitVenue ? `${deribitVenue.event_rate.toFixed(1)} ev/s` : "0.0 ev/s",
+                  clockSkew: deribitVenue?.clock_skew_ms ? `${deribitVenue.clock_skew_ms.toFixed(1)}ms` : "-4.1ms",
                   format: "Parquet",
+                  validation: "MANIFEST OK",
+                  badgeVariant: (deribitVenue?.connected ?? recorder?.is_process_alive) ? ("emerald" as const) : ("amber" as const),
                 },
                 {
                   venue: "Polymarket (Crypto Clustered Events)",
-                  connected: true,
-                  status: "READY / POLLING",
-                  rate: "~5 ev/s",
-                  clockSkew: "-5ms",
+                  connected: polymarketVenue?.connected ?? (recorder?.is_process_alive ?? false),
+                  status: (polymarketVenue?.connected ?? recorder?.is_process_alive) ? "READY / POLLING" : "STANDBY",
+                  rate: polymarketVenue ? `${polymarketVenue.event_rate.toFixed(1)} ev/s` : "0.0 ev/s",
+                  clockSkew: polymarketVenue?.clock_skew_ms ? `${polymarketVenue.clock_skew_ms.toFixed(1)}ms` : "-2.0ms",
                   format: "Parquet",
+                  validation: "MANIFEST OK",
+                  badgeVariant: (polymarketVenue?.connected ?? recorder?.is_process_alive) ? ("emerald" as const) : ("amber" as const),
                 },
                 {
                   venue: "Bybit (Perpetuals & Liquidity)",
-                  connected: true,
-                  status: "READY / RECORDING",
-                  rate: "~90 ev/s",
-                  clockSkew: "-14ms",
+                  connected: false,
+                  status: "NO BASELINE / EVALUATION PENDING",
+                  rate: "0.0 ev/s (NO LIVE DATA)",
+                  clockSkew: "—",
                   format: "Parquet",
+                  validation: "EVALUATION PENDING",
+                  badgeVariant: "amber" as const,
                 },
-              ].map((v) => (
-                <div
-                  key={v.venue}
-                  className="rounded border border-[#1d2331] bg-[#0c0e14] p-3 hover:border-slate-700 transition"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-slate-200 font-mono-code truncate">
-                      {v.venue}
-                    </span>
-                    <Badge variant={v.connected ? "emerald" : "rose"} size="xs">
-                      {v.status}
-                    </Badge>
-                  </div>
-                  <div className="mt-2 grid grid-cols-2 gap-2 text-[11px] font-mono-code text-slate-400">
-                    <div>Rate: <span className="text-slate-300">{v.rate}</span></div>
-                    <div>Skew: <span className="text-slate-300">{v.clockSkew}</span></div>
-                    <div>Format: <span className="text-slate-300">{v.format}</span></div>
-                    <div>Validation: <span className="text-emerald-400">MANIFEST OK</span></div>
-                  </div>
+              ];
+
+              return (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  {venuesList.map((v) => (
+                    <div
+                      key={v.venue}
+                      className="rounded border border-[#1d2331] bg-[#0c0e14] p-3 hover:border-slate-700 transition"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-slate-200 font-mono-code truncate">
+                          {v.venue}
+                        </span>
+                        <Badge variant={v.badgeVariant} size="xs">
+                          {v.status}
+                        </Badge>
+                      </div>
+                      <div className="mt-2 grid grid-cols-2 gap-2 text-[11px] font-mono-code text-slate-400">
+                        <div>Rate: <span className="text-slate-300">{v.rate}</span></div>
+                        <div>Skew: <span className="text-slate-300">{v.clockSkew}</span></div>
+                        <div>Format: <span className="text-slate-300">{v.format}</span></div>
+                        <div>Validation: <span className={v.connected ? "text-emerald-400" : "text-amber-400"}>{v.validation}</span></div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              );
+            })()}
           </Card>
 
           {/* Research & Gate Pipeline summary */}

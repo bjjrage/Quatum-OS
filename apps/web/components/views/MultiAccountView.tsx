@@ -1,72 +1,75 @@
-import React from "react";
-import { Users, ShieldCheck, AlertTriangle, CheckCircle, Network, Layers } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { Users, ShieldCheck, AlertTriangle, CheckCircle, Network, Layers, Lock, ShieldAlert } from "lucide-react";
 import { Card } from "../common/Card";
 import { Badge } from "../common/Badge";
 import { MetricCard } from "../common/MetricCard";
+import { api } from "../../lib/api";
 
-export function MultiAccountView() {
-  const accounts = [
-    {
-      account_id: "ACCT-PROP-001",
-      provider: "AlphaFunding",
-      strategy: "STR-002 (M3 Variant)",
-      balance_usd: 100000,
-      isolation_state: "ISOLATED",
-      jitter_delay_ms: 240,
-      copy_trading_flag: "PASSED (NO DIRECT COPY)",
-      pairwise_max_corr: 0.14,
-      status: "COMPLIANT",
-    },
-    {
-      account_id: "ACCT-PROP-002",
-      provider: "AlphaFunding",
-      strategy: "STR-002 (M4 Variant)",
-      balance_usd: 100000,
-      isolation_state: "ISOLATED",
-      jitter_delay_ms: 480,
-      copy_trading_flag: "PASSED (NO DIRECT COPY)",
-      pairwise_max_corr: 0.18,
-      status: "COMPLIANT",
-    },
-    {
-      account_id: "ACCT-PROP-003",
-      provider: "ApexEliteTrader",
-      strategy: "STR-001 (StatArb)",
-      balance_usd: 50000,
-      isolation_state: "ISOLATED",
-      jitter_delay_ms: 120,
-      copy_trading_flag: "PASSED (NO DIRECT COPY)",
-      pairwise_max_corr: 0.05,
-      status: "COMPLIANT",
-    },
-  ];
+interface MultiAccountViewProps {
+  complianceData?: any[];
+}
+
+export function MultiAccountView({ complianceData }: MultiAccountViewProps) {
+  const [compliance, setCompliance] = useState<any[]>(complianceData || []);
+
+  useEffect(() => {
+    if (!complianceData || complianceData.length === 0) {
+      api.getMultiAccountCompliance().then((res) => {
+        if (res && res.length > 0) setCompliance(res);
+      });
+    }
+  }, [complianceData]);
+
+  const activeAccountsCount = 0; // Live invariant: $0 live capital, 0 active live accounts
 
   return (
     <div className="space-y-6">
       {/* HEADER */}
-      <div className="pb-2 border-b border-slate-800">
-        <h2 className="text-lg font-bold text-slate-100 font-mono-code flex items-center gap-2">
-          <Users className="w-5 h-5 text-cyan-400" />
-          Multi-Account Compliance, Anti-Copy & Cross-Account Isolation
-        </h2>
-        <p className="text-xs text-slate-400 mt-1">
-          Execution decorrelation, random order jittering, and hedging prevention across prop firm boundaries.
+      <div className="pb-2 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-lg font-bold text-slate-100 font-mono-code flex items-center gap-2">
+            <Users className="w-5 h-5 text-cyan-400" />
+            Multi-Account Compliance, Anti-Copy & Cross-Account Isolation
+          </h2>
+          <p className="text-xs text-slate-400 mt-1">
+            Execution decorrelation, random order jittering, and hedging prevention across prop firm boundaries.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Badge variant="rose" size="sm">
+            LIVE ACCOUNTS: 0 ($0 RISK)
+          </Badge>
+          <Badge variant="cyan" size="sm">
+            EVIDENCE GATE: ENFORCED
+          </Badge>
+        </div>
+      </div>
+
+      {/* CORE INVARIANT BANNER */}
+      <div className="rounded-lg border border-rose-900/60 bg-rose-950/20 p-4 text-xs font-mono-code space-y-1">
+        <div className="flex items-center gap-2 text-rose-300 font-bold uppercase">
+          <ShieldAlert className="w-4 h-4 text-rose-400" />
+          Live Capital Locked Invariant ($0 Live Risk)
+        </div>
+        <p className="text-slate-300 leading-relaxed">
+          The system strictly forbids unauthorized purchase of prop evaluations or binding live API credentials.
+          All multi-account rule policies are verified ahead of time through the <strong className="text-rose-200">MultiAccountEvidenceGate</strong> before any capital can be provisioned.
         </p>
       </div>
 
       {/* METRIC STRIP */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard
-          label="Managed Prop Accounts"
-          value={`${accounts.length} Accounts`}
-          subtitle="AlphaFunding + Apex"
-          badge={{ text: "ACTIVE", variant: "cyan" }}
-          icon={<Layers className="w-4 h-4" />}
+          label="Active Funded Accounts"
+          value={`${activeAccountsCount} Accounts`}
+          subtitle="Authorized live capital: $0.00"
+          badge={{ text: "LOCKED ($0)", variant: "rose" }}
+          icon={<Lock className="w-4 h-4" />}
         />
         <MetricCard
           label="Cross-Account Hedging"
-          value="ZERO DETECTED"
-          subtitle="Opposing positions banned"
+          value="STRICTLY BANNED"
+          subtitle="Opposing positions vetoed"
           badge={{ text: "COMPLIANT", variant: "emerald" }}
           icon={<ShieldCheck className="w-4 h-4" />}
         />
@@ -77,56 +80,79 @@ export function MultiAccountView() {
           badge={{ text: "ANTI-COPY", variant: "purple" }}
         />
         <MetricCard
-          label="Max Pairwise Correlation"
-          value="0.18"
-          subtitle="Threshold limit: 0.70"
-          badge={{ text: "DECORRELATED", variant: "emerald" }}
+          label="Registered Providers"
+          value={`${compliance.length} Providers`}
+          subtitle="Legal terms compliance tracked"
+          badge={{ text: "AUDITED", variant: "cyan" }}
+          icon={<Layers className="w-4 h-4" />}
         />
       </div>
 
-      {/* MULTI ACCOUNT TABLE */}
+      {/* PROVIDER TERMS COMPLIANCE TABLE */}
       <Card
-        title="Multi-Account Registry & Anti-Correlation Telemetry"
-        subtitle="Verification of distinct parameters, model variant dispersion, and latency staggering"
+        title="Prop Provider Anti-Copy & Multi-Account Terms Registry"
+        subtitle="Formal contract addendums and bot policy verification (src/risk/capital_pockets.py)"
         variant="terminal"
       >
         <div className="overflow-x-auto pt-1">
           <table className="w-full text-xs font-mono-code text-left text-slate-300">
             <thead className="bg-[#0b0e14] text-slate-400 uppercase text-[11px] border-b border-slate-800">
               <tr>
-                <th className="py-2.5 px-3">Account ID</th>
                 <th className="py-2.5 px-3">Provider Firm</th>
-                <th className="py-2.5 px-3">Strategy Model</th>
-                <th className="py-2.5 px-3">Balance USD</th>
-                <th className="py-2.5 px-3">Isolation State</th>
-                <th className="py-2.5 px-3">Jitter Buffer</th>
-                <th className="py-2.5 px-3">Copy-Trading Test</th>
-                <th className="py-2.5 px-3 text-right">Compliance</th>
+                <th className="py-2.5 px-3">Multiple Accounts</th>
+                <th className="py-2.5 px-3">Same Bot Allowed</th>
+                <th className="py-2.5 px-3">Copy-Trading Policy</th>
+                <th className="py-2.5 px-3">Written Evidence</th>
+                <th className="py-2.5 px-3">Second Account Gate</th>
+                <th className="py-2.5 px-3 text-right">Contract Reference</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/80">
-              {accounts.map((a) => (
-                <tr key={a.account_id} className="hover:bg-[#121622]/50 transition">
-                  <td className="py-2.5 px-3 font-bold text-slate-100">{a.account_id}</td>
-                  <td className="py-2.5 px-3 text-slate-400">{a.provider}</td>
-                  <td className="py-2.5 px-3 text-cyan-400 font-semibold">{a.strategy}</td>
-                  <td className="py-2.5 px-3 text-slate-200">${a.balance_usd.toLocaleString()}</td>
+              {compliance.map((c, i) => (
+                <tr key={i} className="hover:bg-[#121622]/50 transition">
+                  <td className="py-2.5 px-3 font-bold text-slate-100">{c.provider_name}</td>
                   <td className="py-2.5 px-3">
-                    <Badge variant="cyan" size="xs">
-                      {a.isolation_state}
+                    <Badge variant={c.multiple_accounts_allowed ? "emerald" : "rose"} size="xs">
+                      {c.multiple_accounts_allowed ? "ALLOWED" : "PROHIBITED"}
                     </Badge>
                   </td>
-                  <td className="py-2.5 px-3 text-slate-400">+{a.jitter_delay_ms} ms</td>
-                  <td className="py-2.5 px-3 text-emerald-400 font-semibold">{a.copy_trading_flag}</td>
-                  <td className="py-2.5 px-3 text-right">
-                    <Badge variant="emerald" size="xs">
-                      {a.status}
+                  <td className="py-2.5 px-3">
+                    <Badge variant={c.same_bot_allowed ? "emerald" : "rose"} size="xs">
+                      {c.same_bot_allowed ? "ALLOWED" : "PROHIBITED"}
                     </Badge>
                   </td>
+                  <td className="py-2.5 px-3 text-slate-300">
+                    {c.same_bot_considered_copy_trading ? "FLAGGED AS COPY" : "PERMITTED"}
+                  </td>
+                  <td className="py-2.5 px-3">
+                    <Badge variant={c.written_evidence_status === "VERIFIED" ? "emerald" : "amber"} size="xs">
+                      {c.written_evidence_status}
+                    </Badge>
+                  </td>
+                  <td className="py-2.5 px-3">
+                    <Badge variant={c.second_account_status === "PASS" ? "emerald" : "amber"} size="xs">
+                      {c.second_account_status}
+                    </Badge>
+                  </td>
+                  <td className="py-2.5 px-3 text-right text-slate-400">{c.verified_contract_ref}</td>
                 </tr>
               ))}
             </tbody>
           </table>
+        </div>
+      </Card>
+
+      {/* ACTIVE ACCOUNTS REGISTRY (EMPTY STATE) */}
+      <Card
+        title="Allocated Multi-Account Execution Instances"
+        subtitle="Physical sub-accounts and independent order execution routing"
+        variant="terminal"
+      >
+        <div className="py-10 text-center text-xs font-mono-code text-slate-400">
+          <p className="text-slate-200 font-bold mb-1">0 ACTIVE LIVE ACCOUNTS</p>
+          <p className="text-slate-500 max-w-md mx-auto">
+            Live capital is strictly locked at $0.00. No real prop firm accounts have been purchased or connected. MultiAccountEvidenceGate is active and ready for evaluation.
+          </p>
         </div>
       </Card>
     </div>
