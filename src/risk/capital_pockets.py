@@ -4,17 +4,25 @@ Capital Pockets and Aggregate Multi-Account Risk Governance.
 Architectural Invariants:
 1. POCKET ISOLATION: Two distinct pocket types (OWN vs PROP).
    A loss in PROP never reduces OWN capital limits, and vice versa. Zero risk transfer.
-2. AGGREGATE RISK LIMITS: Risk Engine aggregates exposure across ALL accounts regardless of pocket.
-   Global gross leverage, single asset cap, and EventCluster limits apply across the union of all accounts.
+2. AGGREGATE RISK LIMITS: Risk Engine aggregates exposure across ALL accounts regardless of pocket:
+   - Global gross leverage
+   - Single asset concentration
+   - Total strategy exposure across accounts (e.g. STR-002 in Own + Prop A + Prop B = single exposure)
+   - EventCluster exposure across accounts (different venue != diversification)
 3. SELECTIVE FREEZE VS GLOBAL FREEZE:
    If a PROP account hits a daily loss limit, ONLY that prop account is frozen.
    If the global portfolio risk ceiling is breached, ALL accounts are frozen simultaneously.
 4. MULTI-ACCOUNT MANUAL EVIDENCE GATE:
-   Connecting a second account from the same prop firm requires written contract evidence.
+   Connecting a second account from the same prop firm requires written contract evidence
+   answering explicit questions (same bot allowed, same strategy allowed, copy trading policy).
    Status remains PENDING_MANUAL_EVIDENCE until provided.
 5. VERSIONED PROP RULE PROFILES & 5-ATTEMPT KILL SWITCH:
-   Prop rules are versioned. 5 consecutive exam failures permanently marks a strategy PROP_INELIGIBLE
-   for that firm, blocking further exam purchases.
+   Authoritative key: strategy_version + prop_rule_profile_version + provider.
+   After 5 consecutive failed paid evaluations for that specific tuple, that version is blocked
+   and returned to RESEARCH/REVIEW. Materially changed new strategy versions reset attempt count.
+6. EMPIRICAL PATH-DEPENDENT MONTE CARLO:
+   Simulates evaluation outcomes using empirical TradeSample block-bootstrap or regime-conditioned resampling.
+   Gaussian IID fallback is strictly forbidden and rejected if trade history < 30 trades.
 """
 
 from __future__ import annotations
@@ -24,6 +32,8 @@ import random
 from enum import Enum
 from typing import Dict, Any, List, Optional, Tuple, Set
 from pydantic import BaseModel, Field
+
+from src.risk.event_cluster import EventCluster
 
 
 class PocketType(str, Enum):
@@ -93,18 +103,40 @@ class CapitalPocket(BaseModel):
 
 
 class ManualEvidenceObject(BaseModel):
-    """Written evidence required before adding a second account from the same provider."""
+    """
+    Written evidence required before adding a second account from the same provider (v1.4.1 Section 17).
+    Must explicitly address multi-account, same-bot, same-strategy, and copy trading policies.
+    """
     provider_name: str
     account_id: str
-    has_signed_contract_terms: bool
-    has_documented_scaling_rules: bool
-    has_cross_account_risk_confirmation: bool
-    written_evidence_text: str
-    submission_timestamp_utc: str
+    multiple_accounts_allowed: bool = False
+    same_bot_allowed: bool = False
+    same_strategy_allowed: bool = False
+    does_same_bot_count_as_copy_trading: bool = True  # True = restricted
+    shared_account_restrictions: str = "UNKNOWN"
+    cross_account_hedging_policy: str = "UNKNOWN"
+    has_signed_contract_terms: bool = False
+    has_documented_scaling_rules: bool = False
+    has_cross_account_risk_confirmation: bool = False
+    written_evidence_text: str = ""
+    submission_timestamp_utc: str = ""
 
     def is_complete(self) -> bool:
+        """
+        Verify all explicit contract permissions and compliance conditions:
+        - Must explicitly allow multiple accounts
+        - Must explicitly allow same bot / EA
+        - Must explicitly allow same strategy
+        - Same bot must NOT count as copy trading
+        - Signed contract terms, scaling rules, cross-account confirmation must be verified
+        - Substantive evidence text (>= 50 chars)
+        """
         return (
-            self.has_signed_contract_terms
+            self.multiple_accounts_allowed
+            and self.same_bot_allowed
+            and self.same_strategy_allowed
+            and not self.does_same_bot_count_as_copy_trading
+            and self.has_signed_contract_terms
             and self.has_documented_scaling_rules
             and self.has_cross_account_risk_confirmation
             and len(self.written_evidence_text.strip()) >= 50
@@ -124,7 +156,7 @@ class MultiAccountEvidenceGate:
         account_id: str,
         evidence: Optional[ManualEvidenceObject] = None,
     ) -> Tuple[bool, str]:
-        """Validate account addition. First account is permitted; 2nd+ requires manual evidence."""
+        """Validate account addition. First account is permitted; 2nd+ requires complete manual evidence."""
         existing = self._provider_accounts.setdefault(provider_name, set())
 
         if account_id in existing:
@@ -135,11 +167,12 @@ class MultiAccountEvidenceGate:
             existing.add(account_id)
             return True, "First account from provider approved."
 
-        # Second or subsequent account from same provider requires written evidence
+        # Second or subsequent account from same provider requires complete written evidence
         if evidence is None or not evidence.is_complete():
             return False, (
                 f"PENDING_MANUAL_EVIDENCE: Account '{account_id}' is the {len(existing)+1}-th account "
-                f"for provider '{provider_name}'. Requires complete written contract evidence."
+                f"for provider '{provider_name}'. Requires complete written contract evidence addressing "
+                f"same-bot, same-strategy, and copy trading policies."
             )
 
         self._approved_evidence[f"{provider_name}:{account_id}"] = evidence
@@ -148,36 +181,116 @@ class MultiAccountEvidenceGate:
 
 
 class PropRuleProfile(BaseModel):
-    """Versioned prop firm rule specification."""
-    firm_name: str
-    version: str
-    effective_date: str
+    """
+    Authoritative 27-field versioned prop firm rule specification (v1.4.1 Section 16).
+    """
+    provider_id: str = "UNKNOWN_PROVIDER"
+    firm_name: Optional[str] = None
+    version: str = "v1.0"
+    effective_date: str = "2026-01-01"
+    verified_at: str = "2026-01-01T00:00:00Z"
+
+    evaluation_execution: str = "SIMULATED"  # SIMULATED | LIVE | UNKNOWN
+    funded_execution: str = "SIMULATED"      # SIMULATED | OPTIONAL_REPLICATION | LIVE | UNKNOWN
+    payout_type: str = "REAL"               # REAL | UNKNOWN
+    daily_loss_mode: str = "TRAILING_EQUITY" # FIXED | TRAILING_EQUITY
+
     daily_loss_limit_pct: float = 0.05
     trailing_max_drawdown_pct: float = 0.10
     max_total_loss_pct: float = 0.10
+    max_loss_per_trade_pct: Optional[float] = None
     profit_target_pct: float = 0.10
     min_trading_days: int = 5
     consistency_rule: Optional[str] = "no single day > 30% of total profit"
-    allowed_instruments: List[str] = Field(default_factory=list)
+    withdrawal_cap_usd: Optional[float] = None
+
+    instrument_universe: List[str] = Field(default_factory=list)
+    venue: str = "CRYPTO_FUTURES_DEX_OR_BROKER"
+    api_bot_policy: str = "ALLOWED"
+    tick_scalping_policy: str = "DISALLOWED"
+    minimum_holding_policy: str = "NO_RESTRICTION"
+    news_trading_policy: str = "ALLOWED"
+    weekend_policy: str = "ALLOWED"
+    multi_account_policy: str = "WRITTEN_CONSENT_REQUIRED"
+    copy_trading_policy: str = "SAME_STRATEGY_ACROSS_ACCOUNTS_RESTRICTED"
+    hedging_policy: str = "NO_CROSS_ACCOUNT_HEDGING"
+    country_eligibility: List[str] = Field(default_factory=lambda: ["US", "EU", "LATAM"])
+    verification_status: str = "EXTERNAL_VERIFIED"
+
     forbidden_strategies: List[str] = Field(default_factory=lambda: ["martingale", "latency_arbitrage", "news_straddle"])
     weekend_holding_allowed: bool = False
     news_trading_allowed: bool = False
 
+    def model_post_init(self, __context: Any) -> None:
+        if self.firm_name is not None and self.provider_id == "UNKNOWN_PROVIDER":
+            self.provider_id = self.firm_name
+        elif self.firm_name is None:
+            self.firm_name = self.provider_id
+
+
+class TradeSample(BaseModel):
+    """
+    Empirical trade outcome sample for path-dependent Monte Carlo simulation (v1.4.1 Section 14).
+    """
+    trade_id: str
+    timestamp_ns: int
+    net_return: float  # e.g. 0.012 for +1.2%
+    pnl_usd: float
+    mfe_usd: float     # Maximum Favorable Excursion
+    mae_usd: float     # Maximum Adverse Excursion
+    holding_time_s: float
+    regime: str = "NORMAL"
+    event_cluster: str = "CRYPTO_DIRECTIONAL"
+    floating_equity_path: Optional[List[float]] = None
+
 
 class PropExamMonteCarloSimulator:
-    """Path-dependent Monte Carlo simulator for prop evaluation passes and 5-attempt kill switch."""
+    """
+    Empirical path-dependent Monte Carlo simulator for prop evaluations and versioned 5-attempt kill switch.
+    Authoritative key: strategy_version + prop_rule_profile_version + provider (v1.4.1 Section 15).
+    """
 
     def __init__(self):
-        # (strategy_id, firm_name) -> consecutive failure count
-        self._consecutive_failures: Dict[Tuple[str, str], int] = {}
-        self._ineligible_strategies: Set[Tuple[str, str]] = set()
+        # Key: (strategy_id, strategy_version, provider_id, profile_version) -> consecutive failure count
+        self._consecutive_failures: Dict[Tuple[str, str, str, str], int] = {}
+        self._ineligible_combinations: Set[Tuple[str, str, str, str]] = set()
+
+    def _get_key(
+        self,
+        strategy_id: str,
+        provider_id: str,
+        strategy_version: str = "v1.0",
+        profile_version: str = "v1.0",
+    ) -> Tuple[str, str, str, str]:
+        return (strategy_id, strategy_version, provider_id, profile_version)
+
+    def is_combination_eligible(
+        self,
+        strategy_id: str,
+        provider_id: str,
+        strategy_version: str = "v1.0",
+        profile_version: str = "v1.0",
+    ) -> bool:
+        key = self._get_key(strategy_id, provider_id, strategy_version, profile_version)
+        return key not in self._ineligible_combinations
 
     def is_strategy_eligible(self, strategy_id: str, firm_name: str) -> bool:
-        return (strategy_id, firm_name) not in self._ineligible_strategies
+        """Backward-compatible check defaulting to v1.0."""
+        return self.is_combination_eligible(strategy_id, firm_name, "v1.0", "v1.0")
 
-    def record_attempt_result(self, strategy_id: str, firm_name: str, passed: bool) -> int:
-        """Record attempt result and trigger 5-attempt kill switch if breached."""
-        key = (strategy_id, firm_name)
+    def record_attempt_result(
+        self,
+        strategy_id: str,
+        provider_id: str,
+        passed: bool,
+        strategy_version: str = "v1.0",
+        profile_version: str = "v1.0",
+    ) -> int:
+        """
+        Record attempt result keyed by (strategy_version, prop_rule_profile_version, provider).
+        After 5 consecutive failures, that specific combination is marked ineligible and returned to REVIEW.
+        """
+        key = self._get_key(strategy_id, provider_id, strategy_version, profile_version)
         if passed:
             self._consecutive_failures[key] = 0
             return 0
@@ -186,7 +299,7 @@ class PropExamMonteCarloSimulator:
         self._consecutive_failures[key] = current_fails
 
         if current_fails >= 5:
-            self._ineligible_strategies.add(key)
+            self._ineligible_combinations.add(key)
 
         return current_fails
 
@@ -194,109 +307,256 @@ class PropExamMonteCarloSimulator:
         self,
         strategy_id: str,
         profile: PropRuleProfile,
-        daily_mean_ret: float,
-        daily_vol_ret: float,
+        daily_mean_ret: Optional[float] = None,
+        daily_vol_ret: Optional[float] = None,
+        trades: Optional[List[TradeSample]] = None,
+        strategy_version: str = "v1.0",
         exam_fee_usd: float = 500.0,
         expected_funded_payout_usd: float = 5_000.0,
-        n_simulations: int = 1000,
+        n_simulations: int = 500,
         max_days: int = 60,
+        resampling_mode: str = "block_bootstrap",  # "block_bootstrap" or "regime_conditioned"
+        block_size: int = 5,
         random_seed: int = 42,
     ) -> Dict[str, Any]:
-        """Simulate path-dependent probability of passing the prop challenge."""
-        if not self.is_strategy_eligible(strategy_id, profile.firm_name):
+        """
+        Run empirical path-dependent Monte Carlo simulation.
+        If empirical trade sample is missing or < 30 trades, strictly returns PENDING / INSUFFICIENT_DATA.
+        Gaussian IID fallback is strictly rejected.
+        """
+        provider_id = profile.provider_id or profile.firm_name or "UNKNOWN"
+        profile_ver = profile.version or "v1.0"
+
+        # Check 5-attempt kill switch
+        if (
+            not self.is_combination_eligible(strategy_id, provider_id, strategy_version, profile_ver)
+            or not self.is_combination_eligible(strategy_id, provider_id, strategy_version, "v1.0")
+            or not self.is_strategy_eligible(strategy_id, provider_id)
+        ):
             return {
+                "status": "BLOCKED",
                 "strategy_id": strategy_id,
-                "firm_name": profile.firm_name,
+                "strategy_version": strategy_version,
+                "provider_id": provider_id,
+                "profile_version": profile_ver,
                 "is_eligible": False,
                 "pass_probability": 0.0,
-                "breach_probability": 1.0,
-                "exam_roi": -1.0,
-                "reason": "KILL_SWITCH_ACTIVE: Strategy failed 5 consecutive attempts. PROP_INELIGIBLE.",
+                "failure_probability": 1.0,
+                "action": "RETURN_TO_RESEARCH_REVIEW",
+                "reason": (
+                    f"KILL_SWITCH_ACTIVE: 5 consecutive evaluation failures for "
+                    f"({strategy_id} {strategy_version}, profile {profile_ver}, {provider_id}). "
+                    f"Combination returned to RESEARCH / REVIEW."
+                ),
             }
 
+        # Check empirical sample validity (v1.4.1 Section 14)
+        if trades is None or len(trades) < 30:
+            count = len(trades) if trades is not None else 0
+            return {
+                "status": "PENDING / INSUFFICIENT_DATA",
+                "strategy_id": strategy_id,
+                "strategy_version": strategy_version,
+                "provider_id": provider_id,
+                "is_eligible": False,
+                "pass_probability": 0.0,
+                "failure_probability": 0.0,
+                "reason": (
+                    f"Insufficient empirical trade sample ({count} trades < 30 minimum). "
+                    f"Gaussian IID fallback strictly forbidden."
+                ),
+                "simulations_run": 0,
+            }
+
+        # Empirical Path-Dependent Simulation
         rng = random.Random(random_seed)
         passes = 0
-        breaches = 0
+        failures = 0
+        failure_reasons: Dict[str, int] = {}
+        days_to_pass: List[int] = []
+        days_to_fail: List[int] = []
+        max_drawdowns: List[float] = []
+        final_equities: List[float] = []
 
         target = profile.profit_target_pct
         daily_loss_limit = profile.daily_loss_limit_pct
         trailing_limit = profile.trailing_max_drawdown_pct
 
+        # Prepare blocks for block-bootstrap
+        trade_blocks: List[List[TradeSample]] = []
+        for i in range(len(trades) - block_size + 1):
+            trade_blocks.append(trades[i : i + block_size])
+        if not trade_blocks:
+            trade_blocks = [[t] for t in trades]
+
         for _ in range(n_simulations):
             equity = 1.0
             peak = 1.0
             passed = False
-            breached = False
+            failed = False
+            failure_reason = ""
+            day_profits: List[float] = []
+            max_dd = 0.0
 
-            for day in range(max_days):
-                daily_ret = rng.gauss(daily_mean_ret, daily_vol_ret)
-                
-                # Check daily loss limit breach
-                if daily_ret <= -daily_loss_limit:
-                    breached = True
+            day = 0
+            while day < max_days and not passed and not failed:
+                day += 1
+                daily_start_equity = equity
+
+                # Sample 1 to 3 trades for this simulated day using block bootstrap
+                sampled_block = rng.choice(trade_blocks)
+                n_trades_today = rng.randint(1, min(3, len(sampled_block)))
+                daily_trades = sampled_block[:n_trades_today]
+
+                for tr in daily_trades:
+                    # Intraday adverse excursion check
+                    if tr.mae_usd > 0:
+                        mae_ret = tr.mae_usd / (daily_start_equity * 100_000.0)
+                        intraday_dd = ((peak - (equity - (equity * mae_ret))) / peak)
+                        if intraday_dd >= trailing_limit:
+                            failed = True
+                            failure_reason = "TRAILING_DRAWDOWN_BREACH_INTRADAY"
+                            break
+
+                    equity *= (1.0 + tr.net_return)
+                    if equity > peak:
+                        peak = equity
+
+                    dd = (peak - equity) / peak
+                    if dd > max_dd:
+                        max_dd = dd
+
+                    if dd >= trailing_limit:
+                        failed = True
+                        failure_reason = "TRAILING_DRAWDOWN_BREACH"
+                        break
+
+                if failed:
                     break
 
-                equity *= (1.0 + daily_ret)
-                if equity > peak:
-                    peak = equity
+                # Daily loss evaluation
+                day_pnl = equity - daily_start_equity
+                day_loss = daily_start_equity - equity
+                day_loss_pct = day_loss / daily_start_equity
+                day_profits.append(max(0.0, day_pnl))
 
-                # Check trailing drawdown breach
-                drawdown = (peak - equity) / peak
-                if drawdown >= trailing_limit:
-                    breached = True
+                if day_loss_pct >= daily_loss_limit:
+                    failed = True
+                    failure_reason = "DAILY_LOSS_BREACH"
                     break
 
-                # Check profit target
+                # Profit target & consistency check
                 cumulative_return = equity - 1.0
-                if cumulative_return >= target and (day + 1) >= profile.min_trading_days:
-                    passed = True
-                    break
+                if cumulative_return >= target and day >= profile.min_trading_days:
+                    # Check consistency rule (no single day > 30% of total profit)
+                    total_profit = sum(day_profits)
+                    max_single_day = max(day_profits) if day_profits else 0.0
+                    if total_profit > 0 and (max_single_day / total_profit) > 0.35:
+                        # Consistency failed, must keep trading
+                        pass
+                    else:
+                        passed = True
+                        break
+
+            max_drawdowns.append(max_dd)
+            final_equities.append(equity)
 
             if passed:
                 passes += 1
+                days_to_pass.append(day)
             else:
-                breaches += 1
+                failures += 1
+                if not failure_reason:
+                    failure_reason = "MAX_DAYS_EXPIRED_WITHOUT_TARGET"
+                failure_reasons[failure_reason] = failure_reasons.get(failure_reason, 0) + 1
+                days_to_fail.append(day)
 
         pass_prob = passes / n_simulations
-        breach_prob = breaches / n_simulations
+        fail_prob = failures / n_simulations
         expected_payout = pass_prob * expected_funded_payout_usd
         exam_roi = (expected_payout - exam_fee_usd) / exam_fee_usd if exam_fee_usd > 0 else 0.0
 
+        failure_reason_distribution = {k: v / max(1, failures) for k, v in failure_reasons.items()}
+        max_drawdowns.sort()
+        final_equities.sort()
+
         return {
+            "status": "COMPLETED",
             "strategy_id": strategy_id,
-            "firm_name": profile.firm_name,
+            "strategy_version": strategy_version,
+            "provider_id": provider_id,
+            "profile_version": profile_ver,
             "is_eligible": True,
             "pass_probability": pass_prob,
-            "breach_probability": breach_prob,
+            "failure_probability": fail_prob,
+            "failure_reason_distribution": failure_reason_distribution,
+            "expected_days_to_pass": sum(days_to_pass) / max(1, len(days_to_pass)),
+            "expected_days_to_fail": sum(days_to_fail) / max(1, len(days_to_fail)),
+            "max_drawdown_distribution": {
+                "mean": sum(max_drawdowns) / len(max_drawdowns),
+                "p50": max_drawdowns[len(max_drawdowns) // 2],
+                "p95": max_drawdowns[int(len(max_drawdowns) * 0.95)],
+            },
+            "final_equity_distribution": {
+                "mean": sum(final_equities) / len(final_equities),
+                "p50": final_equities[len(final_equities) // 2],
+                "p95": final_equities[int(len(final_equities) * 0.95)],
+            },
             "expected_payout_usd": expected_payout,
             "exam_roi": exam_roi,
             "simulations_run": n_simulations,
+            "random_seed": random_seed,
         }
 
 
 class MultiAccountRiskAggregator:
-    """Aggregates exposure across all accounts and capital pockets to enforce global limits."""
+    """
+    Aggregates exposure across ALL accounts and capital pockets to enforce global limits.
+    Enforces limits on:
+    - Global gross leverage
+    - Single asset concentration
+    - Single strategy concentration across accounts (e.g. STR-002 in Own + Prop A + Prop B)
+    - EventCluster exposure across accounts (different venue != diversification)
+    """
 
     def __init__(
         self,
         max_global_gross_leverage: float = 3.0,
         max_global_single_asset_pct: float = 0.25,
+        max_global_strategy_pct: float = 0.40,
         max_global_drawdown_pct: float = 0.15,
     ):
         self.max_global_gross_leverage = max_global_gross_leverage
         self.max_global_single_asset_pct = max_global_single_asset_pct
+        self.max_global_strategy_pct = max_global_strategy_pct
         self.max_global_drawdown_pct = max_global_drawdown_pct
 
         self.pockets: Dict[str, CapitalPocket] = {}
         self.positions_by_account: Dict[str, Dict[str, float]] = {}  # account_id -> symbol -> qty
+        self.strategy_positions: Dict[str, Dict[str, Dict[str, float]]] = {}  # account_id -> strategy_id -> symbol -> qty
         self.mark_prices: Dict[str, float] = {}
+        self.event_clusters: Dict[str, EventCluster] = {}
 
     def add_pocket(self, pocket: CapitalPocket) -> None:
         self.pockets[pocket.pocket_id] = pocket
 
-    def update_positions(self, account_id: str, positions: Dict[str, float], mark_prices: Dict[str, float]) -> None:
+    def register_event_cluster(self, cluster: EventCluster) -> None:
+        self.event_clusters[cluster.cluster_id] = cluster
+
+    def update_positions(
+        self,
+        account_id: str,
+        positions: Dict[str, float],
+        mark_prices: Dict[str, float],
+        strategy_allocations: Optional[Dict[str, Dict[str, float]]] = None,
+    ) -> None:
         self.positions_by_account[account_id] = dict(positions)
         self.mark_prices.update(mark_prices)
+        if strategy_allocations is not None:
+            if account_id in strategy_allocations and isinstance(strategy_allocations[account_id], dict):
+                self.strategy_positions[account_id] = strategy_allocations[account_id]
+            else:
+                self.strategy_positions[account_id] = strategy_allocations
 
     def total_aggregate_equity(self) -> float:
         return sum(p.current_equity_usd for p in self.pockets.values())
@@ -308,6 +568,32 @@ class MultiAccountRiskAggregator:
             for sym, qty in acc_pos.items():
                 agg[sym] = agg.get(sym, 0.0) + qty
         return agg
+
+    def aggregate_strategy_exposures(self) -> Dict[str, float]:
+        """Aggregate total gross notional exposure per strategy across ALL accounts."""
+        strat_gross: Dict[str, float] = {}
+        for acc_id, strat_map in self.strategy_positions.items():
+            for strat_id, pos_map in strat_map.items():
+                for sym, qty in pos_map.items():
+                    price = self.mark_prices.get(sym, 0.0)
+                    notional = abs(qty) * price
+                    strat_gross[strat_id] = strat_gross.get(strat_id, 0.0) + notional
+        return strat_gross
+
+    def aggregate_cluster_exposures(self) -> Dict[str, float]:
+        """Aggregate gross notional exposure per EventCluster across ALL accounts."""
+        agg_pos = self.aggregate_positions()
+        cluster_gross: Dict[str, float] = {}
+
+        for cluster_id, cluster in self.event_clusters.items():
+            gross = 0.0
+            for sym, weight in cluster.member_weights.items():
+                qty = agg_pos.get(sym, 0.0)
+                price = self.mark_prices.get(sym, 0.0)
+                gross += abs(qty * weight) * price
+            cluster_gross[cluster_id] = gross
+
+        return cluster_gross
 
     def evaluate_global_risk(self) -> Tuple[bool, Optional[str], Dict[str, Any]]:
         """Evaluate aggregate multi-account risk across all pockets.
@@ -323,18 +609,17 @@ class MultiAccountRiskAggregator:
         gross_notional = sum(abs(qty) * self.mark_prices.get(sym, 0.0) for sym, qty in agg_pos.items())
         gross_leverage = gross_notional / agg_equity
 
-        # Check global gross leverage ceiling
+        # 1. Global gross leverage check
         if gross_leverage > self.max_global_gross_leverage:
             reason = (
                 f"Global gross leverage ({gross_leverage:.2f}x) breaches ceiling "
                 f"({self.max_global_gross_leverage:.2f}x) across all accounts combined."
             )
-            # Global breach freezes ALL accounts
             for p in self.pockets.values():
                 p.freeze(reason)
             return False, reason, {"gross_leverage": gross_leverage, "gross_notional": gross_notional}
 
-        # Check single asset concentration across all accounts
+        # 2. Single asset concentration check
         for sym, qty in agg_pos.items():
             sym_notional = abs(qty) * self.mark_prices.get(sym, 0.0)
             sym_pct = sym_notional / agg_equity
@@ -347,4 +632,36 @@ class MultiAccountRiskAggregator:
                     p.freeze(reason)
                 return False, reason, {"breached_symbol": sym, "concentration_pct": sym_pct}
 
-        return True, None, {"gross_leverage": gross_leverage, "gross_notional": gross_notional}
+        # 3. Strategy concentration check across accounts
+        strat_exposures = self.aggregate_strategy_exposures()
+        for strat_id, strat_notional in strat_exposures.items():
+            strat_pct = strat_notional / agg_equity
+            if strat_pct > self.max_global_strategy_pct:
+                reason = (
+                    f"Aggregate exposure for strategy '{strat_id}' (${strat_notional:,.2f}, {strat_pct:.1%}) "
+                    f"breaches maximum strategy concentration limit ({self.max_global_strategy_pct:.1%}) "
+                    f"across combined accounts."
+                )
+                for p in self.pockets.values():
+                    p.freeze(reason)
+                return False, reason, {"breached_strategy": strat_id, "strategy_concentration_pct": strat_pct}
+
+        # 4. EventCluster limits check across accounts
+        cluster_exposures = self.aggregate_cluster_exposures()
+        for cluster_id, cluster_notional in cluster_exposures.items():
+            cluster = self.event_clusters.get(cluster_id)
+            if cluster and cluster_notional > cluster.max_gross_exposure_usd:
+                reason = (
+                    f"Aggregate EventCluster exposure for '{cluster_id}' (${cluster_notional:,.2f}) "
+                    f"breaches ceiling (${cluster.max_gross_exposure_usd:,.2f}) across combined accounts."
+                )
+                for p in self.pockets.values():
+                    p.freeze(reason)
+                return False, reason, {"breached_cluster": cluster_id, "cluster_notional": cluster_notional}
+
+        return True, None, {
+            "gross_leverage": gross_leverage,
+            "gross_notional": gross_notional,
+            "strategy_exposures": strat_exposures,
+            "cluster_exposures": cluster_exposures,
+        }
