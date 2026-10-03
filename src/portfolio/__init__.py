@@ -19,6 +19,14 @@ from src.portfolio.gates import (
     expected_max_sharpe,
     deflated_sharpe_ratio,
 )
+from src.portfolio.gate_evidence import (
+    GateEvidenceRecord,
+    GateBundleArtifact,
+    GateEvaluationStore,
+    GateEvidenceError,
+    GateEvidenceViolationError,
+    GateEvidenceIntegrityError,
+)
 from src.portfolio.regime import RegimeSnapshot
 
 __all__ = [
@@ -37,5 +45,11 @@ __all__ = [
     "benjamini_hochberg",
     "expected_max_sharpe",
     "deflated_sharpe_ratio",
+    "GateEvidenceRecord",
+    "GateBundleArtifact",
+    "GateEvaluationStore",
+    "GateEvidenceError",
+    "GateEvidenceViolationError",
+    "GateEvidenceIntegrityError",
     "RegimeSnapshot",
 ]

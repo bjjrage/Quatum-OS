@@ -480,7 +480,6 @@ def test_attack_22_reused_holdout_after_parameter_tuning():
         mgr.record_evaluation_result(
             access_id=acc.access_id,
             result_metrics={"sharpe": 1.5},
-            passed=True,
         )
         with pytest.raises(HoldoutViolationError):
             mgr.create_preregistration(

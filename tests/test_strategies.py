@@ -13,6 +13,7 @@ from src.strategies.models import (
 )
 from src.research.holdout import SealedHoldoutManager
 from src.portfolio.gates import StrategyGateResult
+from src.portfolio.gate_evidence import GateEvaluationStore
 from src.strategies.registry import (
     StrategyRegistry,
     DuplicateStrategyError,
@@ -333,16 +334,23 @@ def test_evidence_gated_lifecycle_transitions():
         eval_res = mgr.record_evaluation_result(
             access_id=acc.access_id,
             result_metrics={"sharpe": 1.5},
-            passed=True,
             reasons=["All thresholds met"],
         )
+        assert eval_res.passed is True
 
-        # HOLDOUT -> PAPER requires PromotionEvidenceBundle with valid 4-gate bundle
+        # HOLDOUT -> PAPER requires PromotionEvidenceBundle with valid 4-gate bundle and gate_store
         gate_a = StrategyGateResult.create_pass("STR-GATE-01", "LATENCY_SENSITIVITY", "ds_fp_test", "cfg_fp_test", {"ok": True})
         gate_b = StrategyGateResult.create_pass("STR-GATE-01", "TEMPORAL_STABILITY", "ds_fp_test", "cfg_fp_test", {"ok": True})
         gate_c = StrategyGateResult.create_pass("STR-GATE-01", "MULTIPLE_SELECTION", "ds_fp_test", "cfg_fp_test", {"ok": True})
         gate_d = StrategyGateResult.create_pass("STR-GATE-01", "CORRELATION_CAPACITY", "ds_fp_test", "cfg_fp_test", {"ok": True})
         gate_bundle = {"A": gate_a, "B": gate_b, "C": gate_c, "D": gate_d}
+
+        gate_store = GateEvaluationStore(storage_dir=Path(tmp) / "gate_store")
+        bundle_art, _ = gate_store.record_and_bundle_gates(
+            gate_results=gate_bundle,
+            parameter_set_fingerprint="param_fp_test",
+            git_sha="git_sha_test",
+        )
 
         bundle_paper = PromotionEvidenceBundle(
             strategy_id="STR-GATE-01",
@@ -353,12 +361,19 @@ def test_evidence_gated_lifecycle_transitions():
             config_fingerprint="cfg_fp_test",
             parameter_set_fingerprint="param_fp_test",
             git_sha="git_sha_test",
+            gate_bundle_id=bundle_art.gate_bundle_id,
             gate_bundle=gate_bundle,
             holdout_preregistration_id=prereg.preregistration_id,
             holdout_access_id=acc.access_id,
             holdout_result_id=eval_res.result_id,
         )
-        registry.update_stage("STR-GATE-01", StrategyStage.PAPER, evidence_bundle=bundle_paper, holdout_manager=mgr)
+        registry.update_stage(
+            "STR-GATE-01",
+            StrategyStage.PAPER,
+            evidence_bundle=bundle_paper,
+            holdout_manager=mgr,
+            gate_store=gate_store,
+        )
         assert registry.get("STR-GATE-01").stage == StrategyStage.PAPER
 
         # PAPER -> SMALL_LIVE is permanently blocked while live capital is USD 0
@@ -655,16 +670,23 @@ def test_lifecycle_governance_fail_closed_transitions():
         eval_res = mgr.record_evaluation_result(
             access_id=acc.access_id,
             result_metrics={"sharpe": 1.5},
-            passed=True,
             reasons=["All thresholds met"],
         )
+        assert eval_res.passed is True
 
-        # Valid: HOLDOUT -> PAPER requires PromotionEvidenceBundle with valid gate bundle
+        # Valid: HOLDOUT -> PAPER requires PromotionEvidenceBundle with valid gate bundle and gate_store
         gate_a = StrategyGateResult.create_pass("STR-LIFECYCLE-TEST", "LATENCY_SENSITIVITY", "ds_fp", "cfg_fp", {"ok": True})
         gate_b = StrategyGateResult.create_pass("STR-LIFECYCLE-TEST", "TEMPORAL_STABILITY", "ds_fp", "cfg_fp", {"ok": True})
         gate_c = StrategyGateResult.create_pass("STR-LIFECYCLE-TEST", "MULTIPLE_SELECTION", "ds_fp", "cfg_fp", {"ok": True})
         gate_d = StrategyGateResult.create_pass("STR-LIFECYCLE-TEST", "CORRELATION_CAPACITY", "ds_fp", "cfg_fp", {"ok": True})
         gate_bundle = {"A": gate_a, "B": gate_b, "C": gate_c, "D": gate_d}
+
+        gate_store = GateEvaluationStore(storage_dir=Path(tmp) / "gate_store_2")
+        bundle_art, _ = gate_store.record_and_bundle_gates(
+            gate_results=gate_bundle,
+            parameter_set_fingerprint="param_fp",
+            git_sha="git_sha",
+        )
 
         bundle_paper = PromotionEvidenceBundle(
             strategy_id="STR-LIFECYCLE-TEST",
@@ -675,12 +697,19 @@ def test_lifecycle_governance_fail_closed_transitions():
             config_fingerprint="cfg_fp",
             parameter_set_fingerprint="param_fp",
             git_sha="git_sha",
+            gate_bundle_id=bundle_art.gate_bundle_id,
             gate_bundle=gate_bundle,
             holdout_preregistration_id=prereg.preregistration_id,
             holdout_access_id=acc.access_id,
             holdout_result_id=eval_res.result_id,
         )
-        registry.update_stage("STR-LIFECYCLE-TEST", StrategyStage.PAPER, evidence_bundle=bundle_paper, holdout_manager=mgr)
+        registry.update_stage(
+            "STR-LIFECYCLE-TEST",
+            StrategyStage.PAPER,
+            evidence_bundle=bundle_paper,
+            holdout_manager=mgr,
+            gate_store=gate_store,
+        )
         assert registry.get("STR-LIFECYCLE-TEST").stage == StrategyStage.PAPER
 
         # 4. PAPER -> SMALL_LIVE is permanently blocked while authorized live capital is USD 0

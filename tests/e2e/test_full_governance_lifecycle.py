@@ -56,6 +56,7 @@ from src.portfolio.gates import (
     CorrelationCapacityGate,
     validate_gate_bundle,
 )
+from src.portfolio.gate_evidence import GateEvaluationStore
 from src.portfolio.regime import RegimeSnapshot
 from src.strategies.str002_v2 import BtcState
 from src.portfolio.allocator import PortfolioAllocator
@@ -238,13 +239,13 @@ def test_full_governance_lifecycle_end_to_end():
                 opened_by="ATTEMPT_REACCESS",
             )
 
-        # Record evaluation result
+        # Record evaluation result (pass/fail deterministically derived from preregistered criteria)
         eval_res = holdout_mgr.record_evaluation_result(
             access_id=access_rec.access_id,
             result_metrics={"sharpe": 1.85, "max_drawdown": 0.05, "total_return": 0.12},
-            passed=True,
             reasons=["All holdout criteria satisfied"],
         )
+        assert eval_res.passed is True
         assert eval_res.result_metrics["sharpe"] == 1.85
 
         # -------------------------------------------------------------
@@ -289,6 +290,14 @@ def test_full_governance_lifecycle_end_to_end():
         is_valid, reasons = validate_gate_bundle(gate_bundle)
         assert is_valid is True, f"Gate bundle failed: {reasons}"
 
+        # Persist and mint GateBundleArtifact in authoritative GateEvaluationStore
+        gate_store = GateEvaluationStore(storage_dir=base_dir / "gate_store")
+        bundle_artifact, _ = gate_store.record_and_bundle_gates(
+            gate_results=gate_bundle,
+            parameter_set_fingerprint=param_set.fingerprint,
+            git_sha="git-test-commit-sha",
+        )
+
         bundle_paper = PromotionEvidenceBundle(
             strategy_id=spec.strategy_id,
             strategy_version="1.0.0",
@@ -301,10 +310,17 @@ def test_full_governance_lifecycle_end_to_end():
             holdout_preregistration_id=prereg.preregistration_id,
             holdout_access_id=access_rec.access_id,
             holdout_result_id=eval_res.result_id,
+            gate_bundle_id=bundle_artifact.gate_bundle_id,
             gate_bundle=gate_bundle,
         )
 
-        registry.update_stage(spec.strategy_id, StrategyStage.PAPER, evidence_bundle=bundle_paper, holdout_manager=holdout_mgr)
+        registry.update_stage(
+            spec.strategy_id,
+            StrategyStage.PAPER,
+            evidence_bundle=bundle_paper,
+            holdout_manager=holdout_mgr,
+            gate_store=gate_store,
+        )
         paper_spec = registry.get(spec.strategy_id)
         assert paper_spec.stage == StrategyStage.PAPER
         assert paper_spec.economic_edge_validated is False

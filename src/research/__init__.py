@@ -23,6 +23,9 @@ from .holdout import (
     HoldoutAuditRecord,
     HoldoutViolationError,
     HoldoutAuditIntegrityError,
+    HoldoutCriterionOperator,
+    HoldoutAcceptanceCriterion,
+    HoldoutCriterionResult,
 )
 
 __all__ = [
@@ -48,4 +51,7 @@ __all__ = [
     "HoldoutAuditRecord",
     "HoldoutViolationError",
     "HoldoutAuditIntegrityError",
+    "HoldoutCriterionOperator",
+    "HoldoutAcceptanceCriterion",
+    "HoldoutCriterionResult",
 ]

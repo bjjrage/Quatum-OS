@@ -317,9 +317,9 @@ def test_holdout_eval_record_immutable_and_matches_preregistration():
         eval_res = mgr.record_evaluation_result(
             access_id=acc.access_id,
             result_metrics={"sharpe": 1.5, "max_drawdown": 0.05},
-            passed=True,
             reasons=["All thresholds met"],
         )
+        assert eval_res.passed is True
         assert eval_res.result_metrics["sharpe"] == 1.5
         # Immutability check
         with pytest.raises(ValidationError):
@@ -349,12 +349,12 @@ def test_holdout_burned_status_when_evaluation_fails_or_burn_triggered():
             config_fingerprint="cfg_hash_12345678",
             parameter_set_fingerprint="param_hash_12345678",
         )
-        mgr.record_evaluation_result(
+        eval_res = mgr.record_evaluation_result(
             access_id=acc.access_id,
             result_metrics={"sharpe": 0.5},
-            passed=False,
             reasons=["Sharpe below 1.0"],
         )
+        assert eval_res.passed is False
         assert mgr.get_status() == HoldoutStatus.BURNED.value
 
 
@@ -1310,7 +1310,7 @@ def test_holdout_to_paper_fails_if_gate_bundle_incomplete():
             config_fingerprint="cfg_hash_12345678",
             parameter_set_fingerprint="param_hash_12345678",
         )
-        res = mgr.record_evaluation_result(acc.access_id, {"sharpe": 1.5}, passed=True)
+        res = mgr.record_evaluation_result(acc.access_id, {"sharpe": 1.5})
 
         # 3 gates instead of 4
         incomplete_gates = _make_canonical_gates()[:3]
@@ -1380,7 +1380,7 @@ def test_holdout_to_paper_fails_if_any_gate_in_bundle_not_pass():
             config_fingerprint="cfg_hash_12345678",
             parameter_set_fingerprint="param_hash_12345678",
         )
-        res = mgr.record_evaluation_result(acc.access_id, {"sharpe": 1.5}, passed=True)
+        res = mgr.record_evaluation_result(acc.access_id, {"sharpe": 1.5})
 
         gates_with_fail = _make_canonical_gates()
         gates_with_fail[0] = StrategyGateResult.create_fail(
@@ -1457,7 +1457,7 @@ def test_holdout_to_paper_fails_if_holdout_evaluation_did_not_pass():
             config_fingerprint="cfg_hash_12345678",
             parameter_set_fingerprint="param_hash_12345678",
         )
-        res = mgr.record_evaluation_result(acc.access_id, {"sharpe": 0.5}, passed=False, reasons=["Sharpe failed"])
+        res = mgr.record_evaluation_result(acc.access_id, {"sharpe": 0.5}, reasons=["Sharpe failed"])
 
         bundle_paper = PromotionEvidenceBundle(
             strategy_id="STR-001",
@@ -1694,9 +1694,9 @@ def test_counteraudit_17_holdout_manager_required_for_holdout_and_paper_promotio
         eval_res = mgr.record_evaluation_result(
             access_id=acc.access_id,
             result_metrics={"sharpe": 2.0},
-            passed=True,
             reasons=["All thresholds met"],
         )
+        assert eval_res.passed is True
 
         bundle_holdout_to_paper = PromotionEvidenceBundle(
             strategy_id="STR-001",

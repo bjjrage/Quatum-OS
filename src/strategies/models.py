@@ -239,6 +239,7 @@ class PromotionEvidenceBundle(BaseModel):
     config_fingerprint: str
     parameter_set_fingerprint: str
     git_sha: str
+    gate_bundle_id: Optional[str] = None
     gate_bundle: Optional[Union[Dict[str, Any], List[Any]]] = None
     holdout_preregistration_id: Optional[str] = None
     holdout_access_id: Optional[str] = None

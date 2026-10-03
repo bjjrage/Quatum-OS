@@ -21,7 +21,7 @@ from src.strategies.models import (
     PromotionEvidenceBundle,
     VALID_STAGE_TRANSITIONS,
 )
-from src.portfolio.gates import validate_gate_bundle
+from src.portfolio.gates import validate_gate_bundle, GateStatus
 from src.research.holdout import HoldoutStatus
 
 
@@ -43,8 +43,14 @@ class InvalidStageTransitionError(Exception):
 class StrategyRegistry:
     """In-memory declarative registry of all strategy candidates across lifecycle stages."""
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        holdout_manager: Optional[Any] = None,
+        gate_store: Optional[Any] = None,
+    ) -> None:
         self._strategies: Dict[str, StrategySpec] = {}
+        self._holdout_manager = holdout_manager
+        self._gate_store = gate_store
 
     def register(self, spec: StrategySpec) -> None:
         """Register a new strategy specification.
@@ -109,6 +115,7 @@ class StrategyRegistry:
         new_stage: StrategyStage,
         evidence_bundle: Optional[PromotionEvidenceBundle] = None,
         holdout_manager: Optional[Any] = None,
+        gate_store: Optional[Any] = None,
     ) -> None:
         """Update the lifecycle stage of a registered strategy, enforcing evidence-gated transitions.
 
@@ -116,6 +123,9 @@ class StrategyRegistry:
             StrategyNotFoundError: If strategy_id is not registered.
             InvalidStageTransitionError: If the requested transition bypasses gates or violates the lifecycle graph.
         """
+        mgr = holdout_manager if holdout_manager is not None else self._holdout_manager
+        store = gate_store if gate_store is not None else self._gate_store
+
         spec = self.get(strategy_id)
         current_stage = spec.stage
 
@@ -175,16 +185,16 @@ class StrategyRegistry:
                     f"Strategy '{strategy_id}' cannot transition to HOLDOUT: "
                     "Evidence bundle lacks holdout_preregistration_id. Preregistration must exist before promotion."
                 )
-            if holdout_manager is None:
+            if mgr is None:
                 raise InvalidStageTransitionError(
                     "HOLDOUT_GOVERNANCE_STORE_REQUIRED: Strategy cannot transition from VALIDATION to HOLDOUT without authoritative holdout_manager."
                 )
-            if holdout_manager.is_corrupted:
+            if mgr.is_corrupted:
                 raise InvalidStageTransitionError(
                     f"Cannot promote strategy '{strategy_id}' to HOLDOUT: "
                     "Holdout governance storage is corrupted (GOVERNANCE_LOCKED)."
                 )
-            prereg = holdout_manager.get_preregistration(evidence_bundle.holdout_preregistration_id)
+            prereg = mgr.get_preregistration(evidence_bundle.holdout_preregistration_id)
             if not prereg:
                 raise InvalidStageTransitionError(
                     f"Preregistration '{evidence_bundle.holdout_preregistration_id}' not found in holdout manager."
@@ -194,7 +204,7 @@ class StrategyRegistry:
                     f"Cannot promote to HOLDOUT: holdout preregistration is already {prereg.status.value}. "
                     "Holdout must remain unopened during promotion."
                 )
-            if (strategy_id, prereg.dataset_fingerprint) in holdout_manager._burned_lineages:
+            if (strategy_id, prereg.dataset_fingerprint) in mgr._burned_lineages:
                 raise InvalidStageTransitionError(
                     f"Cannot promote to HOLDOUT: dataset fingerprint '{prereg.dataset_fingerprint}' for strategy "
                     f"'{strategy_id}' has already been accessed or burned."
@@ -211,7 +221,7 @@ class StrategyRegistry:
                     "Provenance mismatch between holdout preregistration and promotion evidence bundle."
                 )
 
-        # 3. HOLDOUT -> PAPER requires verified PromotionEvidenceBundle with valid gate bundle, holdout evaluation, and holdout_manager
+        # 3. HOLDOUT -> PAPER requires verified PromotionEvidenceBundle with valid gate bundle, holdout evaluation, holdout_manager, and gate_store
         elif current_stage == StrategyStage.HOLDOUT and new_stage == StrategyStage.PAPER:
             if evidence_bundle is None:
                 raise InvalidStageTransitionError(
@@ -223,22 +233,22 @@ class StrategyRegistry:
                     f"Strategy '{strategy_id}' cannot transition to PAPER: "
                     "Evidence bundle must contain holdout_preregistration_id, holdout_access_id, and holdout_result_id."
                 )
-            if holdout_manager is None:
+            if mgr is None:
                 raise InvalidStageTransitionError(
                     "HOLDOUT_GOVERNANCE_STORE_REQUIRED: Strategy cannot transition from HOLDOUT to PAPER without authoritative holdout_manager."
                 )
-            if holdout_manager.is_corrupted:
+            if mgr.is_corrupted:
                 raise InvalidStageTransitionError(
                     f"Cannot promote strategy '{strategy_id}' to PAPER: "
                     "Holdout governance storage is corrupted (GOVERNANCE_LOCKED)."
                 )
-            prereg = holdout_manager.get_preregistration(evidence_bundle.holdout_preregistration_id)
+            prereg = mgr.get_preregistration(evidence_bundle.holdout_preregistration_id)
             if not prereg:
                 raise InvalidStageTransitionError(f"Preregistration '{evidence_bundle.holdout_preregistration_id}' not found.")
-            acc = holdout_manager.get_access_record(evidence_bundle.holdout_access_id)
+            acc = mgr.get_access_record(evidence_bundle.holdout_access_id)
             if not acc:
                 raise InvalidStageTransitionError(f"Access record '{evidence_bundle.holdout_access_id}' not found.")
-            eval_res = holdout_manager.get_evaluation_result(evidence_bundle.holdout_result_id)
+            eval_res = mgr.get_evaluation_result(evidence_bundle.holdout_result_id)
             if not eval_res:
                 raise InvalidStageTransitionError(f"Evaluation result '{evidence_bundle.holdout_result_id}' not found.")
 
@@ -279,27 +289,79 @@ class StrategyRegistry:
             if not eval_res.passed:
                 raise InvalidStageTransitionError(f"Holdout evaluation result did not pass: {eval_res.reasons}.")
 
-            if not evidence_bundle.gate_bundle:
+            # If evidence_bundle.gate_bundle is supplied, validate it first
+            if evidence_bundle.gate_bundle:
+                is_valid, reasons = validate_gate_bundle(evidence_bundle.gate_bundle)
+                if not is_valid:
+                    raise InvalidStageTransitionError(
+                        f"Strategy '{strategy_id}' cannot transition to PAPER: "
+                        f"Gate bundle failed strict validation: {reasons}"
+                    )
+                gate_list = list(evidence_bundle.gate_bundle.values()) if isinstance(evidence_bundle.gate_bundle, dict) else list(evidence_bundle.gate_bundle)
+                first_gate = gate_list[0]
+                if (
+                    first_gate.strategy_id != strategy_id
+                    or first_gate.dataset_fingerprint != evidence_bundle.dataset_fingerprint
+                    or first_gate.config_fingerprint != evidence_bundle.config_fingerprint
+                ):
+                    raise InvalidStageTransitionError(
+                        "Provenance mismatch between Gate Bundle and PromotionEvidenceBundle."
+                    )
+
+            # Authoritative Gate Evidence Store verification
+            if store is None:
+                raise InvalidStageTransitionError(
+                    "GATE_EVIDENCE_STORE_REQUIRED: Strategy cannot transition from HOLDOUT to PAPER without authoritative gate_store."
+                )
+            if getattr(store, "is_corrupted", False):
+                raise InvalidStageTransitionError(
+                    f"Cannot promote strategy '{strategy_id}' to PAPER: "
+                    "Gate evidence storage is corrupted (GOVERNANCE_LOCKED)."
+                )
+            if not evidence_bundle.gate_bundle_id:
                 raise InvalidStageTransitionError(
                     f"Strategy '{strategy_id}' cannot transition to PAPER: "
-                    "Evidence bundle must contain a complete 4-gate bundle."
+                    "Evidence bundle must contain gate_bundle_id referencing authoritative GateEvaluationStore."
                 )
-            is_valid, reasons = validate_gate_bundle(evidence_bundle.gate_bundle)
-            if not is_valid:
+            bundle_artifact = store.get_gate_bundle(evidence_bundle.gate_bundle_id)
+            if not bundle_artifact:
                 raise InvalidStageTransitionError(
-                    f"Strategy '{strategy_id}' cannot transition to PAPER: "
-                    f"Gate bundle failed strict validation: {reasons}"
+                    f"Gate bundle '{evidence_bundle.gate_bundle_id}' not found in gate evidence store."
                 )
-            gate_list = list(evidence_bundle.gate_bundle.values()) if isinstance(evidence_bundle.gate_bundle, dict) else list(evidence_bundle.gate_bundle)
-            first_gate = gate_list[0]
+            if bundle_artifact.status != "VERIFIED":
+                raise InvalidStageTransitionError(
+                    f"Gate bundle '{evidence_bundle.gate_bundle_id}' has status '{bundle_artifact.status}', expected 'VERIFIED'."
+                )
+
+            # Provenance match between bundle artifact and promotion evidence bundle
             if (
-                first_gate.strategy_id != strategy_id
-                or first_gate.dataset_fingerprint != evidence_bundle.dataset_fingerprint
-                or first_gate.config_fingerprint != evidence_bundle.config_fingerprint
+                bundle_artifact.strategy_id != strategy_id
+                or bundle_artifact.strategy_version != evidence_bundle.strategy_version
+                or bundle_artifact.dataset_fingerprint != evidence_bundle.dataset_fingerprint
+                or bundle_artifact.config_fingerprint != evidence_bundle.config_fingerprint
+                or bundle_artifact.parameter_set_fingerprint != evidence_bundle.parameter_set_fingerprint
+                or bundle_artifact.git_sha != evidence_bundle.git_sha
             ):
                 raise InvalidStageTransitionError(
-                    "Provenance mismatch between Gate Bundle and PromotionEvidenceBundle."
+                    "Provenance mismatch between GateBundleArtifact and PromotionEvidenceBundle."
                 )
+
+            # Verify all 4 gate records exist and passed
+            for letter in ("A", "B", "C", "D"):
+                ev_id = bundle_artifact.gate_evidence_ids.get(letter)
+                if not ev_id:
+                    raise InvalidStageTransitionError(
+                        f"GateBundleArtifact missing canonical Gate {letter} in gate_evidence_ids."
+                    )
+                rec = store.get_gate_evaluation(ev_id)
+                if not rec:
+                    raise InvalidStageTransitionError(
+                        f"Gate {letter} evidence record '{ev_id}' not found in gate store."
+                    )
+                if rec.gate_result.status != GateStatus.PASS:
+                    raise InvalidStageTransitionError(
+                        f"Gate {letter} evidence record has status '{rec.gate_result.status.value}', expected PASS."
+                    )
 
         # 4. Transitions to SMALL_LIVE or ACTIVE are permanently BLOCKED under USD 0 live capital invariant
         elif new_stage in (StrategyStage.SMALL_LIVE, StrategyStage.ACTIVE):

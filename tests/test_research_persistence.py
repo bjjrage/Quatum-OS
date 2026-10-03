@@ -125,8 +125,8 @@ def test_sealed_holdout_manager_prevents_retuning_and_logs_audit(tmp_path: Path)
     eval_res = manager.record_evaluation_result(
         access_id=acc.access_id,
         result_metrics={"net_sharpe": 1.85, "max_drawdown": -0.042},
-        passed=True,
     )
+    assert eval_res.passed is True
     assert eval_res.strategy_version == "2.0.0"
     assert eval_res.result_id.startswith("eval_STR-002_2.0.0_")
 
@@ -180,8 +180,8 @@ def test_sealed_holdout_manager_prevents_retuning_and_logs_audit(tmp_path: Path)
     eval_fresh = manager.record_evaluation_result(
         access_id=acc_fresh.access_id,
         result_metrics={"net_sharpe": 1.92},
-        passed=True,
     )
+    assert eval_fresh.passed is True
     assert eval_fresh.strategy_version == "2.1.0"
     assert len(manager.list_audits_for_strategy("STR-002")) == 2
 
@@ -287,7 +287,6 @@ def test_sealed_holdout_audit_corruption_fails_closed(tmp_path: Path):
     manager_init.record_evaluation_result(
         access_id=acc.access_id,
         result_metrics={"net_sharpe": 1.5},
-        passed=True,
     )
     assert audit_file.exists()
 

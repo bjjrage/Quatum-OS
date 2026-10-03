@@ -15,8 +15,10 @@ from __future__ import annotations
 from enum import Enum
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
+import re
 import time
 from typing import Dict, Any, List, Optional, Set, Tuple, Union
 from pydantic import BaseModel, Field, ConfigDict, model_validator
@@ -53,6 +55,123 @@ FORBIDDEN_PROVENANCE_PLACEHOLDERS: Set[str] = {
 }
 
 
+class HoldoutCriterionOperator(str, Enum):
+    GT = "GT"
+    GTE = "GTE"
+    LT = "LT"
+    LTE = "LTE"
+    EQ = "EQ"
+
+
+class HoldoutAcceptanceCriterion(BaseModel):
+    """Machine-evaluable acceptance criterion preregistered before holdout access."""
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    metric_name: str
+    operator: HoldoutCriterionOperator
+    threshold: float
+
+    @model_validator(mode="before")
+    @classmethod
+    def _validate(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            m = str(data.get("metric_name", "")).strip()
+            if not m:
+                raise ValueError("HoldoutAcceptanceCriterion 'metric_name' must be a non-empty string.")
+            op = data.get("operator")
+            if isinstance(op, str):
+                op_norm = op.strip().upper()
+                op_map = {
+                    ">": HoldoutCriterionOperator.GT,
+                    "GT": HoldoutCriterionOperator.GT,
+                    ">=": HoldoutCriterionOperator.GTE,
+                    "GTE": HoldoutCriterionOperator.GTE,
+                    "<": HoldoutCriterionOperator.LT,
+                    "LT": HoldoutCriterionOperator.LT,
+                    "<=": HoldoutCriterionOperator.LTE,
+                    "LTE": HoldoutCriterionOperator.LTE,
+                    "==": HoldoutCriterionOperator.EQ,
+                    "=": HoldoutCriterionOperator.EQ,
+                    "EQ": HoldoutCriterionOperator.EQ,
+                }
+                if op_norm not in op_map:
+                    raise ValueError(f"Unsupported operator '{op}'. Supported: GT (>), GTE (>=), LT (<), LTE (<=), EQ (==).")
+                data["operator"] = op_map[op_norm]
+            thresh = data.get("threshold")
+            if thresh is None or not isinstance(thresh, (int, float)) or isinstance(thresh, bool):
+                raise ValueError(f"HoldoutAcceptanceCriterion 'threshold' must be a numeric float, got {thresh}")
+            if math.isnan(float(thresh)) or math.isinf(float(thresh)):
+                raise ValueError(f"HoldoutAcceptanceCriterion 'threshold' must be finite, got {thresh}")
+            data["threshold"] = float(thresh)
+            data["metric_name"] = m
+        return data
+
+
+class HoldoutCriterionResult(BaseModel):
+    """Machine-evaluable result for a single preregistered criterion."""
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    metric_name: str
+    observed_value: Optional[float] = None
+    operator: HoldoutCriterionOperator
+    threshold: float
+    passed: bool
+    reason: Optional[str] = None
+
+
+def _parse_falsification_criteria(
+    criteria: Union[Dict[str, Any], List[str], str]
+) -> List[HoldoutAcceptanceCriterion]:
+    results: List[HoldoutAcceptanceCriterion] = []
+    items: List[str] = []
+    if isinstance(criteria, str):
+        items = [criteria]
+    elif isinstance(criteria, list):
+        items = [str(x) for x in criteria]
+    elif isinstance(criteria, dict):
+        for k, v in criteria.items():
+            if isinstance(v, (int, float)) and not isinstance(v, bool):
+                results.append(
+                    HoldoutAcceptanceCriterion(
+                        metric_name=k.strip().lower().replace(" ", "_"),
+                        operator=HoldoutCriterionOperator.GTE,
+                        threshold=float(v),
+                    )
+                )
+
+    for item in items:
+        m = re.match(
+            r"^\s*([A-Za-z0-9_ ]+?)\s*(<=|>=|<|>|==|=)\s*([0-9.]+)\s*(%?)\s*$",
+            item.strip(),
+        )
+        if m:
+            raw_metric, op, raw_val, is_pct = m.groups()
+            metric_name = raw_metric.strip().lower().replace(" ", "_")
+            val = float(raw_val)
+            if is_pct == "%" and val > 1.0:
+                val = val / 100.0
+            # Falsification condition is when the strategy FAILS.
+            # Thus, acceptance condition is the logical negation of falsification:
+            inverted_ops = {
+                "<": HoldoutCriterionOperator.GTE,
+                "<=": HoldoutCriterionOperator.GT,
+                ">": HoldoutCriterionOperator.LTE,
+                ">=": HoldoutCriterionOperator.LT,
+                "==": HoldoutCriterionOperator.EQ,
+                "=": HoldoutCriterionOperator.EQ,
+            }
+            inv_op = inverted_ops.get(op)
+            if inv_op:
+                results.append(
+                    HoldoutAcceptanceCriterion(
+                        metric_name=metric_name,
+                        operator=inv_op,
+                        threshold=val,
+                    )
+                )
+    return results
+
+
 class HoldoutPreRegistration(BaseModel):
     """Immutable preregistration record required BEFORE accessing holdout data."""
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -68,6 +187,7 @@ class HoldoutPreRegistration(BaseModel):
     falsification_criteria: Union[Dict[str, Any], List[str], str]
     primary_metrics: List[str]
     analysis_plan_fingerprint: str
+    acceptance_criteria: List[HoldoutAcceptanceCriterion] = Field(default_factory=list)
     created_at_ns: int = Field(default_factory=lambda: time.time_ns())
     created_at_utc: str = Field(default_factory=lambda: time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()))
     status: HoldoutStatus = HoldoutStatus.PREREGISTERED
@@ -100,6 +220,12 @@ class HoldoutPreRegistration(BaseModel):
             pm = data.get("primary_metrics")
             if not pm or not isinstance(pm, list) or len(pm) == 0:
                 raise ValueError("HoldoutPreRegistration field 'primary_metrics' must be an explicitly preregistered non-empty list.")
+            ac = data.get("acceptance_criteria")
+            if ac is not None and isinstance(ac, list):
+                data["acceptance_criteria"] = [
+                    c if isinstance(c, HoldoutAcceptanceCriterion) else HoldoutAcceptanceCriterion(**c)
+                    for c in ac
+                ]
         return data
 
 
@@ -136,6 +262,7 @@ class HoldoutEvaluationResult(BaseModel):
     result_timestamp_ns: int = Field(default_factory=lambda: time.time_ns())
     result_timestamp_utc: str = Field(default_factory=lambda: time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()))
     passed: bool = False
+    criterion_results: List[HoldoutCriterionResult] = Field(default_factory=list)
     reasons: List[str] = Field(default_factory=list)
 
 
@@ -297,6 +424,7 @@ class SealedHoldoutManager:
         primary_metrics: List[str],
         analysis_plan_fingerprint: str,
         preregistration_id: Optional[str] = None,
+        acceptance_criteria: Optional[List[Union[HoldoutAcceptanceCriterion, Dict[str, Any]]]] = None,
     ) -> HoldoutPreRegistration:
         """Create a tamper-evident preregistration before accessing holdout."""
         if self._is_corrupted:
@@ -318,6 +446,20 @@ class SealedHoldoutManager:
         if prereg_id in self._preregistrations:
             raise HoldoutViolationError(f"Preregistration '{prereg_id}' already exists.")
 
+        criteria_to_store: List[HoldoutAcceptanceCriterion] = []
+        if acceptance_criteria is not None:
+            if not isinstance(acceptance_criteria, list) or len(acceptance_criteria) == 0:
+                raise ValueError("HoldoutPreRegistration acceptance_criteria must be a non-empty list when explicitly specified.")
+            for item in acceptance_criteria:
+                if isinstance(item, HoldoutAcceptanceCriterion):
+                    criteria_to_store.append(item)
+                elif isinstance(item, dict):
+                    criteria_to_store.append(HoldoutAcceptanceCriterion(**item))
+                else:
+                    raise TypeError(f"Expected HoldoutAcceptanceCriterion or dict, got {type(item).__name__}")
+        else:
+            criteria_to_store = _parse_falsification_criteria(falsification_criteria)
+
         record = HoldoutPreRegistration(
             preregistration_id=prereg_id,
             strategy_id=strategy_id,
@@ -330,6 +472,7 @@ class SealedHoldoutManager:
             falsification_criteria=falsification_criteria,
             primary_metrics=primary_metrics,
             analysis_plan_fingerprint=analysis_plan_fingerprint,
+            acceptance_criteria=criteria_to_store,
             created_at_ns=now_ns,
             created_at_utc=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             status=HoldoutStatus.PREREGISTERED,
@@ -419,13 +562,22 @@ class SealedHoldoutManager:
         self,
         access_id: str,
         result_metrics: Dict[str, Any],
-        passed: bool,
         reasons: Optional[List[str]] = None,
+        *args,
+        **kwargs,
     ) -> HoldoutEvaluationResult:
         """
         Record empirical results of holdout evaluation against an authorized access record.
+        Pass/fail status is deterministically derived from preregistered acceptance criteria.
+        Caller-supplied 'passed' boolean is strictly forbidden to prevent authority bypass.
         Transitions preregistration to BURNED.
         """
+        if args or "passed" in kwargs:
+            raise ValueError(
+                "CALLER_SUPPLIED_PASSED_FORBIDDEN: record_evaluation_result does not accept caller-supplied 'passed'. "
+                "Holdout evaluation result is derived deterministically from preregistered acceptance criteria."
+            )
+
         if self._is_corrupted:
             raise HoldoutAuditIntegrityError(
                 f"Cannot record holdout result: holdout storage is corrupted: {self._corruption_error}."
@@ -446,6 +598,115 @@ class SealedHoldoutManager:
         now_ns = time.time_ns()
         result_id = f"eval_{access_record.strategy_id}_{access_record.strategy_version}_{now_ns}"
 
+        # Deterministic criteria derivation
+        derived_passed = True
+        criterion_results: List[HoldoutCriterionResult] = []
+        eval_reasons: List[str] = list(reasons or [])
+
+        if not prereg.acceptance_criteria:
+            derived_passed = False
+            eval_reasons.append("NO_PREREGISTERED_ACCEPTANCE_CRITERIA: Cannot evaluate holdout without machine-evaluable acceptance criteria.")
+
+        metrics_lookup: Dict[str, Any] = {}
+        for k, v in result_metrics.items():
+            metrics_lookup[str(k).strip().lower().replace(" ", "_")] = v
+            metrics_lookup[str(k).strip()] = v
+
+        for crit in prereg.acceptance_criteria:
+            crit_metric_norm = crit.metric_name.strip().lower().replace(" ", "_")
+            if crit.metric_name in result_metrics:
+                obs_raw = result_metrics[crit.metric_name]
+            elif crit_metric_norm in metrics_lookup:
+                obs_raw = metrics_lookup[crit_metric_norm]
+            else:
+                suffix_match = None
+                for mk, mv in metrics_lookup.items():
+                    if mk.endswith(f"_{crit_metric_norm}") or mk.endswith(crit_metric_norm):
+                        suffix_match = mv
+                        break
+                if suffix_match is not None:
+                    obs_raw = suffix_match
+                else:
+                    derived_passed = False
+                    msg = f"REQUIRED_HOLDOUT_METRIC_MISSING: Preregistered metric '{crit.metric_name}' missing from result_metrics."
+                    eval_reasons.append(msg)
+                    criterion_results.append(
+                        HoldoutCriterionResult(
+                            metric_name=crit.metric_name,
+                            observed_value=None,
+                            operator=crit.operator,
+                            threshold=crit.threshold,
+                            passed=False,
+                            reason=msg,
+                        )
+                    )
+                    continue
+
+            if obs_raw is None or isinstance(obs_raw, bool) or not isinstance(obs_raw, (int, float)):
+                derived_passed = False
+                msg = f"NON_FINITE_HOLDOUT_METRIC: Preregistered metric '{crit.metric_name}' value '{obs_raw}' is non-numeric."
+                eval_reasons.append(msg)
+                criterion_results.append(
+                    HoldoutCriterionResult(
+                        metric_name=crit.metric_name,
+                        observed_value=None,
+                        operator=crit.operator,
+                        threshold=crit.threshold,
+                        passed=False,
+                        reason=msg,
+                    )
+                )
+                continue
+
+            obs_val = float(obs_raw)
+            if math.isnan(obs_val) or math.isinf(obs_val):
+                derived_passed = False
+                msg = f"NON_FINITE_HOLDOUT_METRIC: Preregistered metric '{crit.metric_name}' value is non-finite: {obs_val}"
+                eval_reasons.append(msg)
+                criterion_results.append(
+                    HoldoutCriterionResult(
+                        metric_name=crit.metric_name,
+                        observed_value=obs_val,
+                        operator=crit.operator,
+                        threshold=crit.threshold,
+                        passed=False,
+                        reason=msg,
+                    )
+                )
+                continue
+
+            op = crit.operator
+            thresh = crit.threshold
+            crit_pass = False
+            if op == HoldoutCriterionOperator.GT:
+                crit_pass = obs_val > thresh
+            elif op == HoldoutCriterionOperator.GTE:
+                crit_pass = obs_val >= thresh
+            elif op == HoldoutCriterionOperator.LT:
+                crit_pass = obs_val < thresh
+            elif op == HoldoutCriterionOperator.LTE:
+                crit_pass = obs_val <= thresh
+            elif op == HoldoutCriterionOperator.EQ:
+                crit_pass = abs(obs_val - thresh) <= 1e-9
+
+            if not crit_pass:
+                derived_passed = False
+                crit_reason = f"CRITERION_BREACH: '{crit.metric_name}' observed {obs_val} does not satisfy {op.value} {thresh}"
+                eval_reasons.append(crit_reason)
+            else:
+                crit_reason = None
+
+            criterion_results.append(
+                HoldoutCriterionResult(
+                    metric_name=crit.metric_name,
+                    observed_value=obs_val,
+                    operator=crit.operator,
+                    threshold=crit.threshold,
+                    passed=crit_pass,
+                    reason=crit_reason,
+                )
+            )
+
         res = HoldoutEvaluationResult(
             result_id=result_id,
             access_id=access_id,
@@ -458,8 +719,9 @@ class SealedHoldoutManager:
             result_metrics=result_metrics,
             result_timestamp_ns=now_ns,
             result_timestamp_utc=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-            passed=passed,
-            reasons=reasons or [],
+            passed=derived_passed,
+            criterion_results=criterion_results,
+            reasons=eval_reasons,
         )
 
         # Transition preregistration to BURNED
