@@ -1244,7 +1244,7 @@ class QuantOSDataService:
             "execution_mode": "DRY_RUN_PAPER_SIMULATION",
             "live_execution_authority": False,
             "live_capital_authorized": 0.0,
-            "reconciliation_status": "SYNCHRONIZED",
+            "reconciliation_status": "NOT_CONFIGURED",
             "mismatch_detected": False,
             "tracked_orders_count": len(self.lifecycle_tracker._intents),
             "orders": [],
