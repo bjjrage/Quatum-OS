@@ -25,10 +25,10 @@ export function HoldoutsView({ holdoutsData }: HoldoutsViewProps) {
       <div className="pb-2 border-b border-slate-800">
         <h2 className="text-lg font-bold text-slate-100 font-mono-code flex items-center gap-2">
           <Lock className="w-5 h-5 text-rose-400" />
-          Sealed Holdout Data Partition Manager & Anti-Leakage Vault
+          Holdout Governance & Partition Manager
         </h2>
         <p className="text-xs text-slate-400 mt-1">
-          Cryptographically isolated out-of-sample data partitions strictly reserved for final gate evaluation.
+          Out-of-sample data partitions strictly reserved for final gate evaluation (isolation enforcement pending verification).
         </p>
       </div>
 
@@ -41,7 +41,7 @@ export function HoldoutsView({ holdoutsData }: HoldoutsViewProps) {
           <div>
             <div className="flex items-center gap-2">
               <span className="text-sm font-bold text-rose-100 tracking-wider uppercase font-mono-code">
-                CRITICAL PROTOCOL: ZERO LEAKAGE HOLDOUT ENFORCEMENT
+                CRITICAL PROTOCOL: HOLDOUT INTEGRITY & GOVERNANCE
               </span>
               <Badge variant={isSealed ? "rose" : isKnown ? "amber" : "slate"} size="xs">
                 {status}
@@ -60,7 +60,7 @@ export function HoldoutsView({ holdoutsData }: HoldoutsViewProps) {
         <MetricCard
           label="Holdout Partition State"
           value={status}
-          subtitle="SHA-256 integrity locked"
+          subtitle="Directory structure governance"
           badge={{
             text: !isKnown ? "UNVERIFIED" : isSealed ? "SEALED" : "COMPROMISED",
             variant: !isKnown ? "slate" : isSealed ? "emerald" : "rose",
@@ -70,7 +70,7 @@ export function HoldoutsView({ holdoutsData }: HoldoutsViewProps) {
         <MetricCard
           label="Total Historical Openings"
           value={openings !== undefined ? `${openings} Openings` : "UNKNOWN"}
-          subtitle="Zero unauthorized leaks"
+          subtitle="Audit log record"
           badge={{
             text: openings === undefined ? "UNVERIFIED" : openings === 0 ? "UNTOUCHED" : "OPENED",
             variant: openings === undefined ? "slate" : openings === 0 ? "emerald" : "amber",
@@ -79,9 +79,9 @@ export function HoldoutsView({ holdoutsData }: HoldoutsViewProps) {
         />
         <MetricCard
           label="Isolation Invariant"
-          value="ENFORCED"
+          value="PENDING VERIFICATION"
           subtitle="Physical directory separation"
-          badge={{ text: "ACTIVE", variant: "purple" }}
+          badge={{ text: "PENDING", variant: "amber" }}
           icon={<ShieldAlert className="w-4 h-4" />}
         />
         <MetricCard
@@ -94,8 +94,8 @@ export function HoldoutsView({ holdoutsData }: HoldoutsViewProps) {
 
       {/* AUDIT LOG TABLE */}
       <Card
-        title="Immutable Holdout Opening Audit Log"
-        subtitle="Cryptographically signed ledger recording every interaction with out-of-sample datasets"
+        title="Holdout Opening Audit Log"
+        subtitle="Audit ledger recording every interaction with out-of-sample datasets"
         variant="terminal"
       >
         <div className="overflow-x-auto">
@@ -130,7 +130,7 @@ export function HoldoutsView({ holdoutsData }: HoldoutsViewProps) {
                 <tr>
                   <td colSpan={7} className="py-8 text-center text-slate-400 font-mono-code">
                     <CheckCircle2 className="w-6 h-6 text-emerald-400 mx-auto mb-2 opacity-80" />
-                    No holdout dataset openings recorded. Vault integrity is 100% pristine and uncompromised.
+                    No holdout dataset openings recorded in local audit log.
                   </td>
                 </tr>
               )}

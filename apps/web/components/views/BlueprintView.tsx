@@ -93,7 +93,7 @@ export function BlueprintView({ onNavigate, testsPassing }: BlueprintViewProps) 
       domain: "audit-trail" as NavTabId,
       icon: <FileText className="w-5 h-5 text-cyan-400" />,
       description: "Cryptographically verifiable ledger of runtime state, git SHA provenance, operator approvals, and test suite execution logs.",
-      badge: testsPassing !== undefined ? `${testsPassing} TESTS PASSING` : "TEST SUITE PASSING",
+      badge: testsPassing !== undefined ? `${testsPassing} TESTS PASSING` : "TEST STATUS UNKNOWN",
     },
   ];
 

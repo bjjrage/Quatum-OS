@@ -81,13 +81,13 @@ export function DataQualityView({ dataQuality }: DataQualityViewProps) {
               <div className="p-3 rounded bg-[#0b0e14] border border-slate-800">
                 <span className="text-slate-400 block text-[11px]">Total Row Count</span>
                 <span className="text-base font-bold text-slate-100">
-                  {storage?.total_row_count !== undefined ? storage.total_row_count.toLocaleString() : "0"}
+                  {storage?.total_row_count !== undefined ? storage.total_row_count.toLocaleString() : "UNKNOWN"}
                 </span>
               </div>
               <div className="p-3 rounded bg-[#0b0e14] border border-slate-800">
                 <span className="text-slate-400 block text-[11px]">Parquet Partitions</span>
                 <span className="text-base font-bold text-cyan-400">
-                  {storage?.parquet_file_count !== undefined ? `${storage.parquet_file_count} files` : "0 files"}
+                  {storage?.parquet_file_count !== undefined ? `${storage.parquet_file_count} files` : "UNKNOWN"}
                 </span>
               </div>
               <div className="p-3 rounded bg-[#0b0e14] border border-slate-800">
@@ -99,7 +99,7 @@ export function DataQualityView({ dataQuality }: DataQualityViewProps) {
               <div className="p-3 rounded bg-[#0b0e14] border border-slate-800">
                 <span className="text-slate-400 block text-[11px]">Orphan .tmp Files</span>
                 <span className="text-base font-bold text-emerald-400">
-                  {storage?.orphan_tmp_files ?? 0}
+                  {storage?.orphan_tmp_files !== undefined ? storage.orphan_tmp_files : "UNKNOWN"}
                 </span>
               </div>
             </div>
@@ -111,11 +111,15 @@ export function DataQualityView({ dataQuality }: DataQualityViewProps) {
               </div>
               <div className="flex justify-between text-slate-400">
                 <span>Run Manifest:</span>
-                <span className="text-emerald-400">data/runtime/current_run.json (VALID)</span>
+                <span className={storage?.manifest_valid ? "text-emerald-400" : "text-slate-400"}>
+                  {storage !== undefined && storage !== null ? (storage.manifest_valid ? "data/runtime/current_run.json (VALID)" : "data/runtime/current_run.json (INVALID)") : "UNVERIFIED"}
+                </span>
               </div>
               <div className="flex justify-between text-slate-400">
                 <span>Atomic Rename Invariant:</span>
-                <span className="text-emerald-400">ENFORCED (tmp -&gt; final)</span>
+                <span className={storage ? "text-emerald-400" : "text-slate-400"}>
+                  {storage ? "ENFORCED (tmp -> final)" : "UNVERIFIED"}
+                </span>
               </div>
             </div>
           </div>
@@ -157,19 +161,27 @@ export function DataQualityView({ dataQuality }: DataQualityViewProps) {
             <div className="p-3 rounded bg-[#0b0e14] border border-slate-800 space-y-1.5 text-xs font-mono-code text-slate-400">
               <div className="flex justify-between">
                 <span>Negative Event Ages:</span>
-                <span className="text-emerald-400">{timing?.negative_event_age_count ?? 0} (0.00%)</span>
+                <span className={timing?.negative_event_age_count !== undefined ? "text-emerald-400" : "text-slate-400"}>
+                  {timing?.negative_event_age_count !== undefined ? `${timing.negative_event_age_count}` : "UNKNOWN"}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span>Total Events Audited:</span>
-                <span className="text-slate-200">{timing?.total_events_checked !== undefined ? timing.total_events_checked.toLocaleString() : "0"}</span>
+                <span className="text-slate-200">
+                  {timing?.total_events_checked !== undefined ? timing.total_events_checked.toLocaleString() : "UNKNOWN"}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span>Estimated Clock Offset:</span>
-                <span className="text-amber-400">{timing?.estimated_clock_offset_ms !== undefined ? `${timing.estimated_clock_offset_ms.toFixed(2)} ms` : "0.00 ms"}</span>
+                <span className={timing?.estimated_clock_offset_ms !== undefined ? "text-amber-400" : "text-slate-400"}>
+                  {timing?.estimated_clock_offset_ms !== undefined ? `${timing.estimated_clock_offset_ms.toFixed(2)} ms` : "UNKNOWN"}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span>Clock Calibration Status:</span>
-                <span className="text-emerald-400 font-semibold">APPLIED (NTP offset subtracted)</span>
+                <span className={timing ? "text-emerald-400 font-semibold" : "text-slate-400 font-semibold"}>
+                  {timing ? "APPLIED (NTP offset subtracted)" : "UNVERIFIED"}
+                </span>
               </div>
             </div>
           </div>
@@ -215,7 +227,12 @@ export function DataQualityView({ dataQuality }: DataQualityViewProps) {
                     <td className="py-2.5 px-3 text-amber-400">{h.clock_offset_ms} ms</td>
                     <td className="py-2.5 px-3 text-slate-200">{h.corrected_p50_ms}ms / {h.corrected_p95_ms}ms</td>
                     <td className="py-2.5 px-3 text-right">
-                      <Badge variant="emerald" size="xs">PASS</Badge>
+                      <Badge
+                        variant={h.status === "PASS" ? "emerald" : h.status === "FAIL" ? "rose" : h.manifest_valid ? "emerald" : "rose"}
+                        size="xs"
+                      >
+                        {h.status || (h.manifest_valid ? "PASS" : "FAIL")}
+                      </Badge>
                     </td>
                   </tr>
                 ))}

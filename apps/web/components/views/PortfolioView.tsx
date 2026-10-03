@@ -140,36 +140,37 @@ export function PortfolioView({ portfolio }: PortfolioViewProps) {
         subtitle="Real-time exposure aggregation preventing correlated drawdowns across multiple strategies"
         variant="terminal"
       >
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-1">
-          {[
-            { cluster: "FOMC & US Macro Data", gross: "$0", net: "$0", cap: "$50,000", util: "0.0%" },
-            { cluster: "BTC Halving / Network Hardfork", gross: "$0", net: "$0", cap: "$100,000", util: "0.0%" },
-            { cluster: "Quarterly Options Expiry", gross: "$0", net: "$0", cap: "$75,000", util: "0.0%" },
-            { cluster: "Regulatory / Geopolitical Shocks", gross: "$0", net: "$0", cap: "$30,000", util: "0.0%" },
-          ].map((ec, i) => (
-            <div key={i} className="p-3 rounded bg-[#0b0e14] border border-slate-800 space-y-2 text-xs font-mono-code">
-              <span className="font-bold text-slate-200 block truncate">{ec.cluster}</span>
-              <div className="space-y-1 text-slate-400">
-                <div className="flex justify-between">
-                  <span>Gross Exposure:</span>
-                  <span className="text-slate-100">{ec.gross}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Net Exposure:</span>
-                  <span className="text-slate-100">{ec.net}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Cluster Cap:</span>
-                  <span className="text-slate-100">{ec.cap}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Utilization:</span>
-                  <span className="text-emerald-400 font-semibold">{ec.util}</span>
+        {portfolio?.event_cluster_exposures && Object.keys(portfolio.event_cluster_exposures).length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-1">
+            {Object.entries(portfolio.event_cluster_exposures).map(([clusterName, ec], i) => (
+              <div key={i} className="p-3 rounded bg-[#0b0e14] border border-slate-800 space-y-2 text-xs font-mono-code">
+                <span className="font-bold text-slate-200 block truncate">{clusterName}</span>
+                <div className="space-y-1 text-slate-400">
+                  <div className="flex justify-between">
+                    <span>Gross Exposure:</span>
+                    <span className="text-slate-100">${ec.gross_usd?.toLocaleString() ?? "0"}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Net Exposure:</span>
+                    <span className="text-slate-100">${ec.net_usd?.toLocaleString() ?? "0"}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Cluster Cap:</span>
+                    <span className="text-slate-100">${ec.cap_usd?.toLocaleString() ?? "0"}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Utilization:</span>
+                    <span className="text-emerald-400 font-semibold">{ec.utilization_pct !== undefined ? `${ec.utilization_pct.toFixed(1)}%` : "0.0%"}</span>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <div className="py-8 text-center text-xs font-mono-code text-slate-500">
+            Event cluster exposure telemetry not available.
+          </div>
+        )}
       </Card>
     </div>
   );

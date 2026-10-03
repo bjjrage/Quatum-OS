@@ -174,6 +174,7 @@ export interface DataQuality {
     corrected_p50_ms: number;
     corrected_p95_ms: number;
     corrected_p99_ms: number;
+    status?: string;
   }>;
 }
 

@@ -32,13 +32,23 @@ export function CommandCenterView({
   onNavigate,
 }: CommandCenterViewProps) {
   // Acceptance gate helpers
-  const gate24hPassed = status?.gate_24h.passed ?? false;
-  const gate24hElapsed = status?.gate_24h.elapsed_seconds ?? recorder?.elapsed_seconds ?? 0;
-  const gate24hProgress = Math.min(100, (gate24hElapsed / 86400) * 100);
+  const gate24hRawState = status?.gate_24h?.status || recorder?.gate_24h_status;
+  const gate24hElapsed = status?.gate_24h?.elapsed_seconds !== undefined
+    ? status.gate_24h.elapsed_seconds
+    : recorder?.elapsed_seconds;
+  const hasGate24hRun = gate24hElapsed !== undefined && gate24hRawState !== undefined && gate24hRawState !== "UNKNOWN";
+  const gate24hPassed = status?.gate_24h?.passed ?? (gate24hRawState === "PASS");
+  const gate24hProgress = hasGate24hRun && gate24hElapsed !== undefined ? Math.min(100, (gate24hElapsed / 86400) * 100) : null;
+  const gate24hStatus = !hasGate24hRun ? "UNKNOWN" : gate24hPassed ? "PASS" : gate24hRawState === "FAIL" ? "FAIL" : "PENDING";
 
-  const gate72hPassed = status?.gate_72h.passed ?? false;
-  const gate72hElapsed = status?.gate_72h.elapsed_seconds ?? recorder?.elapsed_seconds ?? 0;
-  const gate72hProgress = Math.min(100, (gate72hElapsed / 259200) * 100);
+  const gate72hRawState = status?.gate_72h?.status || recorder?.gate_72h_status;
+  const gate72hElapsed = status?.gate_72h?.elapsed_seconds !== undefined
+    ? status.gate_72h.elapsed_seconds
+    : recorder?.elapsed_seconds;
+  const hasGate72hRun = gate72hElapsed !== undefined && gate72hRawState !== undefined && gate72hRawState !== "UNKNOWN";
+  const gate72hPassed = status?.gate_72h?.passed ?? (gate72hRawState === "PASS");
+  const gate72hProgress = hasGate72hRun && gate72hElapsed !== undefined ? Math.min(100, (gate72hElapsed / 259200) * 100) : null;
+  const gate72hStatus = !hasGate72hRun ? "UNKNOWN" : gate72hPassed ? "PASS" : gate72hRawState === "FAIL" ? "FAIL" : "PENDING";
 
   return (
     <div className="space-y-6">
@@ -139,10 +149,20 @@ export function CommandCenterView({
         variant="terminal"
         action={
           <Badge
-            variant={gate24hPassed && gate72hPassed ? "emerald" : "amber"}
+            variant={
+              gate24hStatus === "PASS" && gate72hStatus === "PASS"
+                ? "emerald"
+                : gate24hStatus === "UNKNOWN" || gate72hStatus === "UNKNOWN"
+                ? "slate"
+                : "amber"
+            }
             size="sm"
           >
-            {gate24hPassed && gate72hPassed ? "ACCEPTED" : "GATES PENDING"}
+            {gate24hStatus === "PASS" && gate72hStatus === "PASS"
+              ? "ACCEPTED"
+              : gate24hStatus === "UNKNOWN" || gate72hStatus === "UNKNOWN"
+              ? "GATES UNKNOWN"
+              : "GATES PENDING"}
           </Badge>
         }
       >
@@ -154,23 +174,47 @@ export function CommandCenterView({
                 <Clock className="w-4 h-4 text-amber-400" />
                 24-Hour Acceptance Gate
               </span>
-              <Badge variant={gate24hPassed ? "emerald" : "amber"} size="xs">
-                {gate24hPassed ? "PASS" : "PENDING (0/24h)"}
+              <Badge
+                variant={
+                  gate24hStatus === "PASS"
+                    ? "emerald"
+                    : gate24hStatus === "FAIL"
+                    ? "rose"
+                    : gate24hStatus === "PENDING"
+                    ? "amber"
+                    : "slate"
+                }
+                size="xs"
+              >
+                {gate24hStatus === "PASS"
+                  ? "PASS"
+                  : gate24hStatus === "PENDING"
+                  ? `PENDING (${gate24hElapsed !== undefined ? (gate24hElapsed / 3600).toFixed(1) : "0"}/24h)`
+                  : gate24hStatus}
               </Badge>
             </div>
             <div className="space-y-2">
               <div className="flex justify-between text-[11px] font-mono-code text-slate-400">
-                <span>Elapsed: {Math.floor(gate24hElapsed / 3600)}h {Math.floor((gate24hElapsed % 3600) / 60)}m</span>
+                <span>
+                  Elapsed:{" "}
+                  {gate24hElapsed !== undefined
+                    ? `${Math.floor(gate24hElapsed / 3600)}h ${Math.floor((gate24hElapsed % 3600) / 60)}m`
+                    : "UNKNOWN"}
+                </span>
                 <span>Requirement: 24h 00m (86,400s)</span>
               </div>
               <div className="w-full bg-slate-900 rounded-full h-2 overflow-hidden border border-slate-800">
                 <div
                   className="bg-amber-500 h-full rounded-full transition-all duration-500"
-                  style={{ width: `${gate24hProgress}%` }}
+                  style={{ width: `${gate24hProgress ?? 0}%` }}
                 />
               </div>
               <div className="text-[10px] text-slate-500 font-mono-code">
-                Reason: Duration elapsed ({gate24hElapsed.toFixed(0)}s) &lt; required threshold (86,400s). Gate cannot pass until full continuous run completes.
+                {!hasGate24hRun
+                  ? "Reason: No verified gate run telemetry recorded."
+                  : gate24hStatus === "PASS"
+                  ? "Reason: Continuous run requirement satisfied."
+                  : `Reason: Duration elapsed (${gate24hElapsed?.toFixed(0)}s) < required threshold (86,400s). Gate cannot pass until full continuous run completes.`}
               </div>
             </div>
           </div>
@@ -182,23 +226,47 @@ export function CommandCenterView({
                 <Clock className="w-4 h-4 text-amber-400" />
                 72-Hour Acceptance Gate
               </span>
-              <Badge variant={gate72hPassed ? "emerald" : "amber"} size="xs">
-                {gate72hPassed ? "PASS" : "PENDING (0/72h)"}
+              <Badge
+                variant={
+                  gate72hStatus === "PASS"
+                    ? "emerald"
+                    : gate72hStatus === "FAIL"
+                    ? "rose"
+                    : gate72hStatus === "PENDING"
+                    ? "amber"
+                    : "slate"
+                }
+                size="xs"
+              >
+                {gate72hStatus === "PASS"
+                  ? "PASS"
+                  : gate72hStatus === "PENDING"
+                  ? `PENDING (${gate72hElapsed !== undefined ? (gate72hElapsed / 3600).toFixed(1) : "0"}/72h)`
+                  : gate72hStatus}
               </Badge>
             </div>
             <div className="space-y-2">
               <div className="flex justify-between text-[11px] font-mono-code text-slate-400">
-                <span>Elapsed: {Math.floor(gate72hElapsed / 3600)}h {Math.floor((gate72hElapsed % 3600) / 60)}m</span>
+                <span>
+                  Elapsed:{" "}
+                  {gate72hElapsed !== undefined
+                    ? `${Math.floor(gate72hElapsed / 3600)}h ${Math.floor((gate72hElapsed % 3600) / 60)}m`
+                    : "UNKNOWN"}
+                </span>
                 <span>Requirement: 72h 00m (259,200s)</span>
               </div>
               <div className="w-full bg-slate-900 rounded-full h-2 overflow-hidden border border-slate-800">
                 <div
                   className="bg-cyan-500 h-full rounded-full transition-all duration-500"
-                  style={{ width: `${gate72hProgress}%` }}
+                  style={{ width: `${gate72hProgress ?? 0}%` }}
                 />
               </div>
               <div className="text-[10px] text-slate-500 font-mono-code">
-                Reason: Duration elapsed ({gate72hElapsed.toFixed(0)}s) &lt; required threshold (259,200s).
+                {!hasGate72hRun
+                  ? "Reason: No verified gate run telemetry recorded."
+                  : gate72hStatus === "PASS"
+                  ? "Reason: Continuous run requirement satisfied."
+                  : `Reason: Duration elapsed (${gate72hElapsed?.toFixed(0)}s) < required threshold (259,200s).`}
               </div>
             </div>
           </div>
@@ -229,43 +297,55 @@ export function CommandCenterView({
               const venuesList = [
                 {
                   venue: "Binance Futures (BTC/USDT, ETH/USDT)",
-                  connected: binanceVenue?.connected ?? (recorder?.is_process_alive ?? false),
-                  status: (binanceVenue?.connected ?? recorder?.is_process_alive) ? "READY / RECORDING" : "STANDBY",
-                  rate: binanceVenue ? `${binanceVenue.event_rate.toFixed(1)} ev/s` : "0.0 ev/s",
-                  clockSkew: binanceVenue?.clock_skew_ms ? `${binanceVenue.clock_skew_ms.toFixed(1)}ms` : "-12.0ms",
+                  connected: binanceVenue?.connected ?? false,
+                  status: !binanceVenue
+                    ? "UNKNOWN"
+                    : binanceVenue.connected
+                    ? "READY / RECORDING"
+                    : "STANDBY",
+                  rate: binanceVenue?.event_rate !== undefined ? `${binanceVenue.event_rate.toFixed(1)} ev/s` : "UNKNOWN",
+                  clockSkew: binanceVenue?.clock_skew_ms !== undefined ? `${binanceVenue.clock_skew_ms.toFixed(1)}ms` : "UNKNOWN",
                   format: "Parquet",
-                  validation: "MANIFEST OK",
-                  badgeVariant: (binanceVenue?.connected ?? recorder?.is_process_alive) ? ("emerald" as const) : ("amber" as const),
+                  validation: !binanceVenue ? "UNVERIFIED" : binanceVenue.connected ? "MANIFEST OK" : "UNVERIFIED",
+                  badgeVariant: !binanceVenue ? ("slate" as const) : binanceVenue.connected ? ("emerald" as const) : ("amber" as const),
                 },
                 {
                   venue: "Deribit (BTC/ETH DVol & Options)",
-                  connected: deribitVenue?.connected ?? (recorder?.is_process_alive ?? false),
-                  status: (deribitVenue?.connected ?? recorder?.is_process_alive) ? "READY / RECORDING" : "STANDBY",
-                  rate: deribitVenue ? `${deribitVenue.event_rate.toFixed(1)} ev/s` : "0.0 ev/s",
-                  clockSkew: deribitVenue?.clock_skew_ms ? `${deribitVenue.clock_skew_ms.toFixed(1)}ms` : "-4.1ms",
+                  connected: deribitVenue?.connected ?? false,
+                  status: !deribitVenue
+                    ? "UNKNOWN"
+                    : deribitVenue.connected
+                    ? "READY / RECORDING"
+                    : "STANDBY",
+                  rate: deribitVenue?.event_rate !== undefined ? `${deribitVenue.event_rate.toFixed(1)} ev/s` : "UNKNOWN",
+                  clockSkew: deribitVenue?.clock_skew_ms !== undefined ? `${deribitVenue.clock_skew_ms.toFixed(1)}ms` : "UNKNOWN",
                   format: "Parquet",
-                  validation: "MANIFEST OK",
-                  badgeVariant: (deribitVenue?.connected ?? recorder?.is_process_alive) ? ("emerald" as const) : ("amber" as const),
+                  validation: !deribitVenue ? "UNVERIFIED" : deribitVenue.connected ? "MANIFEST OK" : "UNVERIFIED",
+                  badgeVariant: !deribitVenue ? ("slate" as const) : deribitVenue.connected ? ("emerald" as const) : ("amber" as const),
                 },
                 {
                   venue: "Polymarket (Crypto Clustered Events)",
-                  connected: polymarketVenue?.connected ?? (recorder?.is_process_alive ?? false),
-                  status: (polymarketVenue?.connected ?? recorder?.is_process_alive) ? "READY / POLLING" : "STANDBY",
-                  rate: polymarketVenue ? `${polymarketVenue.event_rate.toFixed(1)} ev/s` : "0.0 ev/s",
-                  clockSkew: polymarketVenue?.clock_skew_ms ? `${polymarketVenue.clock_skew_ms.toFixed(1)}ms` : "-2.0ms",
+                  connected: polymarketVenue?.connected ?? false,
+                  status: !polymarketVenue
+                    ? "UNKNOWN"
+                    : polymarketVenue.connected
+                    ? "READY / POLLING"
+                    : "STANDBY",
+                  rate: polymarketVenue?.event_rate !== undefined ? `${polymarketVenue.event_rate.toFixed(1)} ev/s` : "UNKNOWN",
+                  clockSkew: polymarketVenue?.clock_skew_ms !== undefined ? `${polymarketVenue.clock_skew_ms.toFixed(1)}ms` : "UNKNOWN",
                   format: "Parquet",
-                  validation: "MANIFEST OK",
-                  badgeVariant: (polymarketVenue?.connected ?? recorder?.is_process_alive) ? ("emerald" as const) : ("amber" as const),
+                  validation: !polymarketVenue ? "UNVERIFIED" : polymarketVenue.connected ? "MANIFEST OK" : "UNVERIFIED",
+                  badgeVariant: !polymarketVenue ? ("slate" as const) : polymarketVenue.connected ? ("emerald" as const) : ("amber" as const),
                 },
                 {
                   venue: "Bybit (Perpetuals & Liquidity)",
                   connected: false,
                   status: "NO BASELINE / EVALUATION PENDING",
-                  rate: "0.0 ev/s (NO LIVE DATA)",
+                  rate: "NO LIVE DATA",
                   clockSkew: "—",
                   format: "Parquet",
                   validation: "EVALUATION PENDING",
-                  badgeVariant: "amber" as const,
+                  badgeVariant: "slate" as const,
                 },
               ];
 
@@ -288,7 +368,7 @@ export function CommandCenterView({
                         <div>Rate: <span className="text-slate-300">{v.rate}</span></div>
                         <div>Skew: <span className="text-slate-300">{v.clockSkew}</span></div>
                         <div>Format: <span className="text-slate-300">{v.format}</span></div>
-                        <div>Validation: <span className={v.connected ? "text-emerald-400" : "text-amber-400"}>{v.validation}</span></div>
+                        <div>Validation: <span className={v.connected ? "text-emerald-400" : "text-slate-400"}>{v.validation}</span></div>
                       </div>
                     </div>
                   ))}
@@ -353,49 +433,67 @@ export function CommandCenterView({
         <div className="space-y-4">
           <Card
             title="Operational Alerts"
-            subtitle="System invariants and risk telemetry"
-            action={<Badge variant="slate" size="xs">{status?.system_alerts?.length || 2} ALERTS</Badge>}
+            subtitle="Live risk and operational alerts"
+            action={
+              <Badge variant="slate" size="xs">
+                {!status ? "ALERTS: UNKNOWN" : `${status.system_alerts?.length ?? 0} ALERTS`}
+              </Badge>
+            }
           >
             <div className="space-y-3 pt-1">
-              {(status?.system_alerts && status.system_alerts.length > 0
-                ? status.system_alerts
-                : [
-                    {
-                      level: "INFO",
-                      code: "LIVE_CAPITAL_LOCKED",
-                      message: "Live capital is strictly locked at $0.00. No order routing authorized.",
-                    },
-                    {
-                      level: "WARNING",
-                      code: "INGESTION_GATE_PENDING",
-                      message: "Continuous recording acceptance gate is currently pending runtime accumulation.",
-                    },
-                    {
-                      level: "WARNING",
-                      code: "STR002_EDGE_NOT_VALIDATED",
-                      message: "STR-002 economic edge is unvalidated until paper broker out-of-sample criteria pass.",
-                    },
-                  ]
-              ).map((alert, idx) => (
-                <div
-                  key={idx}
-                  className={`rounded border p-2.5 text-xs font-mono-code ${
-                    alert.level === "CRITICAL"
-                      ? "border-rose-900/60 bg-rose-950/30 text-rose-300"
-                      : alert.level === "WARNING"
-                      ? "border-amber-900/60 bg-amber-950/30 text-amber-300"
-                      : "border-slate-800 bg-[#0e1118] text-slate-300"
-                  }`}
-                >
-                  <div className="flex items-center justify-between font-semibold mb-1">
-                    <span>[{alert.code}]</span>
-                    <span className="text-[10px] uppercase opacity-75">{alert.level}</span>
-                  </div>
-                  <div className="text-[11px] leading-relaxed opacity-90">{alert.message}</div>
+              {!status ? (
+                <div className="text-xs font-mono-code text-slate-500 py-3 text-center">
+                  Backend alerts telemetry not available.
                 </div>
-              ))}
+              ) : !status.system_alerts || status.system_alerts.length === 0 ? (
+                <div className="text-xs font-mono-code text-slate-500 py-3 text-center">
+                  No active operational alerts reported by backend.
+                </div>
+              ) : (
+                status.system_alerts.map((alert, idx) => (
+                  <div
+                    key={idx}
+                    className={`rounded border p-2.5 text-xs font-mono-code ${
+                      alert.level === "CRITICAL"
+                        ? "border-rose-900/60 bg-rose-950/30 text-rose-300"
+                        : alert.level === "WARNING"
+                        ? "border-amber-900/60 bg-amber-950/30 text-amber-300"
+                        : "border-slate-800 bg-[#0e1118] text-slate-300"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between font-semibold mb-1">
+                      <span>[{alert.code}]</span>
+                      <span className="text-[10px] uppercase opacity-75">{alert.level}</span>
+                    </div>
+                    <div className="text-[11px] leading-relaxed opacity-90">{alert.message}</div>
+                  </div>
+                ))
+              )}
             </div>
           </Card>
+
+          {/* Documentary System Invariants Card */}
+          <div className="rounded-lg border border-[#1b212f] bg-[#0c0e14] p-4 space-y-3">
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-300 font-mono-code block">
+              Architectural Invariants
+            </span>
+            <div className="space-y-2 text-xs font-mono-code">
+              <div className="rounded border border-rose-900/40 bg-rose-950/20 p-2 text-rose-300">
+                <div className="font-semibold flex items-center justify-between text-[11px]">
+                  <span>[INVARIANT: LIVE_CAPITAL_ZERO]</span>
+                  <Badge variant="rose" size="xs">ENFORCED</Badge>
+                </div>
+                <div className="text-[10px] opacity-90 mt-0.5">Live capital locked at $0.00. No order routing authorized.</div>
+              </div>
+              <div className="rounded border border-amber-900/40 bg-amber-950/20 p-2 text-amber-300">
+                <div className="font-semibold flex items-center justify-between text-[11px]">
+                  <span>[INVARIANT: STR002_EDGE_UNVALIDATED]</span>
+                  <Badge variant="amber" size="xs">PENDING</Badge>
+                </div>
+                <div className="text-[10px] opacity-90 mt-0.5">STR-002 economic edge unvalidated until out-of-sample criteria pass.</div>
+              </div>
+            </div>
+          </div>
 
           {/* Quick Engine Telemetry */}
           <div className="rounded-lg border border-[#1b212f] bg-[#0c0e14] p-4 space-y-3">

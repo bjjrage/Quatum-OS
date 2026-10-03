@@ -18,16 +18,16 @@ export function TestsCiView({ status }: TestsCiViewProps) {
   const branch = status?.branch || "UNKNOWN";
 
   const testSuites = [
-    { name: "test_api_endpoints.py", domain: "FASTAPI / REST API", coverage: "100%" },
-    { name: "test_recorder.py & test_recorder_robustness.py", domain: "DATA INGESTION / PARQUET", coverage: "98%" },
-    { name: "test_acceptance.py & test_manifest.py", domain: "24H/72H ACCEPTANCE GATES", coverage: "100%" },
-    { name: "test_tradability.py", domain: "LIQUIDITY TIER POLICY", coverage: "100%" },
-    { name: "test_str002_v2.py & test_registry.py", domain: "STRATEGY REGISTRY / M0-M7", coverage: "96%" },
-    { name: "test_holdout.py & test_experiments.py", domain: "RESEARCH / ANTI-LEAKAGE", coverage: "100%" },
-    { name: "test_gates.py & test_deflated_sharpe.py", domain: "SELECTION GATES A/B/C/D", coverage: "98%" },
-    { name: "test_risk_engine.py & test_capital_pockets.py", domain: "RISK & CAPITAL POCKETS", coverage: "100%" },
-    { name: "test_broker.py & test_reconciliation.py", domain: "PAPER BROKER & RECON", coverage: "99%" },
-    { name: "test_execution_authority.py & test_order_security.py", domain: "RISK AUTHORITY & ANTI-REPLAY", coverage: "100%" },
+    { name: "test_api_endpoints.py", domain: "FASTAPI / REST API", coverage: "NOT_MEASURED" },
+    { name: "test_recorder.py & test_recorder_robustness.py", domain: "DATA INGESTION / PARQUET", coverage: "NOT_MEASURED" },
+    { name: "test_acceptance.py & test_manifest.py", domain: "24H/72H ACCEPTANCE GATES", coverage: "NOT_MEASURED" },
+    { name: "test_tradability.py", domain: "LIQUIDITY TIER POLICY", coverage: "NOT_MEASURED" },
+    { name: "test_str002_v2.py & test_registry.py", domain: "STRATEGY REGISTRY / M0-M7", coverage: "NOT_MEASURED" },
+    { name: "test_holdout.py & test_experiments.py", domain: "RESEARCH / ANTI-LEAKAGE", coverage: "NOT_MEASURED" },
+    { name: "test_gates.py & test_deflated_sharpe.py", domain: "SELECTION GATES A/B/C/D", coverage: "NOT_MEASURED" },
+    { name: "test_risk_engine.py & test_capital_pockets.py", domain: "RISK & CAPITAL POCKETS", coverage: "NOT_MEASURED" },
+    { name: "test_broker.py & test_reconciliation.py", domain: "PAPER BROKER & RECON", coverage: "NOT_MEASURED" },
+    { name: "test_execution_authority.py & test_order_security.py", domain: "RISK AUTHORITY & ANTI-REPLAY", coverage: "NOT_MEASURED" },
   ];
 
   return (
@@ -35,7 +35,7 @@ export function TestsCiView({ status }: TestsCiViewProps) {
       {/* HEADER */}
       <div className="pb-2 border-b border-slate-800">
         <h2 className="text-lg font-bold text-slate-100 font-mono-code flex items-center gap-2">
-          <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+          <CheckCircle2 className="w-5 h-5 text-cyan-400" />
           Automated Test Suite & Continuous Integration Health
         </h2>
         <p className="text-xs text-slate-400 mt-1">
@@ -47,19 +47,19 @@ export function TestsCiView({ status }: TestsCiViewProps) {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard
           label="Total Pytest Status"
-          value={isCiRun ? `${testsPassing} Passed / ${testsFailing} Failed` : "UNVERIFIED (OFFLINE)"}
+          value={isCiRun ? `${testsPassing} Passed / ${testsFailing} Failed` : "UNVERIFIED"}
           subtitle="Full test suite execution"
           badge={{
-            text: !isCiRun ? "UNVERIFIED" : testsFailing === 0 ? "100% PASS" : "FAILURES",
+            text: !isCiRun ? "UNVERIFIED" : testsFailing === 0 ? "PASS" : "FAILURES",
             variant: !isCiRun ? "slate" : testsFailing === 0 ? "emerald" : "rose",
           }}
           icon={<CheckCircle2 className="w-4 h-4" />}
         />
         <MetricCard
           label="Suite Execution State"
-          value={isCiRun ? "COMPLETED" : "NOT RUN"}
+          value={isCiRun ? "COMPLETED" : "UNVERIFIED"}
           subtitle="Local automated test runner"
-          badge={{ text: isCiRun ? "OPTIMAL" : "OFFLINE", variant: isCiRun ? "cyan" : "slate" }}
+          badge={{ text: isCiRun ? "COMPLETED" : "UNVERIFIED", variant: isCiRun ? "cyan" : "slate" }}
           icon={<Clock className="w-4 h-4" />}
         />
         <MetricCard
@@ -90,7 +90,7 @@ export function TestsCiView({ status }: TestsCiViewProps) {
               <tr>
                 <th className="py-2.5 px-3">Test File / Module</th>
                 <th className="py-2.5 px-3">Architectural Domain</th>
-                <th className="py-2.5 px-3">Target Coverage</th>
+                <th className="py-2.5 px-3">Measured Coverage</th>
                 <th className="py-2.5 px-3 text-right">Suite State</th>
               </tr>
             </thead>
@@ -99,10 +99,10 @@ export function TestsCiView({ status }: TestsCiViewProps) {
                 <tr key={i} className="hover:bg-[#121622]/50 transition">
                   <td className="py-2.5 px-3 font-semibold text-slate-100">{ts.name}</td>
                   <td className="py-2.5 px-3 text-cyan-400">{ts.domain}</td>
-                  <td className="py-2.5 px-3 text-slate-200">{ts.coverage}</td>
+                  <td className="py-2.5 px-3 text-slate-400">{ts.coverage}</td>
                   <td className="py-2.5 px-3 text-right">
-                    <Badge variant={isCiRun ? "emerald" : "slate"} size="xs">
-                      {isCiRun ? "SUITE PASS" : "REGISTERED"}
+                    <Badge variant={isCiRun ? (testsFailing === 0 ? "emerald" : "rose") : "slate"} size="xs">
+                      {isCiRun ? (testsFailing === 0 ? "PASS" : "FAIL") : "UNVERIFIED"}
                     </Badge>
                   </td>
                 </tr>

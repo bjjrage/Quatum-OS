@@ -91,8 +91,8 @@ export const SidebarNavigation: React.FC<SidebarProps> = ({
           id: "recorder",
           label: "Data Recorder",
           icon: Radio,
-          badge: "100ms",
-          badgeColor: "bg-emerald-950 text-emerald-400 border-emerald-800",
+          badge: "TARGET 100ms",
+          badgeColor: "bg-slate-900 text-slate-400 border-slate-700",
         },
         {
           id: "data-quality",
@@ -135,7 +135,7 @@ export const SidebarNavigation: React.FC<SidebarProps> = ({
         },
         {
           id: "holdouts",
-          label: "Cryptographic Holdouts",
+          label: "Holdout Governance",
           icon: Lock,
           badge: holdoutBadge.badge,
           badgeColor: holdoutBadge.badgeColor,

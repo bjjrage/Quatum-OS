@@ -23,7 +23,7 @@ export function ConfigurationView({ status, holdoutsData }: ConfigurationViewPro
     { key: "DATA_RAW_DIR", value: "data/raw", status: "ONLINE" },
     { key: "RUNTIME_MANIFEST_PATH", value: "data/runtime/current_run.json", status: "ONLINE" },
     { key: "PYTHON_RUNTIME", value: "Python 3.12 (uv package manager)", status: "VERIFIED" },
-    { key: "SEALED_HOLDOUT_DIR", value: "data/holdout (Encrypted/Sealed)", status: holdoutStatus },
+    { key: "SEALED_HOLDOUT_DIR", value: "data/holdout (Isolation enforcement pending verification)", status: holdoutStatus },
     { key: "CLOCK_SYNC_NTP_THRESHOLD_MS", value: "50.0 ms", status: "ACTIVE" },
   ];
 
@@ -59,7 +59,7 @@ export function ConfigurationView({ status, holdoutsData }: ConfigurationViewPro
         <MetricCard
           label="Holdout Partition"
           value={holdoutStatus}
-          subtitle="Zero leakage isolation"
+          subtitle="Isolation enforcement pending verification"
           badge={{
             text: holdoutStatus === "SEALED" ? "SEALED" : holdoutStatus === "UNKNOWN" ? "UNVERIFIED" : "COMPROMISED",
             variant: holdoutStatus === "SEALED" ? "emerald" : holdoutStatus === "UNKNOWN" ? "slate" : "rose",

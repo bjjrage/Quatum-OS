@@ -12,73 +12,22 @@ interface RecorderViewProps {
 }
 
 export function RecorderView({ recorder, dataQuality, onRefresh }: RecorderViewProps) {
-  const elapsed = recorder?.elapsed_seconds ?? 0;
-  const elapsedHours = Math.floor(elapsed / 3600);
-  const elapsedMins = Math.floor((elapsed % 3600) / 60);
-  const elapsedSecs = Math.floor(elapsed % 60);
+  const hasRun = recorder !== null && recorder !== undefined && recorder.elapsed_seconds !== undefined;
+  const elapsed = recorder?.elapsed_seconds;
+  const elapsedHours = elapsed !== undefined ? Math.floor(elapsed / 3600) : 0;
+  const elapsedMins = elapsed !== undefined ? Math.floor((elapsed % 3600) / 60) : 0;
+  const elapsedSecs = elapsed !== undefined ? Math.floor(elapsed % 60) : 0;
 
   const gate24hPassed = recorder?.gate_24h_status === "PASS";
   const gate72hPassed = recorder?.gate_72h_status === "PASS";
+  const gate24hState = !hasRun ? "UNKNOWN" : gate24hPassed ? "PASS" : recorder?.gate_24h_status === "FAIL" ? "FAIL" : "PENDING";
+  const gate72hState = !hasRun ? "UNKNOWN" : gate72hPassed ? "PASS" : recorder?.gate_72h_status === "FAIL" ? "FAIL" : "PENDING";
 
-  const pct24h = Math.min(100, (elapsed / 86400) * 100);
-  const pct72h = Math.min(100, (elapsed / 259200) * 100);
+  const pct24h = elapsed !== undefined ? Math.min(100, (elapsed / 86400) * 100) : null;
+  const pct72h = elapsed !== undefined ? Math.min(100, (elapsed / 259200) * 100) : null;
 
-  // Real or nominal telemetry
-  const venues = recorder?.venues ?? {
-    binance_perp: {
-      venue: "Binance Futures (BTC/ETH Perp)",
-      connected: recorder?.is_process_alive ?? false,
-      total_events: 0,
-      event_rate: 0.0,
-      lag_ms: 0,
-      clock_skew_detected: false,
-      clock_skew_ms: 0.0,
-      files_written: 0,
-      manifest_health: "PENDING",
-      dropped_or_invalid_events: 0,
-      storage_size_bytes: 0,
-    },
-    deribit: {
-      venue: "Deribit (Options & DVol)",
-      connected: recorder?.is_process_alive ?? false,
-      total_events: 0,
-      event_rate: 0.0,
-      lag_ms: 0,
-      clock_skew_detected: false,
-      clock_skew_ms: 0.0,
-      files_written: 0,
-      manifest_health: "PENDING",
-      dropped_or_invalid_events: 0,
-      storage_size_bytes: 0,
-    },
-    polymarket: {
-      venue: "Polymarket (Event Gamma)",
-      connected: recorder?.is_process_alive ?? false,
-      total_events: 0,
-      event_rate: 0.0,
-      lag_ms: 0,
-      clock_skew_detected: false,
-      clock_skew_ms: 0.0,
-      files_written: 0,
-      manifest_health: "PENDING",
-      dropped_or_invalid_events: 0,
-      storage_size_bytes: 0,
-    },
-    bybit: {
-      venue: "Bybit (Perpetuals & Liquidity)",
-      connected: false,
-      total_events: 0,
-      event_rate: 0.0,
-      lag_ms: 0,
-      clock_skew_detected: false,
-      clock_skew_ms: 0.0,
-      files_written: 0,
-      manifest_health: "EVALUATION PENDING",
-      dropped_or_invalid_events: 0,
-      storage_size_bytes: 0,
-      notes: "Batch 0: No baseline ingestion. Evaluation pending.",
-    },
-  };
+  // Real venue telemetry only
+  const venues = recorder?.venues ?? {};
 
   return (
     <div className="space-y-6">
@@ -123,24 +72,27 @@ export function RecorderView({ recorder, dataQuality, onRefresh }: RecorderViewP
         />
         <MetricCard
           label="Continuity State"
-          value={recorder?.continuity_state || "UNBROKEN"}
+          value={recorder?.continuity_state || "UNKNOWN"}
           subtitle="Zero unhandled process crashes"
-          badge={{ text: recorder?.continuity_state || "UNBROKEN", variant: "emerald" }}
+          badge={{
+            text: recorder?.continuity_state || "UNVERIFIED",
+            variant: recorder?.continuity_state === "CLEAN" || recorder?.continuity_state === "UNBROKEN" ? "emerald" : "amber",
+          }}
           icon={<Activity className="w-4 h-4" />}
         />
         <MetricCard
           label="Elapsed Run Time"
-          value={`${elapsedHours}h ${elapsedMins}m ${elapsedSecs}s`}
+          value={elapsed !== undefined ? `${elapsedHours}h ${elapsedMins}m ${elapsedSecs}s` : "UNKNOWN"}
           subtitle="Continuous recording clock"
-          badge={{ text: "MONITORING", variant: "blue" }}
+          badge={{ text: elapsed !== undefined ? "MONITORING" : "STANDBY", variant: elapsed !== undefined ? "blue" : "slate" }}
           icon={<Clock className="w-4 h-4" />}
         />
         <MetricCard
           label="Parquet Lakehouse"
-          value={`${dataQuality?.storage_metrics?.parquet_file_count ?? 0} Files`}
-          subtitle={`Size: ${(((dataQuality?.storage_metrics?.total_compressed_bytes ?? 0) / 1024 / 1024).toFixed(1))} MB`}
+          value={dataQuality?.storage_metrics?.parquet_file_count !== undefined ? `${dataQuality.storage_metrics.parquet_file_count} Files` : "UNKNOWN"}
+          subtitle={dataQuality?.storage_metrics?.total_compressed_bytes !== undefined ? `Size: ${(((dataQuality.storage_metrics.total_compressed_bytes) / 1024 / 1024).toFixed(1))} MB` : "Size: UNKNOWN"}
           badge={{
-            text: dataQuality?.storage_metrics?.manifest_valid ? "MANIFEST VALID" : "PENDING",
+            text: dataQuality?.storage_metrics?.manifest_valid !== undefined ? (dataQuality.storage_metrics.manifest_valid ? "MANIFEST VALID" : "INVALID") : "UNVERIFIED",
             variant: dataQuality?.storage_metrics?.manifest_valid ? "emerald" : "amber",
           }}
           icon={<HardDrive className="w-4 h-4" />}
@@ -160,24 +112,44 @@ export function RecorderView({ recorder, dataQuality, onRefresh }: RecorderViewP
               <span className="text-xs font-bold text-slate-200 font-mono-code uppercase">
                 Gate 1: 24-Hour Continuous Recording
               </span>
-              <Badge variant={gate24hPassed ? "emerald" : "amber"} size="xs">
-                {gate24hPassed ? "PASS" : "PENDING (0/24h)"}
+              <Badge
+                variant={
+                  gate24hState === "PASS"
+                    ? "emerald"
+                    : gate24hState === "FAIL"
+                    ? "rose"
+                    : gate24hState === "PENDING"
+                    ? "amber"
+                    : "slate"
+                }
+                size="xs"
+              >
+                {gate24hState === "PASS"
+                  ? "PASS"
+                  : gate24hState === "PENDING"
+                  ? `PENDING (${elapsed !== undefined ? (elapsed / 3600).toFixed(1) : 0}/24h)`
+                  : gate24hState}
               </Badge>
             </div>
             <div className="space-y-1">
               <div className="flex justify-between text-xs font-mono-code text-slate-300">
-                <span>Progress: {pct24h.toFixed(1)}%</span>
+                <span>Progress: {pct24h !== null ? `${pct24h.toFixed(1)}%` : "UNKNOWN"}</span>
                 <span>Requirement: 86,400s</span>
               </div>
               <div className="w-full bg-slate-900 rounded-full h-2.5 overflow-hidden border border-slate-800">
                 <div
                   className="bg-amber-500 h-full rounded-full transition-all duration-500"
-                  style={{ width: `${pct24h}%` }}
+                  style={{ width: `${pct24h ?? 0}%` }}
                 />
               </div>
             </div>
             <div className="text-[11px] font-mono-code text-slate-400 bg-[#121622] p-2.5 rounded border border-slate-800">
-              <span className="text-amber-400 font-semibold">Verification Reason:</span> Elapsed time ({elapsed.toFixed(0)}s) &lt; required continuous threshold (86,400s). In accordance with system policy, gate status remains strictly PENDING until the full 24 hours of unbroken recording have completed.
+              <span className="text-amber-400 font-semibold">Verification Reason:</span>{" "}
+              {!hasRun
+                ? "No verified gate run telemetry recorded."
+                : gate24hPassed
+                ? "Continuous run requirement satisfied."
+                : `Elapsed time (${elapsed?.toFixed(0)}s) < required continuous threshold (86,400s). Gate status remains strictly PENDING until the full 24 hours of unbroken recording have completed.`}
             </div>
           </div>
 
@@ -187,93 +159,119 @@ export function RecorderView({ recorder, dataQuality, onRefresh }: RecorderViewP
               <span className="text-xs font-bold text-slate-200 font-mono-code uppercase">
                 Gate 2: 72-Hour Continuous Recording
               </span>
-              <Badge variant={gate72hPassed ? "emerald" : "amber"} size="xs">
-                {gate72hPassed ? "PASS" : "PENDING (0/72h)"}
+              <Badge
+                variant={
+                  gate72hState === "PASS"
+                    ? "emerald"
+                    : gate72hState === "FAIL"
+                    ? "rose"
+                    : gate72hState === "PENDING"
+                    ? "amber"
+                    : "slate"
+                }
+                size="xs"
+              >
+                {gate72hState === "PASS"
+                  ? "PASS"
+                  : gate72hState === "PENDING"
+                  ? `PENDING (${elapsed !== undefined ? (elapsed / 3600).toFixed(1) : 0}/72h)`
+                  : gate72hState}
               </Badge>
             </div>
             <div className="space-y-1">
               <div className="flex justify-between text-xs font-mono-code text-slate-300">
-                <span>Progress: {pct72h.toFixed(1)}%</span>
+                <span>Progress: {pct72h !== null ? `${pct72h.toFixed(1)}%` : "UNKNOWN"}</span>
                 <span>Requirement: 259,200s</span>
               </div>
               <div className="w-full bg-slate-900 rounded-full h-2.5 overflow-hidden border border-slate-800">
                 <div
                   className="bg-cyan-500 h-full rounded-full transition-all duration-500"
-                  style={{ width: `${pct72h}%` }}
+                  style={{ width: `${pct72h ?? 0}%` }}
                 />
               </div>
             </div>
             <div className="text-[11px] font-mono-code text-slate-400 bg-[#121622] p-2.5 rounded border border-slate-800">
-              <span className="text-cyan-400 font-semibold">Verification Reason:</span> Elapsed time ({elapsed.toFixed(0)}s) &lt; required threshold (259,200s). Gate ensures full weekend cross-market continuity and liquidity regime transition survival.
+              <span className="text-cyan-400 font-semibold">Verification Reason:</span>{" "}
+              {!hasRun
+                ? "No verified gate run telemetry recorded."
+                : gate72hPassed
+                ? "Continuous run requirement satisfied."
+                : `Elapsed time (${elapsed?.toFixed(0)}s) < required threshold (259,200s). Gate ensures full weekend cross-market continuity and liquidity regime transition survival.`}
             </div>
           </div>
         </div>
       </Card>
 
-      {/* VENUE CARDS DETAIL */}
+      {/* VENUES MATRIX */}
       <div>
         <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider font-mono-code mb-3">
           Exchange Venue Telemetry Matrix
         </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {Object.entries(venues).map(([key, v]) => (
-            <Card key={key} variant="terminal" className="space-y-3">
-              <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
-                <div className="flex items-center gap-2">
-                  <div className={`w-2 h-2 rounded-full ${v.connected ? "bg-emerald-400" : "bg-rose-500"} animate-pulse-subtle`} />
-                  <span className="text-sm font-bold text-slate-100 font-mono-code">{v.venue}</span>
-                </div>
-                <Badge variant={key === "bybit" ? "amber" : (v.connected ? "emerald" : "rose")} size="xs">
-                  {key === "bybit" ? "NO BASELINE" : (v.connected ? "CONNECTED" : "DISCONNECTED")}
-                </Badge>
-              </div>
-
-              <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs font-mono-code text-slate-400">
-                <div className="flex justify-between">
-                  <span>Total Events:</span>
-                  <span className="text-slate-200">{v.total_events.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Event Rate:</span>
-                  <span className="text-cyan-400 font-semibold">{v.event_rate} ev/s</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Feed Lag:</span>
-                  <span className="text-slate-200">{v.lag_ms ?? 0} ms</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Clock Skew:</span>
-                  <span className={v.clock_skew_detected ? "text-amber-400 font-medium" : "text-emerald-400"}>
-                    {v.clock_skew_ms?.toFixed(1) ?? "0.0"} ms {v.clock_skew_detected ? "(offset)" : ""}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Parquet Files:</span>
-                  <span className="text-slate-200">{v.files_written} parts</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Storage Size:</span>
-                  <span className="text-slate-200">{((v.storage_size_bytes ?? 0) / 1024 / 1024).toFixed(1)} MB</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Manifest Health:</span>
-                  <span className={v.manifest_health === "VALID" ? "text-emerald-400 font-semibold" : "text-amber-400 font-semibold"}>
-                    {v.manifest_health}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Dropped Events:</span>
-                  <span className="text-emerald-400">{v.dropped_or_invalid_events ?? 0}</span>
-                </div>
-                {v.notes && (
-                  <div className="col-span-2 mt-1 text-[11px] font-mono-code text-amber-300/90 bg-amber-950/20 border border-amber-900/40 p-2 rounded">
-                    {v.notes}
+        {Object.keys(venues).length === 0 ? (
+          <div className="p-6 rounded-lg border border-[#1e2536] bg-[#0c0f16] text-center text-xs font-mono-code text-slate-500">
+            No venue telemetry available from recorder process.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {Object.entries(venues).map(([key, v]) => (
+              <Card key={key} variant="terminal" className="space-y-3">
+                <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-2 h-2 rounded-full ${v.connected ? "bg-emerald-400" : "bg-rose-500"} animate-pulse-subtle`} />
+                    <span className="text-sm font-bold text-slate-100 font-mono-code">{v.venue}</span>
                   </div>
-                )}
-              </div>
-            </Card>
-          ))}
-        </div>
+                  <Badge variant={key === "bybit" ? "amber" : (v.connected ? "emerald" : "rose")} size="xs">
+                    {key === "bybit" ? "NO BASELINE" : (v.connected ? "CONNECTED" : "DISCONNECTED")}
+                  </Badge>
+                </div>
+
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs font-mono-code text-slate-400">
+                  <div className="flex justify-between">
+                    <span>Total Events:</span>
+                    <span className="text-slate-200">{v.total_events !== undefined ? v.total_events.toLocaleString() : "UNKNOWN"}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Event Rate:</span>
+                    <span className="text-cyan-400 font-semibold">{v.event_rate !== undefined ? `${v.event_rate.toFixed(1)} ev/s` : "UNKNOWN"}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Feed Lag:</span>
+                    <span className="text-slate-200">{v.lag_ms !== undefined ? `${v.lag_ms} ms` : "UNKNOWN"}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Clock Skew:</span>
+                    <span className={v.clock_skew_detected ? "text-amber-400 font-medium" : "text-emerald-400"}>
+                      {v.clock_skew_ms !== undefined ? `${v.clock_skew_ms.toFixed(1)} ms` : "UNKNOWN"} {v.clock_skew_detected ? "(offset)" : ""}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Parquet Files:</span>
+                    <span className="text-slate-200">{v.files_written !== undefined ? `${v.files_written} parts` : "UNKNOWN"}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Storage Size:</span>
+                    <span className="text-slate-200">{v.storage_size_bytes !== undefined ? `${((v.storage_size_bytes) / 1024 / 1024).toFixed(1)} MB` : "UNKNOWN"}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Manifest Health:</span>
+                    <span className={v.manifest_health === "VALID" ? "text-emerald-400 font-semibold" : "text-amber-400 font-semibold"}>
+                      {v.manifest_health || "UNVERIFIED"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Dropped Events:</span>
+                    <span className="text-emerald-400">{v.dropped_or_invalid_events !== undefined ? v.dropped_or_invalid_events : "UNKNOWN"}</span>
+                  </div>
+                  {v.notes && (
+                    <div className="col-span-2 mt-1 text-[11px] font-mono-code text-amber-300/90 bg-amber-950/20 border border-amber-900/40 p-2 rounded">
+                      {v.notes}
+                    </div>
+                  )}
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

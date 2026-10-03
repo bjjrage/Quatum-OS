@@ -68,9 +68,9 @@ export function ExecutionView({ executionStatus }: ExecutionViewProps) {
         />
         <MetricCard
           label="Order Latency (P50 / P95)"
-          value={isReconKnown ? "14.2ms / 28.5ms" : "UNKNOWN"}
-          subtitle="Microsecond wire measurement"
-          badge={{ text: isReconKnown ? "HEALTHY" : "UNVERIFIED", variant: isReconKnown ? "cyan" : "slate" }}
+          value="NOT_AVAILABLE"
+          subtitle="Microsecond wire telemetry"
+          badge={{ text: "UNVERIFIED", variant: "slate" }}
           icon={<Clock className="w-4 h-4" />}
         />
         <MetricCard
@@ -89,8 +89,8 @@ export function ExecutionView({ executionStatus }: ExecutionViewProps) {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* LATENCY WATERFALL */}
         <Card
-          title="Order Latency Decomposition (Microstructure Waterfall)"
-          subtitle="Time breakdown from alpha trigger to simulated fill acknowledgment"
+          title="Order Latency Decomposition (Simulation Model / Documented Assumptions)"
+          subtitle="Documented simulator assumptions for local test environment; not live wire telemetry"
           variant="terminal"
         >
           <div className="space-y-3 pt-1 text-xs font-mono-code text-slate-300">
@@ -116,9 +116,18 @@ export function ExecutionView({ executionStatus }: ExecutionViewProps) {
           variant="terminal"
         >
           <div className="space-y-3 pt-1 text-xs font-mono-code text-slate-300">
-            <div className="p-3 rounded bg-emerald-950/20 border border-emerald-900/40 text-emerald-300">
-              <span className="font-bold block mb-1">Zero Discrepancy Invariant:</span>
-              Position sizes in the internal portfolio ledger exactly match simulated venue fills.
+            <div className={`p-3 rounded border ${isReconKnown && !hasMismatch ? "bg-emerald-950/20 border-emerald-900/40 text-emerald-300" : "bg-slate-900/40 border-slate-800 text-slate-400"}`}>
+              <div className="flex items-center justify-between font-bold mb-1">
+                <span>Reconciliation State Guarantee:</span>
+                <Badge variant={isReconKnown && !hasMismatch ? "emerald" : "slate"} size="xs">
+                  {isReconKnown && !hasMismatch ? "VERIFIED" : "UNVERIFIED"}
+                </Badge>
+              </div>
+              <p className="text-[11px] opacity-90 leading-relaxed">
+                {isReconKnown && !hasMismatch
+                  ? "Position sizes in the internal portfolio ledger match simulated venue fills."
+                  : "Position discrepancy reconciliation pending active verification against venue ledger."}
+              </p>
             </div>
 
             <div className="p-3 rounded bg-[#0b0e14] border border-slate-800 space-y-2">
@@ -130,14 +139,14 @@ export function ExecutionView({ executionStatus }: ExecutionViewProps) {
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-400">Cash Balance Drift:</span>
-                <span className={isReconKnown ? "text-emerald-400 font-bold" : "text-slate-500 font-bold"}>
-                  {isReconKnown ? "$0.00" : "UNKNOWN"}
+                <span className={isReconKnown ? (hasMismatch ? "text-rose-400 font-bold" : "text-emerald-400 font-bold") : "text-slate-500 font-bold"}>
+                  {isReconKnown ? (hasMismatch ? "DRIFT_DETECTED" : "$0.00") : "UNKNOWN"}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-400">Orphan Fill Events:</span>
-                <span className={isReconKnown ? "text-emerald-400 font-bold" : "text-slate-500 font-bold"}>
-                  {isReconKnown ? "0" : "UNKNOWN"}
+                <span className={isReconKnown ? (hasMismatch ? "text-rose-400 font-bold" : "text-emerald-400 font-bold") : "text-slate-500 font-bold"}>
+                  {isReconKnown ? (hasMismatch ? "DETECTED" : "0") : "UNKNOWN"}
                 </span>
               </div>
               <div className="flex justify-between">
