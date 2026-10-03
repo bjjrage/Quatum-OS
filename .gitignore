@@ -33,3 +33,8 @@ data/logs/
 Thumbs.db
 .vscode/
 .idea/
+
+# Web / Frontend
+node_modules/
+.next/
+out/

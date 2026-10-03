@@ -1,4 +1,4 @@
-# Trading / Quant OS (Quantum-OS) — v1.4.1 Hardened
+# Trading / Quant OS (Quantum-OS) — v1.4.2 Fail-Closed Hardened
 
 > **An evidence-driven alpha discovery, validation, allocation, risk and execution operating system.**
 
@@ -62,6 +62,8 @@ GOVERNANCE & LIFECYCLE (Active / Reduced / Paused / Killed / Archived)
    Live capital remains strictly `LOCKED ($0 Live Risk)`. Virtual dry-run and paper execution are permitted; real exchange routing is physically blocked.
 10. **LIQUIDATION PROXY TAGGING:**
     Exchange liquidation streams (e.g. Binance `!forceOrder@arr`) are explicitly tagged as `PARTIAL_LIQUIDATION_INDICATOR`. They represent a throttled sample, never the exhaustive universe of liquidation events.
+11. **FAIL-CLOSED AUDIT & PERSISTENCE INVARIANT:**
+    The OS enforces `UNKNOWN != SAFE`, `CORRUPTED != EMPTY`, `MISSING != PASS`, and `UNVERIFIED != ALLOWED`. If any manifest, experiment record, or holdout audit log fails validation or exhibits corruption, the system immediately fails closed (`RecorderContinuityError`, `ExperimentRegistryIntegrityError`, `HoldoutAuditIntegrityError`) and quarantines the file for forensic analysis. It NEVER silently resets to an empty state or allows execution.
 
 ---
 
@@ -75,20 +77,20 @@ GOVERNANCE & LIFECYCLE (Active / Reduced / Paused / Killed / Archived)
 | **Strict Timestamp Engine** | `[IMPLEMENTED]` | Strict UTC epoch nanoseconds (`ts_exchange_ns`, `ts_received_utc_ns`), local monotonic durations (`ts_received_mono_ns`), clock skew inference, and corrected transit latency. |
 | **Lakehouse Storage Sink** | `[IMPLEMENTED]` | Async buffered Parquet writer, Zstandard compression (level 7), atomic `.tmp` rename, SHA-256 partition manifests. |
 | **Data Quality & Tradability Tiers** | `[IMPLEMENTED]` | Continuous background run active with continuity preserved across restarts via `RuntimeManifest.resume_or_create`. Point-in-time `TradabilityScore` and `LiquidityTierPolicy` (Tier 5 execution lock). 24h & 72h data gates `[PENDING]`. |
-| **Research Infrastructure & Experiments** | `[IMPLEMENTED]` | Strict Point-in-Time (PIT) data loader, synthetic multi-venue generator, feature engine, `ExperimentRegistry` (durable JSON-lines storage, automatic trial counting, forbidden deletion), and parameter fingerprinting. |
-| **Four Portfolio Selection Gates** | `[IMPLEMENTED]` | Gate A (Latency Sensitivity / `LATENCY_RACE`), Gate B (Temporal Stability & Decay), Gate C (Multiple Testing DSR / FDR), Gate D (Correlation & Capacity). Fully auditable `StrategyGateResult` contract with thresholds documented as provisional research priors. |
+| **Research Infrastructure & Experiments** | `[IMPLEMENTED]` | Strict Point-in-Time (PIT) data loader, synthetic multi-venue generator, feature engine, `ExperimentRegistry` (durable JSON-lines storage, automatic trial counting, forbidden deletion, fail-closed on corrupt data), and parameter fingerprinting. |
+| **Four Portfolio Selection Gates** | `[IMPLEMENTED]` | Gate A, Gate B, Gate C, Gate D. `StrategyGateResult` contract is frozen, extra="forbid", requires non-empty provenance (`dataset_fingerprint`, `config_fingerprint`), non-empty `criteria_evaluations` without `False`, zero reasons, and zero falsification evidence for `PASS`. |
 | **Portfolio Allocator (Multi-Edge Ensemble)** | `[IMPLEMENTED]` | Allocator enforcing "the OS does not select the best backtest". Modulated by uncertainty, capacity, latency margin, and EventClusters. Actions: `SCALE`, `REDUCE`, `PAUSE`, `KILL`. |
 | **STR-001 Empirical Pipeline** | `[IMPLEMENTED]` | Black-76, exact Breeden-Litzenberger strike derivative with skew, synthetic smile arbitrage validators, Deribit inverse numéraire proof & normalization. Mathematical foundation validated; economic edge NOT validated. |
 | **STR-002 v2 Liquidity Shock Reversal** | `[IMPLEMENTED]` | Complete engineering framework implemented (2-factor residual $r_{alt} - \beta_{down} r_{BTC} - \gamma \eta_{ETH}$, BTC multi-horizon decision matrix, pluggable first reversal detectors, reference price exit, isolated M0-M7 variants, strictly `LONG ONLY`). Economic edge NOT validated (hypothesis status only). |
 | **Capital Pockets & Multi-Account Risk** | `[IMPLEMENTED]` | `OWN` vs `PROP` isolation, `MultiAccountEvidenceGate` (written contract terms enforcement), versioned `PropRuleProfile`, aggregate multi-account risk limits. |
-| **Prop Exam Monte Carlo Simulator** | `[IMPLEMENTED]` | Path-dependent empirical block-bootstrap trade return simulator. Gaussian IID fallback strictly rejected. 5-attempt consecutive failure kill switch per strategy/provider combination. |
+| **Prop Exam Monte Carlo Simulator** | `[IMPLEMENTED]` | Path-dependent empirical block-bootstrap trade return simulator. Gaussian IID fallback strictly rejected. 5-attempt consecutive failure kill switch per (strategy_id, strategy_version, provider, profile_version). |
 | **Deterministic Risk Engine & EventCluster** | `[IMPLEMENTED]` | Absolute order veto, portfolio max drawdown circuit breaker, gross leverage ceiling, single-asset concentration limits, burst rate limiter, EventCluster correlated exposure aggregation. |
 | **Execution Domain Contracts & Tracker** | `[IMPLEMENTED]` | Pure execution domain contracts (`OrderIntent`, `ExecutionReport`, state transitions `CREATED` → `ROUTED` → `ACKNOWLEDGED` → `FILLED`), deterministic SHA-256 idempotency key generation, and in-memory reconciliation tracker. |
 | **Realistic Paper Broker** | `[IMPLEMENTED]` | Queue position FIFO fill modeling, network transit latency simulation (orders execute strictly against post-latency market state, never stale T0 BBO quotes), market impact / slippage models, maker-taker fee accounting, multi-asset PnL ledger. |
 | **Regime / Policy Engine** | `[IMPLEMENTED]` | Deterministic hierarchical macro/domain/strategy regime classification, capital allocation multipliers, AI metadata advisory isolation. |
 | **Attribution Engine** | `[IMPLEMENTED]` | Multi-factor PnL decomposition: Gross PnL, Net PnL, Alpha, Beta, Maker/Taker Fees, Slippage, and Implementation Shortfall. |
-| **24-Point Red-Team Attack Matrix** | `[IMPLEMENTED]` | Comprehensive verification of 24 attack vectors: recorder continuity, BTC regime gating, z-score validation status, parameter fingerprinting, durable registry persistence, Pydantic field rejection, Tier 5 tradability, Monte Carlo sample size & Gaussian rejection, prop kill switches, multi-account copy rules, cross-account risk evasion, risk hard stops, post-latency market order execution, execution idempotency, holdout freeze, direct active injection, and locked live capital. |
-| **CI / Offline Test Suite** | `[IMPLEMENTED]` | **178 passing tests (0 failures)** across all mathematical, infrastructure, risk, paper broker, portfolio, prop simulator, red-team, and full governance lifecycle modules. |
+| **Fail-Closed Red-Team Matrix** | `[IMPLEMENTED]` | **24 dedicated adversarial tests** (`tests/e2e/test_v142_failclosed_matrix.py`) confirming fail-closed invariants across recorder continuity, prop profiles, attempt isolation, experiment persistence, holdout audits, gate artifacts, and immutable models. |
+| **CI / Offline Test Suite** | `[IMPLEMENTED]` | **225 passing tests (0 failures)** across all mathematical, infrastructure, risk, paper broker, portfolio, prop simulator, red-team, and full governance lifecycle modules. |
 
 
 ---
@@ -137,7 +139,7 @@ GOVERNANCE & LIFECYCLE (Active / Reduced / Paused / Killed / Archived)
 ```bash
 uv run pytest -v
 ```
-*Current test suite: **178 passing tests (0 failures)** across all modules in ~1.4s.*
+*Current test suite: **225 passing tests (0 failures)** across all modules in ~2.7s.*
 
 ### Auditable Data Quality & Acceptance Reporting
 ```bash
