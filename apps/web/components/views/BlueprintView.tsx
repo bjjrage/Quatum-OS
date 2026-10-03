@@ -92,7 +92,7 @@ export function BlueprintView({ onNavigate }: BlueprintViewProps) {
       domain: "audit-trail" as NavTabId,
       icon: <FileText className="w-5 h-5 text-cyan-400" />,
       description: "Cryptographically verifiable ledger of runtime state, git SHA provenance, operator approvals, and test suite execution logs.",
-      badge: "225 TESTS PASSING",
+      badge: "259 TESTS PASSING",
     },
   ];
 
