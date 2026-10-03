@@ -45,12 +45,21 @@ class StrategyAttribution:
     losing_trades: int = 0
 
     @property
+    def gross_pnl(self) -> float:
+        return self.gross_pnl_usd
+
+    @property
+    def net_pnl(self) -> float:
+        return self.net_pnl_usd
+
+    @property
     def win_rate_pct(self) -> float:
         return (self.winning_trades / self.trade_count * 100.0) if self.trade_count > 0 else 0.0
 
     @property
     def fee_drag_pct(self) -> float:
         return (self.total_fees_usd / abs(self.gross_pnl_usd) * 100.0) if abs(self.gross_pnl_usd) > 0 else 0.0
+
 
 
 class PerformanceAttributionEngine:

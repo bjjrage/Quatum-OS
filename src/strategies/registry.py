@@ -61,13 +61,19 @@ class StrategyRegistry:
                 f"Strategy with ID '{spec.strategy_id}' is already registered."
             )
 
-        # Invariant: registering as ACTIVE or SMALL_LIVE without validated economic edge is rejected
+        # Invariant: registering directly as ACTIVE or SMALL_LIVE without validated economic edge is rejected
         if spec.stage in (StrategyStage.ACTIVE, StrategyStage.SMALL_LIVE):
             if not spec.economic_edge_validated:
                 raise ValueError(
                     f"Cannot register strategy '{spec.strategy_id}' as {spec.stage.value}: "
                     "economic_edge_validated is False. Promotion requires passing portfolio evidence gates."
                 )
+            else:
+                raise ValueError(
+                    f"Cannot register strategy '{spec.strategy_id}' directly as {spec.stage.value}. "
+                    "All candidates must enter at IDEA or RESEARCH and progress through evidence gates."
+                )
+
 
         # Invariant: registering past RESEARCH stage requires complete CounterpartyThesis
         if spec.stage not in (StrategyStage.IDEA, StrategyStage.RESEARCH):

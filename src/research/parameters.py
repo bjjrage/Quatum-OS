@@ -73,3 +73,8 @@ class ResearchParameterSet(BaseModel):
                 f"Config fingerprint mismatch: expected {expected_fp[:12]} but got {self.config_fingerprint[:12]}. "
                 "Changing any parameter must update the fingerprint."
             )
+
+    @property
+    def fingerprint(self) -> str:
+        """Alias for config_fingerprint."""
+        return self.config_fingerprint

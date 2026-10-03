@@ -44,6 +44,7 @@ class StrategyGateResult(BaseModel):
     threshold: float = 0.0
     metrics: Dict[str, float] = Field(default_factory=dict)
     thresholds: Dict[str, float] = Field(default_factory=dict)
+    threshold_is_provisional: bool = True
     dataset_fingerprint: str = ""
     config_fingerprint: str = ""
     experiment_ids: List[str] = Field(default_factory=list)
@@ -51,6 +52,11 @@ class StrategyGateResult(BaseModel):
     reasons: List[str] = Field(default_factory=list)
     falsification_evidence: Optional[str] = None
     diagnostics: Dict[str, Any] = Field(default_factory=dict)
+
+    @property
+    def parameter_fingerprint(self) -> str:
+        return self.config_fingerprint
+
 
     @model_validator(mode="after")
     def _validate_gate_contract(self) -> "StrategyGateResult":
