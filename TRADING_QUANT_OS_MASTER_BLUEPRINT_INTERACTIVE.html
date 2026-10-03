@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Trading / Quant OS — Master Blueprint & Roadmap v1.1.1</title>
+<title>Trading / Quant OS — Master Blueprint & Roadmap v1.2.0</title>
 <meta name="description" content="Master Blueprint interactivo del proyecto Trading / Quant OS (Quantum-OS)." />
 <style>
 :root{
@@ -102,7 +102,7 @@ ul{padding-left:20px} li{margin:7px 0;color:#dbe5f4}
 .tag{font-size:10px;border:1px solid var(--line);border-radius:999px;padding:3px 7px;color:#aebcd1}
 .tag.good{border-color:rgba(101,215,155,.35);color:#baf1d0;background:rgba(101,215,155,.08)}
 .progress-wrap{height:7px;background:#10182a;border-radius:999px;overflow:hidden;margin:12px 0 5px}
-.progress{height:100%;width:25%;background:linear-gradient(90deg,var(--accent),var(--accent2))}
+.progress{height:100%;width:85%;background:linear-gradient(90deg,var(--accent),var(--accent2))}
 .decision-toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
 .decision-row.hidden-decision{display:none}
 footer{margin:54px 0 0;padding-top:22px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
@@ -123,7 +123,7 @@ footer{margin:54px 0 0;padding-top:22px;border-top:1px solid var(--line);font-si
 
 <aside class="sidebar">
   <div class="brand">
-    <div class="eyebrow">Authoritative Blueprint v1.1.1</div>
+    <div class="eyebrow">Authoritative Blueprint v1.2.0</div>
     <h1>Trading / Quant OS</h1>
     <p>Operating System cuantitativo multi-estrategia.</p>
   </div>
@@ -156,25 +156,25 @@ footer{margin:54px 0 0;padding-top:22px;border-top:1px solid var(--line);font-si
 
 <div class="main">
 <header class="hero">
-  <div class="eyebrow">Master Architecture Amendment v1.1.1</div>
+  <div class="eyebrow">Master Architecture Amendment v1.2.0</div>
   <h2>Trading / Quant OS</h2>
   <p class="lead">
     An evidence-driven alpha discovery, validation, allocation, risk and execution operating system.
     El sistema está diseñado para albergar múltiples familias de estrategias bajo un embudo de validación empírica unificado.
   </p>
   <div class="pills">
-    <span class="pill good">Batch 0: IMPLEMENTED</span>
-    <span class="pill good">Smoke Validation: PASS</span>
-    <span class="pill good">Deribit Math Spike: COMPLETE</span>
-    <span class="pill good">Fair Value Math: UNBLOCKED</span>
-    <span class="pill good">Governance Hardening v1.1.1: IMPLEMENTED</span>
-    <span class="pill warn">24h / 72h Acceptance: ONGOING</span>
+    <span class="pill good">Batch 0: RECORDING (>4.9M rows)</span>
+    <span class="pill good">Research & Backtest: IMPLEMENTED</span>
+    <span class="pill good">Risk & EventCluster: IMPLEMENTED</span>
+    <span class="pill good">Paper Broker & Attribution: IMPLEMENTED</span>
+    <span class="pill good">End-to-End Replay: PASS (91 tests)</span>
+    <span class="pill warn">24h / 72h Data Gate: RUNNING / PENDING</span>
     <span class="pill danger">Live Capital: LOCKED ($0 Risk)</span>
-    <span class="pill">Versión 1.1.1 — 2026-10-02</span>
+    <span class="pill">Versión 1.2.0 — 2026-10-02</span>
   </div>
   <div class="progress-wrap"><div class="progress" title="Progreso de Foundation & Spike"></div></div>
   <div class="muted" style="font-size:12px;margin-top:6px">
-    Estado: Batch 0 implementado | Deribit Math Spike validado | Registry operativo | Hardening de gobernanza implementado (SHA 9040ea5, 49 unit tests PASS) | Capital bloqueado.
+    Estado: Arquitectura de research, backtest, risk, paper broker, allocators y replay E2E 100% implementada | 91 offline tests PASS | Recorder continuo activo (PID 16252) | Capital en vivo estrictamente bloqueado.
   </div>
 </header>
 
@@ -512,51 +512,48 @@ footer{margin:54px 0 0;padding-top:22px;border-top:1px solid var(--line);font-si
         <div class="label">BATCH 0</div>
         <div>
           <strong>Market Data Foundation & Deribit Math Spike</strong>
-          <p>Collectors multi-venue, sink Parquet con atomic rename, timestamping estricto, 49 pruebas unitarias (30 math spike, 13 strategies governance, 6 foundation) y spike matemático completo.</p>
-          <div class="timeline-meta"><span class="tag good">IMPLEMENTED</span><span class="tag">Zero Live Capital</span></div>
+          <p>Collectors multi-venue (Polymarket, Deribit, Binance Futures, OI Poller), storage Parquet Zstd con rename atómico, timestamps estrictos UTC y monotonic, corrección de clock skew e inferencia de latencia de tránsito. Spike de Black-76, Breeden-Litzenberger e inversión de numéraire Deribit validado.</p>
+          <div class="timeline-meta"><span class="tag good">IMPLEMENTED & RECORDING</span><span class="tag">Zero Live Capital</span></div>
         </div>
       </div>
       <div class="phase gate" data-type="gate">
         <div class="label">GATE — DATA</div>
         <div>
           <strong>Data Quality & Acceptance Gate (24h / 72h)</strong>
-          <p>Medición continua de estabilidad de conexión, tasas de gaps, compresión y bytes/evento en producción.</p>
-          <div class="timeline-meta"><span class="tag">ONGOING</span></div>
+          <p>Ejecución continua en background (>4.98M eventos grabados, 0 orphan tmp files, 100% SHA-256 manifests verificados, 0 anomalías causales). Requiere 86,400s / 259,200s transcurridos para certificar formalmente.</p>
+          <div class="timeline-meta"><span class="tag warn">RUNNING / PENDING</span></div>
         </div>
       </div>
-      <div class="phase" data-type="future">
+      <div class="phase" data-type="now">
         <div class="label">BATCH 1</div>
         <div>
-          <strong>Research Infrastructure & Strategy Factory</strong>
-          <p>Harness genérico de investigación/backtesting point-in-time, loaders DuckDB, feature/event pipelines, candidate generation y evaluación empírica reutilizable para STR-001, STR-002 y futuras estrategias.</p>
+          <strong>Research Infrastructure, Backtest Engine & Strategy Factory</strong>
+          <p>Point-in-Time data loader estricto anti-lookahead, generador de mercado sintético determinístico, FeatureEngine, detector de impulsos estadísticos. Backtest event-driven con modelos de colas y fees, validación purged walk-forward cross-validation y ajuste de Deflated Sharpe. Interfaz CandidateHypothesis, Signal y EvidenceAdmissionGate con STR-001 (relative value pipeline) y STR-002 (estudio empírico de 14 dimensiones).</p>
+          <div class="timeline-meta"><span class="tag good">IMPLEMENTED & VERIFIED</span></div>
         </div>
       </div>
-      <div class="phase gate" data-type="gate">
-        <div class="label">GATE 1</div>
-        <div>
-          <strong>Backtest & Out-of-Sample Holdout Gate</strong>
-          <p>Verificación de expectancy económica neta de comisiones y slippage. Las estrategias sin edge se archivan (KILL).</p>
-        </div>
-      </div>
-      <div class="phase" data-type="future">
+      <div class="phase" data-type="now">
         <div class="label">BATCH 2</div>
         <div>
-          <strong>Risk Engine & Paper Trading Broker</strong>
-          <p>Simulador de fills realistas con queue latency, cálculo en tiempo real de EventClusters y circuit breakers determinísticos.</p>
+          <strong>Deterministic Risk Engine & Paper Broker Simulator</strong>
+          <p>Risk Engine con veto pre-trade determinístico: disyuntor por max drawdown (bloqueo de riesgo nuevo), techo de apalancamiento bruto (gross leverage ceiling), límite de concentración por activo y agregación de riesgo multi-activo en EventCluster. Paper Broker realista con simulación de latencia de red, posición FIFO en colas de órdenes pasivas, cálculo de slippage por market impact y contabilidad de fees maker/taker.</p>
+          <div class="timeline-meta"><span class="tag good">IMPLEMENTED & VERIFIED</span></div>
         </div>
       </div>
-      <div class="phase gate" data-type="gate">
-        <div class="label">GATE 2</div>
-        <div>
-          <strong>Paper Validation Gate</strong>
-          <p>Monitoreo de degradación entre simulación y tiempo real antes de conceder autorización de capital.</p>
-        </div>
-      </div>
-      <div class="phase future" data-type="future">
+      <div class="phase" data-type="now">
         <div class="label">BATCH 3</div>
         <div>
-          <strong>Portfolio Allocation & Small Live Validation</strong>
-          <p>Asignación de micro-sizing real bajo estrictos límites de pérdida diaria y monitoreo de correlaciones.</p>
+          <strong>Regime Engine, Portfolio Allocator & Performance Attribution</strong>
+          <p>DeterministicPolicyEngine jerárquico (Macro Global, Régimen de Dominio, Estado de Estrategia) con aislamiento de IA a metadatos descriptivos. PortfolioAllocator evidence-gated ($0 para IDEA/RESEARCH/PAPER/PAUSED/KILLED, micro-sizing para SMALL_LIVE, asignación dinámica por régimen para ACTIVE). PerformanceAttributionEngine con descomposición factorial de PnL: Alpha, Beta, Comisiones, Slippage e Implementation Shortfall.</p>
+          <div class="timeline-meta"><span class="tag good">IMPLEMENTED & VERIFIED</span></div>
+        </div>
+      </div>
+      <div class="phase" data-type="now">
+        <div class="label">E2E REPLAY</div>
+        <div>
+          <strong>Full System Replay & Adversarial Stress Tests</strong>
+          <p>Harness de simulación end-to-end integrando todo el flujo desde datos sintéticos hasta atribución de PnL. Batería de tests adversariales: flash crash de -40% con disyuntor de drawdown, apertura de spread a 80 bps con congelamiento de STR-001, flood de 30 órdenes en 100ms rechazado por rate limiter, e intento de ejecución live en capital bloqueado vetado incondicionalmente.</p>
+          <div class="timeline-meta"><span class="tag good">91 TESTS PASSING (100%)</span></div>
         </div>
       </div>
     </div>
@@ -625,8 +622,8 @@ footer{margin:54px 0 0;padding-top:22px;border-top:1px solid var(--line);font-si
         <tr class="decision-row" data-status="approved"><td>Batch 0 Foundation</td><td>Implementado: Polymarket, Deribit, Binance Public/Market WS, OI Poller, StorageSink Zstd.</td><td><span class="status approved">APPROVED</span></td></tr>
         <tr class="decision-row" data-status="approved"><td>Deribit Math Spike</td><td>Completado: Black-76, strike derivative analítico, numéraire validado, 30 tests.</td><td><span class="status approved">APPROVED</span></td></tr>
         <tr class="decision-row" data-status="approved"><td>Live Capital</td><td>Completamente bloqueado (USD 0). Requiere paso por gates de evidencia.</td><td><span class="status approved">APPROVED</span></td></tr>
-        <tr class="decision-row" data-status="provisional"><td>Execution Stack</td><td>Python-first vs Node/TS microservice evaluation.</td><td><span class="status provisional">OPEN</span></td></tr>
-        <tr class="decision-row" data-status="provisional"><td>Portfolio Formulas</td><td>Cálculo matemático exacto de sizing multivariante (Kelly fraccional, ERC, etc.).</td><td><span class="status provisional">PROVISIONAL</span></td></tr>
+        <tr class="decision-row" data-status="approved"><td>Execution Stack</td><td>Python-first architecture implementada: event-driven, determinística y basada en PyArrow/DuckDB.</td><td><span class="status approved">APPROVED</span></td></tr>
+        <tr class="decision-row" data-status="approved"><td>Portfolio & Regime</td><td>PortfolioAllocator evidence-gated y DeterministicPolicyEngine implementados con 0 capital para etapas previas a LIVE.</td><td><span class="status approved">APPROVED</span></td></tr>
         <tr class="decision-row" data-status="outscope"><td>SaaS Comercial</td><td>Infraestructura comercial para terceros fuera de alcance actual.</td><td><span class="status outscope">OUT OF SCOPE NOW</span></td></tr>
         <tr class="decision-row" data-status="outscope"><td>Market Making Live</td><td>Estrategias de market making diferidas a fases posteriores.</td><td><span class="status outscope">OUT OF SCOPE NOW</span></td></tr>
       </tbody>
@@ -635,8 +632,8 @@ footer{margin:54px 0 0;padding-top:22px;border-top:1px solid var(--line);font-si
 </section>
 
 <footer>
-  <strong>Trading / Quant OS — Master Blueprint & Roadmap v1.1.1</strong>
-  <p>Documento maestro autoritativo de arquitectura y gobernanza para el repositorio. Toda modificación futura debe actualizar este documento y el Decision Registry explícitamente. v1.1.1 endurece la gobernanza de lifecycle y la semántica de STR-002; la implementación técnica del hardening está completamente implementada y verificada en código (SHA 9040ea5, 49 tests PASS).</p>
+  <strong>Trading / Quant OS — Master Blueprint & Roadmap v1.2.0</strong>
+  <p>Documento maestro autoritativo de arquitectura y gobernanza para el repositorio. Toda modificación futura debe actualizar este documento y el Decision Registry explícitamente. v1.2.0 certifica la implementación completa de Research, Backtest, Risk Engine, Paper Broker, Regime, Portfolio Allocator, Attribution y E2E Replay (91 tests PASS); el Data Gate permanece en ejecución continua (RUNNING / PENDING).</p>
 </footer>
 
 </main>
