@@ -9,6 +9,16 @@ from src.risk.engine import (
     RiskViolationCode,
 )
 
+from src.risk.capital_pockets import (
+    PocketType,
+    CapitalPocket,
+    ManualEvidenceObject,
+    MultiAccountEvidenceGate,
+    PropRuleProfile,
+    PropExamMonteCarloSimulator,
+    MultiAccountRiskAggregator,
+)
+
 __all__ = [
     "EventCluster",
     "DeterministicRiskEngine",
@@ -16,4 +26,11 @@ __all__ = [
     "RiskDecision",
     "RiskLimits",
     "RiskViolationCode",
+    "PocketType",
+    "CapitalPocket",
+    "ManualEvidenceObject",
+    "MultiAccountEvidenceGate",
+    "PropRuleProfile",
+    "PropExamMonteCarloSimulator",
+    "MultiAccountRiskAggregator",
 ]
