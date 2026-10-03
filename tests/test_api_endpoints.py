@@ -20,6 +20,12 @@ from apps.api.main import app
 client = TestClient(app)
 
 
+@pytest.fixture(autouse=True)
+def _explicit_mock_mode(monkeypatch):
+    """Seeded demo fixtures exist ONLY in explicit mock mode; default-mode truth is in tests/test_backend_truth.py."""
+    monkeypatch.setenv("QUANT_OS_MOCK_MODE", "1")
+
+
 def test_health_endpoint():
     res = client.get("/api/health")
     assert res.status_code == 200
@@ -61,21 +67,37 @@ def test_system_git_and_ci():
     assert "UNKNOWN" in ci_data["github_actions_status"]
 
 
-def test_recorder_status():
-    res = client.get("/api/recorder/status")
-    assert res.status_code == 200
-    data = res.json()
-    assert "status" in data
-    assert "venues" in data
-    assert "binance_perp" in data["venues"]
-    assert "deribit" in data["venues"]
-    assert "polymarket" in data["venues"]
-    assert "bybit" in data["venues"]
-    # Bybit is pending integration
-    assert data["venues"]["bybit"]["status"] == "ADAPTER_READY_INTEGRATION_PENDING"
-    # Gate progress bars never show PASS prematurely
-    assert data["progress_24h_pct"] <= 100.0
+def test_recorder_status_no_runtime_manifest(tmp_path):
+    """A) No data/runtime/current_run.json: nothing is fabricated."""
+    from apps.api.services.data_service import QuantOSDataService
+    data = QuantOSDataService(root_dir=tmp_path).get_recorder_status()
+    assert data["status"] == "STOPPED"
+    assert data["continuity_state"] == "UNVERIFIED"
+    assert data["venues"] == {}
+    assert data["heartbeat_at_utc"] is None
+    assert data["data_source"] == "UNAVAILABLE"
 
+
+def test_recorder_status_fixture_manifest(tmp_path):
+    """B) Temporary fixture manifest; no quality report -> counters are None, not zero."""
+    import json
+    from apps.api.services.data_service import QuantOSDataService
+    rt = tmp_path / "data" / "runtime"
+    rt.mkdir(parents=True)
+    (rt / "current_run.json").write_text(json.dumps({
+        "run_id": "run_fixture", "pid": 0, "started_at_timestamp_ns": 1, "heartbeat_at_utc": None,
+        "config_fingerprint": "fp",
+    }))
+    data = QuantOSDataService(root_dir=tmp_path).get_recorder_status()
+    assert data["run_id"] == "run_fixture"
+    assert data["status"] != "RUNNING"  # pid 0 is not alive
+    assert data["continuity_state"] == "UNVERIFIED"  # missing != VALID
+    assert data["heartbeat_at_utc"] is None
+    assert data["git_sha"] == "UNKNOWN"
+    for v in ("binance_perp", "deribit", "polymarket"):
+        assert data["venues"][v]["total_events"] is None
+    assert data["venues"]["bybit"]["status"] == "ADAPTER_READY_INTEGRATION_PENDING"
+    assert data["progress_24h_pct"] <= 100.0
 
 def test_data_quality():
     res = client.get("/api/data-quality")
@@ -91,7 +113,7 @@ def test_markets_tradability_tiers():
     res = client.get("/api/markets/tradability")
     assert res.status_code == 200
     data = res.json()
-    assert data["status"] == "AVAILABLE"
+    assert data["status"] == "MOCK" and data["data_source"] == "MOCK" and data["is_fixture"] is True
     markets = {m["symbol"]: m for m in data["markets"]}
 
     # BTCUSDT is Tier 1 and tradable

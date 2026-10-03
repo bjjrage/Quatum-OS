@@ -14,7 +14,8 @@ def get_prop_profiles():
 @router.get("/attempts")
 def get_prop_attempts():
     return {
-        "status": "HEALTHY",
+        "status": "NO_DATA",
+        "data_source": "UNAVAILABLE",
         "kill_switch_rule": "5 consecutive failed evaluations triggers kill switch and returns strategy to RESEARCH/REVIEW.",
         "ineligible_combinations": [],
         "attempts": [],
@@ -30,7 +31,9 @@ def get_prop_simulations(strategy_id: str = "STR-002", provider_id: str = "Alpha
 
 @router.get("/compliance")
 def get_multi_account_compliance():
-    """Multi-Account Compliance status per provider."""
+    """Multi-Account Compliance status per provider (fixtures only in explicit mock mode)."""
+    if not QuantOSDataService.get_instance().mock_mode:
+        return []
     return [
         {
             "data_source": "MOCK",

@@ -7,25 +7,19 @@ router = APIRouter(prefix="/api/attribution", tags=["Attribution"])
 
 @router.get("")
 def get_attribution():
+    """No attribution without real fills: MISSING != ZERO."""
     return {
-        "status": "AVAILABLE",
+        "status": "NOT_AVAILABLE",
+        "data_source": "UNAVAILABLE",
+        "reason": "No attributable realized trades; attribution is not computed from empty data",
         "benchmark_symbol": "BTCUSDT",
-        "gross_pnl_usd": 0.0,
-        "net_pnl_usd": 0.0,
-        "alpha_pnl_usd": 0.0,
-        "beta_pnl_usd": 0.0,
-        "total_fees_usd": 0.0,
-        "total_slippage_usd": 0.0,
-        "implementation_shortfall_usd": 0.0,
-        "by_strategy": {
-            "STR-001": {"gross_pnl": 0.0, "net_pnl": 0.0, "alpha": 0.0, "beta": 0.0, "trades": 0},
-            "STR-002": {"gross_pnl": 0.0, "net_pnl": 0.0, "alpha": 0.0, "beta": 0.0, "trades": 0},
-            "STR-003": {"gross_pnl": 0.0, "net_pnl": 0.0, "alpha": 0.0, "beta": 0.0, "trades": 0},
-            "STR-PUMP-COPY": {"gross_pnl": 0.0, "net_pnl": 0.0, "alpha": 0.0, "beta": 0.0, "trades": 0},
-        },
-        "by_regime": {
-            "NORMAL": {"gross_pnl": 0.0, "trades": 0},
-            "HIGH_VOLATILITY": {"gross_pnl": 0.0, "trades": 0},
-            "STRESS": {"gross_pnl": 0.0, "trades": 0},
-        },
+        "gross_pnl_usd": None,
+        "net_pnl_usd": None,
+        "alpha_pnl_usd": None,
+        "beta_pnl_usd": None,
+        "total_fees_usd": None,
+        "total_slippage_usd": None,
+        "implementation_shortfall_usd": None,
+        "by_strategy": {},
+        "by_regime": {},
     }

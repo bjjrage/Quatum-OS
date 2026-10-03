@@ -121,12 +121,18 @@ class QuantOSDataService:
         self.root_dir = Path(root_dir or Path.cwd())
         self.data_dir = self.root_dir / "data"
 
+        # Truth invariant: no fixtures unless explicitly requested (QUANT_OS_MOCK_MODE=1).
+        self.mock_mode: bool = os.environ.get("QUANT_OS_MOCK_MODE", "0") == "1"
+        # Authoritative own-capital baseline (HYPOTHETICAL, not live). Live authorization stays $0.
+        self.own_capital_baseline_usd: float = 2_000.0
+        self.data_source_default: str = "MOCK" if self.mock_mode else "LOCAL_RUNTIME"
+
         # Initialize core registry
         self.strategy_registry: StrategyRegistry = create_extended_registry()
 
         # Initialize paper broker with simulated operational latency (20ms)
         self.paper_broker: PaperBroker = PaperBroker(
-            initial_cash_usd=100_000.0,
+            initial_cash_usd=100_000.0 if self.mock_mode else self.own_capital_baseline_usd,
             simulated_latency_ms=20.0,
             maker_fee_bps=1.0,
             taker_fee_bps=5.0,
@@ -145,7 +151,7 @@ class QuantOSDataService:
             live_capital_locked=True,
         )
         self.risk_engine: DeterministicRiskEngine = DeterministicRiskEngine(
-            initial_equity_usd=100_000.0,
+            initial_equity_usd=100_000.0 if self.mock_mode else self.own_capital_baseline_usd,
             limits=self.risk_limits,
         )
 
@@ -179,6 +185,8 @@ class QuantOSDataService:
                 member_weights={"0x01dffa7abae7e5d9b7fb44b06d537c5ac932e2ca422ab4b53366672f5e2dc7d6": 1.0},
             ),
         }
+        if not self.mock_mode:
+            self.event_clusters = {}  # demo cluster limits are sized to a fictional $100k book
         for ec in self.event_clusters.values():
             self.risk_engine.register_event_cluster(ec)
 
@@ -225,10 +233,17 @@ class QuantOSDataService:
             ),
         }
 
+        if not self.mock_mode:
+            own = self.capital_pockets["OWN_MAIN"]
+            b = self.own_capital_baseline_usd
+            own.initial_equity_usd = own.current_equity_usd = own.peak_equity_usd = own.daily_starting_equity_usd = b
+            self.capital_pockets = {"OWN_MAIN": own}
+
         # Multi-Account Evidence Gate
         self.multi_account_gate = MultiAccountEvidenceGate()
-        self.multi_account_gate.register_account("AlphaFunding", "AF-EVAL-8821")
-        self.multi_account_gate.register_account("BetaTrader", "BT-EVAL-4410")
+        if self.mock_mode:
+            self.multi_account_gate.register_account("AlphaFunding", "AF-EVAL-8821")
+            self.multi_account_gate.register_account("BetaTrader", "BT-EVAL-4410")
 
         # Prop Rule Profiles with verified & pending states
         self.prop_profiles: Dict[str, PropRuleProfile] = {
@@ -288,6 +303,9 @@ class QuantOSDataService:
             ),
         }
 
+        if not self.mock_mode:
+            self.prop_profiles = {}  # fictional providers never exist outside explicit mock mode
+
         # Prop Simulator
         self.prop_simulator = PropExamMonteCarloSimulator()
 
@@ -331,11 +349,22 @@ class QuantOSDataService:
             },
         ]
 
+        if not self.mock_mode:
+            self.risk_decisions = []
+            self.audit_events = []
+
     @classmethod
     def get_instance(cls) -> "QuantOSDataService":
-        if cls._instance is None:
+        mode = os.environ.get("QUANT_OS_MOCK_MODE", "0") == "1"
+        if cls._instance is None or cls._instance.mock_mode != mode:
             cls._instance = cls()
         return cls._instance
+
+    def _prov(self, real_source: str = "LOCAL_RUNTIME") -> Dict[str, Any]:
+        """Provenance block. Fixtures are always labelled MOCK."""
+        if self.mock_mode:
+            return {"data_source": "MOCK", "status": "MOCK", "is_fixture": True}
+        return {"data_source": real_source, "is_fixture": False}
 
     # --------------------------------------------------------------------------
     # Git & System Info
@@ -354,7 +383,7 @@ class QuantOSDataService:
                 return res.stdout.strip()
         except Exception:
             pass
-        return "3a0ec870c7d14d84baef09e4b78db457122de792"
+        return "UNKNOWN"
 
     def _get_git_branch(self) -> str:
         try:
@@ -369,7 +398,7 @@ class QuantOSDataService:
                 return res.stdout.strip()
         except Exception:
             pass
-        return "main"
+        return "UNKNOWN"
 
     def _get_git_log(self, n: int = 5) -> List[Dict[str, str]]:
         commits = []
@@ -442,7 +471,7 @@ class QuantOSDataService:
             "strategies_total": len(strategies),
             "strategies_by_stage": stage_counts,
             "total_experiments": total_exp,
-            "failed_gates": 0,
+            "failed_gates": None,  # not computed here: MISSING != ZERO
             "risk_state": "CAPITAL_LOCKED",
             "paper_pnl_usd": self.paper_broker.cash_usd - self.paper_broker.initial_cash_usd,
             "system_alerts": [
@@ -453,7 +482,10 @@ class QuantOSDataService:
                 }
             ],
             "last_heartbeat": rec_status.get("heartbeat_at_utc") or "UNKNOWN",
-            "ci_state": "LOCAL_OFFLINE_VERIFIED",
+            "ci_state": "UNKNOWN",
+            "mock_mode": self.mock_mode,
+            "data_source": "MOCK" if self.mock_mode else "REAL_RUNTIME",
+            "as_of": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             "tests_passing": None,
             "tests_failing": None,
         }
@@ -468,6 +500,8 @@ class QuantOSDataService:
             return {
                 "status": "STOPPED",
                 "continuity_state": "UNVERIFIED",
+                "data_source": "UNAVAILABLE",
+                "heartbeat_at_utc": None,
                 "message": "current_run.json does not exist",
                 "elapsed_seconds": 0.0,
                 "progress_24h_pct": 0.0,
@@ -502,8 +536,8 @@ class QuantOSDataService:
                     "venue": v_name,
                     "connected": is_alive,
                     "last_event_timestamp": v_data.get("last_event_received_at_utc", data.get("heartbeat_at_utc")),
-                    "total_events": v_data.get("total_events", 0),
-                    "event_rate": round(v_data.get("total_events", 0) / max(1.0, elapsed_s), 1) if elapsed_s > 0 else 0.0,
+                    "total_events": v_data.get("total_events"),
+                    "event_rate": round(v_data["total_events"] / max(1.0, elapsed_s), 1) if (v_data.get("total_events") is not None and elapsed_s > 0) else None,
                     "lag_ms": abs(ts_integrity.get("estimated_clock_offset_ms", 0.0)),
                     "clock_skew_detected": ts_integrity.get("is_host_clock_skew_detected", False),
                     "clock_skew_ms": ts_integrity.get("estimated_clock_offset_ms", 0.0),
@@ -530,15 +564,16 @@ class QuantOSDataService:
 
             return {
                 "run_id": data.get("run_id"),
-                "git_sha": data.get("git_sha", self._get_git_sha()),
+                "git_sha": data.get("git_sha") or "UNKNOWN",
                 "pid": pid,
                 "is_process_alive": is_alive,
                 "started_at_utc": data.get("started_at_utc"),
                 "heartbeat_at_utc": data.get("heartbeat_at_utc"),
                 "config_fingerprint": data.get("config_fingerprint"),
                 "status": status_val,
-                "continuity_state": data.get("continuity_state", "VALID"),
-                "continuity_reason": data.get("continuity_reason", "CONTINUOUS_ACTIVE_RECORDING"),
+                "data_source": "REAL_RUNTIME",
+                "continuity_state": data.get("continuity_state", "UNVERIFIED"),
+                "continuity_reason": data.get("continuity_reason", "NOT_REPORTED_BY_MANIFEST"),
                 "elapsed_seconds": elapsed_s,
                 "elapsed_formatted": self._format_seconds(elapsed_s),
                 "progress_24h_pct": round(prog_24h, 2),
@@ -627,6 +662,14 @@ class QuantOSDataService:
     # --------------------------------------------------------------------------
 
     def get_markets_tradability(self) -> Dict[str, Any]:
+        if not self.mock_mode:
+            # No real market-snapshot source is wired: never fabricate spread/depth/volume/OI/vol.
+            return {
+                "status": "NOT_AVAILABLE",
+                "data_source": "UNAVAILABLE",
+                "reason": "No real tradability snapshot source configured",
+                "markets": [],
+            }
         policy = LiquidityTierPolicy(
             max_spread_bps=15.0,
             min_depth_0_5pct_usd=25_000.0,
@@ -773,7 +816,9 @@ class QuantOSDataService:
             })
 
         return {
-            "status": "AVAILABLE",
+            "status": "MOCK",
+            "data_source": "MOCK",
+            "is_fixture": True,
             "policy": {
                 "max_spread_bps": policy.max_spread_bps,
                 "min_depth_0_5pct_usd": policy.min_depth_0_5pct_usd,
@@ -1080,7 +1125,7 @@ class QuantOSDataService:
 
     def get_portfolio_state(self) -> Dict[str, Any]:
         allocator = PortfolioAllocator(
-            total_equity_usd=100_000.0,
+            total_equity_usd=100_000.0 if self.mock_mode else self.own_capital_baseline_usd,
             max_strategy_allocation_pct=0.40,
             small_live_absolute_cap_usd=5_000.0,
             small_live_max_pct=0.05,
@@ -1108,14 +1153,15 @@ class QuantOSDataService:
             })
 
         return {
-            "total_portfolio_equity_usd": 100_000.0,
+            **({"data_source": "MOCK", "status": "MOCK", "is_fixture": True} if self.mock_mode
+               else {"data_source": "DERIVED", "status": "CONFIG_BASELINE", "equity_state_kind": "HYPOTHETICAL"}),
+            "total_portfolio_equity_usd": 100_000.0 if self.mock_mode else self.own_capital_baseline_usd,
             "live_capital_state": "LOCKED",
             "authorized_live_capital_usd": 0.0,
             "allocations": allocations,
             "event_cluster_exposures": {
-                "CRYPTO_DIRECTIONAL": {"gross_usd": 0.0, "net_usd": 0.0, "cap_usd": 150_000.0, "utilization_pct": 0.0},
-                "DERIBIT_SMILE": {"gross_usd": 0.0, "net_usd": 0.0, "cap_usd": 100_000.0, "utilization_pct": 0.0},
-                "POLYMKT_POLITICAL": {"gross_usd": 0.0, "net_usd": 0.0, "cap_usd": 50_000.0, "utilization_pct": 0.0},
+                cid: {"gross_usd": 0.0, "net_usd": 0.0, "cap_usd": ec.max_gross_exposure_usd, "utilization_pct": 0.0}
+                for cid, ec in self.event_clusters.items()
             },
         }
 
@@ -1169,9 +1215,11 @@ class QuantOSDataService:
             })
 
         return {
-            "data_source": "LOCAL_RUNTIME",
-            "status": "LOCAL_ONLY",
+            "data_source": "MOCK" if self.mock_mode else "PAPER_SIMULATION",
+            "status": "MOCK" if self.mock_mode else "LOCAL_ONLY",
+            "is_fixture": self.mock_mode,
             "state_kind": "PAPER",
+            "is_own_capital": False,
             "persisted": False,
             "initial_cash_usd": self.paper_broker.initial_cash_usd,
             "cash_usd": self.paper_broker.cash_usd,
@@ -1208,6 +1256,7 @@ class QuantOSDataService:
 
     def get_risk_status(self) -> Dict[str, Any]:
         return {
+            **self._prov("LOCAL_RUNTIME"),
             "live_capital_state": "CAPITAL_LOCKED",
             "authorized_live_capital_usd": 0.0,
             "kill_switch_active": self.risk_engine.kill_switch_active,
@@ -1243,6 +1292,7 @@ class QuantOSDataService:
             pockets_out.append({
                 "pocket_id": p.pocket_id,
                 "pocket_type": p.pocket_type.value,
+                "state_kind": "HYPOTHETICAL" if (not self.mock_mode and p.pocket_type == PocketType.OWN) else ("MOCK" if self.mock_mode else "NOT_CONFIGURED"),
                 "firm_name": p.firm_name,
                 "account_id": p.account_id,
                 "initial_equity_usd": p.initial_equity_usd,
@@ -1256,9 +1306,9 @@ class QuantOSDataService:
             })
         return {
             "isolation_invariant": "Zero risk transfer: Prop account losses never impact Own capital limits.",
-            "data_source": "MOCK",
-            "status": "MOCK",
-            "provenance_note": "Seeded demo pockets (placeholder equity). Real own-capital baseline is USD 2,000 (HYPOTHETICAL), live authorized USD 0.",
+            **({"data_source": "MOCK", "status": "MOCK", "is_fixture": True} if self.mock_mode
+               else {"data_source": "CONFIG", "status": "CONFIG_BASELINE", "is_fixture": False}),
+            "provenance_note": "Own-capital baseline is USD 2,000 (HYPOTHETICAL, not live); live authorized USD 0." + (" Demo pockets are fixtures." if self.mock_mode else ""),
             "own_capital_baseline_usd": 2000.0,
             "own_capital_state_kind": "HYPOTHETICAL",
             "authorized_live_capital_usd": 0.0,
@@ -1279,9 +1329,11 @@ class QuantOSDataService:
 
     def get_prop_simulator_result(self, strategy_id: str, provider_id: str) -> Dict[str, Any]:
         profile = self.prop_profiles.get(f"{provider_id}_v1") or self.prop_profiles.get(provider_id)
-        if not profile:
-            # Fallback to first profile or unverified profile
+        if not profile and self.prop_profiles:
             profile = next(iter(self.prop_profiles.values()))
+        if not profile:
+            return {"status": "NOT_AVAILABLE", "data_source": "UNAVAILABLE",
+                    "reason": f"No prop profile configured for provider {provider_id!r}"}
 
         # Simulate with 0 trades to show empirical fail-closed behavior
         return self.prop_simulator.simulate(

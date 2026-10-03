@@ -37,10 +37,12 @@ def get_event_clusters():
             "stress_loss_limit_usd": ec.stress_loss_limit_usd,
             "stress_factor": ec.stress_factor,
             "member_weights": ec.member_weights,
-            "current_gross_usd": 0.0,
-            "current_net_usd": 0.0,
-            "stress_loss_usd": 0.0,
+            "current_gross_usd": None,
+            "current_net_usd": None,
+            "stress_loss_usd": None,
             "status": "ARMED",
+            "exposure_state": "NOT_TRACKED",
+            "data_source": "MOCK" if svc.mock_mode else "CONFIG",
             "diversification_warning": "Same strategy across multiple accounts != diversification. Different venue != diversification.",
         })
     return clusters
