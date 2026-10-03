@@ -1,10 +1,10 @@
-# Trading / Quant OS (Quantum-OS)
+# Trading / Quant OS (Quantum-OS) — v1.4.0
 
 > **An evidence-driven alpha discovery, validation, allocation, risk and execution operating system.**
 
 Trading / Quant OS is a multi-strategy quantitative operating system designed to host, test, allocate, and govern diverse alpha strategies under strict empirical evidence gates. It is **not** a single-purpose trading bot.
 
-Initial seed research programs (**STR-001**: Polymarket × Deribit Relative Value, and **STR-002**: Impulse / Overshoot Retracement) serve as test candidates within the OS, but do not define its architecture.
+Initial seed research programs (**STR-001**, **STR-002 v2**, **STR-003**, and **STR-PUMP-COPY**) serve as test candidates within the OS, but do not define its architecture.
 
 ---
 
@@ -13,21 +13,23 @@ Initial seed research programs (**STR-001**: Polymarket × Deribit Relative Valu
 ```text
 MARKET / EXTERNAL DATA
         ↓
-DATA FABRIC (Lakehouse Parquet / DuckDB / SHA-256 Manifests)
+DATA FABRIC (Lakehouse Parquet / DuckDB / SHA-256 Manifests / Profile v2 100ms)
         ↓
-RESEARCH INFRASTRUCTURE (Point-in-Time Loader / Features / Events / Synthetic Generator)
+RESEARCH INFRASTRUCTURE (Point-in-Time Loader / Features / Events / Synthetic Generator / ExperimentRegistry)
         ↓
-ALPHA DISCOVERY / STRATEGY FACTORY (Evidence Admission Gate)
+ALPHA DISCOVERY / STRATEGY FACTORY (Counterparty Thesis Gate / Rule Provenance)
         ↓
-STRATEGY CANDIDATES (STR-001 Empirical Pipeline / STR-002 14-Dimension Event Study)
+STRATEGY CANDIDATES (STR-001 Empirical / STR-002 v2 2-Factor Residual Long-Only / STR-003 / STR-PUMP-COPY)
         ↓
-DETERMINISTIC BACKTEST ENGINE (Purged Walk-Forward CV / Multiple Testing Corrections)
+PORTFOLIO SELECTION GATES (Latency Sensitivity / Temporal Decay / Multiple Testing DSR / Correlation & Capacity)
         ↓
-REGIME / POLICY ENGINE (Multi-Tier Macro/Domain/Strategy Regimes / AI Metadata Isolation)
+DETERMINISTIC BACKTEST ENGINE (Purged Walk-Forward CV / Asymmetric Ridge Regression)
         ↓
-PORTFOLIO / CAPITAL ALLOCATION (Evidence-Gated Budgets / $0 Live Allocation Invariant)
+REGIME / POLICY ENGINE (Hierarchical Macro/Domain/Strategy Regimes / AI Metadata Isolation)
         ↓
-DETERMINISTIC RISK ENGINE (Circuit Breakers / EventCluster Aggregation / Leverage Ceiling / Burst Rate Limiter)
+PORTFOLIO / CAPITAL ALLOCATION (THE OS DOES NOT SELECT THE BEST BACKTEST / Multi-Edge Ensemble Budgeting)
+        ↓
+DETERMINISTIC RISK ENGINE & CAPITAL POCKETS (OWN vs PROP Pockets / MultiAccountEvidenceGate / Prop Rule Profiles)
         ↓
 REALISTIC PAPER BROKER (Queue Priority / Execution Latency / Slippage / Maker-Taker Fees / Virtual Dry-Run)
         ↓
@@ -38,18 +40,28 @@ GOVERNANCE & LIFECYCLE (Active / Reduced / Paused / Killed / Archived)
 
 ---
 
-## 2. Core Governance Rules
+## 2. Core Governance Rules & OS Invariants
 
 1. **NO STRATEGY IS PRIVILEGED BY ORIGIN:**
    Human intuition, quantitative research, statistical discovery, ML-discovered signals, and AI-assisted hypotheses compete under identical empirical evidence gates. Origin is metadata; origin is **not** evidence.
-2. **EVIDENCE GATES OVER CAPITAL:**
+2. **THE OS DOES NOT SELECT THE BEST BACKTEST:**
+   The operating system never picks a single "winner-take-all" strategy based solely on backtest metrics (Sharpe ratio, CAGR). Sizing is modulated by estimation uncertainty, multiple testing trial counts, cross-strategy correlation, liquidity capacity, and latency margins.
+3. **COUNTERPARTY THESIS MANDATORY FOR VALIDATION:**
+   A strategy candidate cannot transition from `RESEARCH` to `VALIDATION` without a complete `CounterpartyThesis` detailing counterparty types, economic mechanism, execution urgency, transient impact rationale, and testable falsification conditions.
+4. **STR-002 v2 EXECUTION INVARIANT — STRICTLY LONG-ONLY:**
+   STR-002 v2 trades forced liquidation overshoot reversals on altcoins using a 2-factor residual model ($r_{alt} - \beta r_{BTC} - \gamma \eta_{ETH}$). Execution is strictly **LONG-ONLY**. Short side is research-only ($0 live or paper risk, 0 orders).
+5. **CAPITAL POCKETS & MULTI-ACCOUNT ISOLATION:**
+   Two distinct pocket types: `OWN` (direct compounding capital) and `PROP` (funded/eval accounts with trailing drawdowns and daily loss limits). A loss in PROP never reduces OWN capital limits (zero risk transfer). Connecting a second account from the same provider is blocked until written contract terms are provided (`MultiAccountEvidenceGate`). 5 consecutive exam failures triggers the kill switch, permanently marking the strategy `PROP_INELIGIBLE`.
+6. **EVIDENCE GATES OVER CAPITAL:**
    No candidate strategy receives live capital allocation without passing quantitative backtesting, out-of-sample holdout periods, and real-time paper execution validation. Stages `IDEA`, `RESEARCH`, `VALIDATION`, `HOLDOUT`, `PAPER`, `PAUSED`, `KILLED`, `ARCHIVED` receive strictly $0.00 capital.
-3. **RISK IS FINAL AUTHORITY:**
-   The Risk Engine holds absolute veto authority over all orders and exposures. It enforces portfolio drawdown circuit breakers (only de-risking allowed if breached), gross leverage ceilings, single-asset concentration limits, high-frequency burst rate limiting, and aggregates risk across **EventCluster** definitions (correlated market shocks).
-4. **AI/ML EXECUTION BOUNDARIES:**
-   LLMs (Luna) and classification models participate in hypothesis generation, event reasoning, and anomaly detection. They are **strictly forbidden** from direct order routing, modifying stops/targets, or accessing exchange private keys. AI comments are strictly isolated to descriptive advisory metadata.
-5. **ZERO LIVE CAPITAL INVARIANT:**
+7. **TIER 5 UNTRADABLE EXECUTION LOCK:**
+   Every market evaluated for execution has a point-in-time `TradabilityScore`. If spread, book depth, volume, clock skew, or manifest validity breach limits, the market is classified as `TIER_5_UNTRADABLE` and execution is strictly blocked.
+8. **RISK IS FINAL AUTHORITY:**
+   The Risk Engine holds absolute veto authority over all orders and exposures. It enforces portfolio drawdown circuit breakers, gross leverage ceilings across all accounts combined, single-asset concentration limits, high-frequency burst rate limiting, and aggregates risk across **EventCluster** definitions.
+9. **ZERO LIVE CAPITAL INVARIANT:**
    Live capital remains strictly `LOCKED ($0 Live Risk)`. Virtual dry-run and paper execution are permitted; real exchange routing is physically blocked.
+10. **LIQUIDATION PROXY TAGGING:**
+    Exchange liquidation streams (e.g. Binance `!forceOrder@arr`) are explicitly tagged as `PARTIAL_LIQUIDATION_INDICATOR`. They represent a throttled sample, never the exhaustive universe of liquidation events.
 
 ---
 
@@ -58,145 +70,71 @@ GOVERNANCE & LIFECYCLE (Active / Reduced / Paused / Killed / Archived)
 | Component | Status | Description |
 |---|---|---|
 | **Batch 0 Market Data Foundation** | `[IMPLEMENTED]` | Live collectors for Polymarket, Deribit, Binance USDⓈ-M (Public/Market WS), Binance OI poller. |
+| **Recorder Profile v2** | `[IMPLEMENTED]` | High-frequency `depth20@100ms`, `!forceOrder@arr` tagged as `PARTIAL_LIQUIDATION_INDICATOR`, separate `data/raw_v2/` storage sink. |
+| **Bybit Linear Adapter** | `[IMPLEMENTED]` | Normalized orderbook and liquidation parsing for Bybit v5 USDT perpetuals, comparative microstructure documentation. |
 | **Strict Timestamp Engine** | `[IMPLEMENTED]` | Strict UTC epoch nanoseconds (`ts_exchange_ns`, `ts_received_utc_ns`), local monotonic durations (`ts_received_mono_ns`), clock skew inference, and corrected transit latency. |
 | **Lakehouse Storage Sink** | `[IMPLEMENTED]` | Async buffered Parquet writer, Zstandard compression (level 7), atomic `.tmp` rename, SHA-256 partition manifests. |
-| **Quant Pricing & Numéraire (Line A)** | `[IMPLEMENTED]` | Black-76, exact Breeden-Litzenberger strike derivative with skew, synthetic smile arbitrage validators, Deribit inverse numéraire proof & normalization. |
-| **Strategy Domain & Registry** | `[IMPLEMENTED]` | Pure domain models (`StrategySpec`, `StrategyStage`, `StrategyOrigin`, `StrategyFamily`), `StrategyRegistry` (evidence-gated lifecycle, zero execution authority, seed strategies STR-001 & STR-002). |
-| **Data Quality & Acceptance Gates** | `[RUNNING / PENDING]` | Continuous background run active (>4.98M rows recorded, 0 orphan tmp files, 100% verified SHA-256 manifests, 0 causal anomalies). 24h & 72h gates remain strictly `[PENDING]` until required continuous run duration elapses. |
-| **Research Infrastructure** | `[IMPLEMENTED]` | Strict Point-in-Time (PIT) data loader, synthetic multi-venue market generator, feature engine (returns, realized vol, imbalance, spread bps), statistical price impulse event detector. |
-| **Deterministic Backtest Engine** | `[IMPLEMENTED]` | Event-driven market simulator, limit/market order queue models, purged walk-forward cross-validation splits, Deflated Sharpe / multiple testing adjustments. |
-| **Strategy Factory & Candidates** | `[IMPLEMENTED]` | `CandidateHypothesis`, `Signal`, `EvidenceAdmissionGate`, `STR001RelativeValueAlpha` empirical pipeline, and `STR002EventStudy` (14-dimension trajectory & move classification). |
+| **Data Quality & Tradability Tiers** | `[IMPLEMENTED]` | Continuous background run active. Point-in-time `TradabilityScore` and `LiquidityTierPolicy` (Tier 5 execution lock). 24h & 72h data gates `[PENDING]`. |
+| **Research Infrastructure & Experiments** | `[IMPLEMENTED]` | Strict Point-in-Time (PIT) data loader, synthetic multi-venue generator, feature engine, `ExperimentRegistry` (automatic trial counting, forbidden deletion). |
+| **Four Portfolio Selection Gates** | `[IMPLEMENTED]` | Gate A (Latency Sensitivity / `LATENCY_RACE`), Gate B (Temporal Stability & Decay), Gate C (Multiple Testing DSR / FDR), Gate D (Correlation & Capacity). |
+| **Portfolio Allocator (Multi-Edge Ensemble)** | `[IMPLEMENTED]` | Allocator enforcing "the OS does not select the best backtest". Modulated by uncertainty, capacity, latency margin, and EventClusters. Actions: `SCALE`, `REDUCE`, `PAUSE`, `KILL`. |
+| **STR-001 Empirical Pipeline** | `[IMPLEMENTED]` | Black-76, exact Breeden-Litzenberger strike derivative with skew, synthetic smile arbitrage validators, Deribit inverse numéraire proof & normalization. |
+| **STR-002 v2 Liquidity Shock Reversal** | `[IMPLEMENTED]` | 2-factor residual ($r_{alt} - \beta_{down} r_{BTC} - \gamma \eta_{ETH}$), BTC multi-horizon state matrix, pluggable first reversal detectors, reference price exit, strictly `LONG ONLY`. |
+| **Capital Pockets & Multi-Account Risk** | `[IMPLEMENTED]` | `OWN` vs `PROP` isolation, `MultiAccountEvidenceGate`, versioned `PropRuleProfile`, path-dependent Monte Carlo simulator with 5-attempt kill switch, aggregate risk engine. |
 | **Deterministic Risk Engine & EventCluster** | `[IMPLEMENTED]` | Absolute order veto, portfolio max drawdown circuit breaker, gross leverage ceiling, single-asset concentration limits, burst rate limiter, EventCluster correlated exposure aggregation. |
 | **Realistic Paper Broker** | `[IMPLEMENTED]` | Queue position FIFO fill modeling, network transit latency simulation, market impact / slippage models, maker-taker fee accounting, multi-asset PnL ledger. |
 | **Regime / Policy Engine** | `[IMPLEMENTED]` | Deterministic hierarchical macro/domain/strategy regime classification, capital allocation multipliers, AI metadata advisory isolation. |
-| **Portfolio Allocation Framework** | `[IMPLEMENTED]` | Evidence-gated capital budgeting, stage-based capital ceilings ($0 non-live, $5k small-live cap, risk-budgeted active), strict live capital lockout. |
 | **Attribution Engine** | `[IMPLEMENTED]` | Multi-factor PnL decomposition: Gross PnL, Alpha, Beta, Maker/Taker Fees, Slippage, and Implementation Shortfall. |
-| **End-to-End Replay & Adversarial Tests** | `[IMPLEMENTED]` | Full synthetic tick -> feature -> signal -> regime -> allocator -> risk -> paper broker -> attribution pipeline replay. Adversarial flash crash, spread blowout, burst order flooding, and live lockout tests. |
-| **CI / Offline Test Suite** | `[IMPLEMENTED]` | 91 comprehensive offline unit tests across all mathematical, infrastructure, risk, paper broker, portfolio, and replay modules. |
+| **E2E Adversarial Red-Team Suite** | `[IMPLEMENTED]` | 10 attack vectors verified: privilege injection, live order routing while locked, unvalidated capital allocation, secondary prop bypass, 6th exam purchase, short order routing, Tier 5 execution, latency race rejection, prop spillover, and global leverage breach. |
+| **CI / Offline Test Suite** | `[IMPLEMENTED]` | **131 passing tests (0 failures)** across all mathematical, infrastructure, risk, paper broker, portfolio, and replay modules. |
 
 ---
 
-## 4. Repository Structure
-
-```
-TRADING OS / Quantum-OS
-├── .github/
-│   └── workflows/
-│       └── test.yml                 # GitHub Actions offline CI test suite (91 passing tests)
-├── config/
-│   └── settings.py                  # Venue URLs, channels, and contract configs
-├── src/
-│   ├── attribution/                 # Performance attribution & factor decomposition
-│   │   └── engine.py                # Alpha, Beta, fee drag, slippage, implementation shortfall
-│   ├── backtest/                    # Event-driven backtest engine & validation
-│   │   ├── engine.py                # Deterministic market simulator, limit/market orders, fees
-│   │   └── validation.py            # Purged walk-forward CV, Deflated Sharpe Ratio
-│   ├── collectors/                  # Multi-venue live market data collectors
-│   │   ├── binance_oi_poller.py     # REST Open Interest poller (30s cadence)
-│   │   ├── binance_recorder.py      # Public & Market WebSocket streams
-│   │   ├── deribit_recorder.py      # DVOL, index prices, trades, options ticker metrics
-│   │   ├── polymarket_recorder.py   # CLOB WS (book, price_change, last_trade_price, tick_size_change)
-│   │   └── manager.py               # Orchestration & lifecycle manager
-│   ├── common/                      # Core infrastructure primitives
-│   │   ├── dns_patch.py             # Transparent DNS fallback for Cloudflare edge routing
-│   │   ├── logger.py                # Structured JSON logging
-│   │   ├── manifest.py              # SHA-256 partition manifest & verification
-│   │   ├── storage_sink.py          # Buffered Parquet writer (atomic rename, Zstd level 7)
-│   │   └── types.py                 # Nanosecond timestamp models & PyArrow schemas
-│   ├── paper/                       # Realistic paper broker & execution simulator
-│   │   └── broker.py                # FIFO queue depth, latency modeling, slippage, maker/taker fees
-│   ├── portfolio/                   # Evidence-gated portfolio capital budgeting
-│   │   └── allocator.py             # Stage-based capital limits & regime scaling
-│   ├── quality/                     # Data Quality & Acceptance Gate Infrastructure
-│   │   ├── acceptance.py            # State machine, strict duration gating, runtime manifest
-│   │   ├── clock_sync.py            # Local host clock skew inference & transit latency correction
-│   │   ├── fingerprint.py           # Deterministic SHA-256 config fingerprinting
-│   │   ├── metrics.py               # DuckDB metrics collector (storage, latency, coverage)
-│   │   └── reporter.py              # Automated acceptance report generator
-│   ├── quant/                       # Mathematical pricing & volatility models
-│   │   ├── black76.py               # Black-76 pricing, greeks, and flat-vol probability
-│   │   ├── deribit_inverse.py       # Inverse-option numéraire proof & normalization
-│   │   ├── digital_probability.py   # Strike derivative with skew & finite difference
-│   │   └── smile_validation.py      # Volatility smiles & no-arbitrage validators
-│   ├── regime/                      # Regime & Policy Engine
-│   │   └── policy_engine.py         # Multi-tier regime classification, risk multipliers, AI isolation
-│   ├── research/                    # Research infrastructure & feature engineering
-│   │   ├── events.py                # Price impulse & microstructure shock detector
-│   │   ├── features.py              # FeatureEngine (returns, vol, imbalance, spread) & BarAggregator
-│   │   └── pit_loader.py            # Strict Point-in-Time loader & SyntheticMarketGenerator
-│   ├── risk/                        # Deterministic Risk Engine & EventCluster
-│   │   ├── engine.py                # Pre-trade order veto, drawdown circuit breaker, leverage ceiling
-│   │   └── event_cluster.py         # Cross-asset economic shock clustering & stress loss limits
-│   └── strategies/                  # Strategy domain, factory, candidates & lifecycle
-│       ├── factory.py               # CandidateHypothesis, Signal, EvidenceAdmissionGate
-│       ├── models.py                # StrategySpec, StrategyStage, StrategyOrigin, StrategyFamily
-│       ├── registry.py              # StrategyRegistry (purely declarative, zero execution authority)
-│       ├── str001_empirical.py      # STR-001 Polymarket x Deribit relative value pipeline
-│       └── str002_event_study.py    # STR-002 14-dimension event study & move classification
-├── tests/
-│   ├── e2e/                         # 5 end-to-end replay & adversarial stress tests
-│   ├── math/                        # 30 unit tests for pricing, skew, arbitrage, and numéraire
-│   ├── test_backtest.py             # Backtest engine & purged walk-forward validation tests
-│   ├── test_paper_broker.py         # Paper broker queue, latency, slippage, and PnL tests
-│   ├── test_parsers.py              # Venue payload parsing tests
-│   ├── test_portfolio_regime.py     # Policy engine, allocator, and attribution tests
-│   ├── test_quality.py              # 10 acceptance gate, duration gating & clock sync tests
-│   ├── test_research.py             # PIT data loader, features, events, and synthetic data tests
-│   ├── test_risk.py                 # Risk engine circuit breakers, leverage, and cluster tests
-│   ├── test_storage_sink.py         # Buffered parquet storage tests
-│   ├── test_strategies.py           # Strategy domain, privilege & governance lifecycle tests
-│   ├── test_strategy_candidates.py  # Factory admission gate and STR-001/002 tests
-│   └── test_types.py                # Schema & timestamp completeness tests
-└── scripts/
-    ├── data_quality_report.py       # Auditable acceptance gate report generator
-    ├── run_recorder.py              # Continuous production market recorder
-    ├── smoke_test.py                # Live multi-venue connectivity & DuckDB verification
-    └── verify_data.py               # Lakehouse dataset inspector
-```
-
----
-
-## 5. Seed Research Programs
+## 4. Seed Research Programs
 
 ### STR-001: Polymarket × Deribit Relative Value
 - **Family:** `RELATIVE_VALUE` / `CROSS_MARKET`
 - **Origin:** `QUANT`
-- **Stage:** `ACTIVE` (Simulated Paper Validation)
-- **Status:** Mathematical pricing foundation validated (Deribit inverse numéraire verified). Empirical pipeline implemented with `digital_call_prob_analytic` and hurdle rates.
-- **Privilege:** None (Hardened invariant: `is_privileged` is read-only `False`).
+- **Stage:** `RESEARCH`
+- **Status:** Mathematical pricing foundation validated (Deribit inverse numéraire verified). Empirical pipeline implemented with `digital_call_prob_analytic` and hurdle rates. Complete `CounterpartyThesis` registered.
+- **Privilege:** None (`is_privileged` is strictly read-only `False`).
 
-### STR-002: Impulse / Overshoot / Short-Horizon Retracement
+### STR-002 v2: Liquidity Shock Reversal
 - **Family:** `BEHAVIORAL` / `MEAN_REVERSION`
 - **Origin:** `HUMAN`
 - **Stage:** `RESEARCH`
-- **Thesis:** Extreme short-horizon price impulses, normalized by prior volatility, may exhibit an exploitable overshoot followed by retracement.
-- **Evaluation Criteria:**
-  - Order-book information is an evaluation **feature**, not the definition of the strategy.
-  - Distinguishes **Informative Moves** (hacks, delistings, fundamental news that may rationally never revert) from **Forced Moves** (cascading liquidations, stop cascades, deleveraging that overshoot and retrace).
-  - Evaluated across 14 empirical dimensions (impulse magnitude, prior volatility, forward returns, MFE, MAE, retracement ratio, time-to-retracement, liquidity, spread, depth, funding, OI, forced liquidations, market regime).
-- **Status:** Evaluated under the exact same empirical criteria as quantitative models.
-- **Privilege:** None (Hardened invariant: `is_privileged` is read-only `False`).
+- **Execution Invariant:** Strictly **LONG-ONLY**. Short side is research-only ($0 capital, 0 orders).
+- **Core Mechanism:** 2-factor residual model separating systemic BTC/ETH moves from idiosyncratic liquidation cascades.
+  - Ridge-regularized asymmetric beta ($\beta_{down} > \beta_{up}$).
+  - BTC State Module & Decision Matrix (`FLAT`, `UP`, `DOWN`, `RUNNING_HARD`).
+  - Pluggable First Reversal Detectors: Aggressor flow flip, book replenishment (>50%), microstructure higher low.
+  - Reference Price Exit Targets: Pre-shock VWAP, origin price, half-retracement, 15-minute time decay.
+  - Complete point-in-time `RegimeSnapshot` recorded on every candidate trade.
+- **Privilege:** None (`is_privileged` is strictly read-only `False`).
+
+### STR-003: Scheduled Supply Events / Unlock Overshoot
+- **Family:** `EVENT_NEWS`
+- **Origin:** `QUANT`
+- **Stage:** `RESEARCH`
+- **Thesis:** Microstructure and basis dislocations around scheduled contractual token vesting unlocks.
+- **Privilege:** None (`is_privileged` is strictly read-only `False`).
+
+### STR-PUMP-COPY: Pump.fun Copytrading Research
+- **Family:** `ON_CHAIN`
+- **Origin:** `STATISTICAL`
+- **Stage:** `RESEARCH` ($0 capital, prop ineligible, strictly on-chain if ever validated).
+- **Risk Profile:** 100% loss probability per token, gas + priority fee drag, sandwich vulnerability, copy-latency decay.
+- **Privilege:** None (`is_privileged` is strictly read-only `False`).
 
 ---
 
-## 6. Development & Verification
-
-### Prerequisites
-- Python 3.11+
-- [uv](https://docs.astral.sh/uv/) package manager
-
-### Setup
-```bash
-git clone https://github.com/bjjrage/Quatum-OS.git
-cd Quatum-OS
-uv sync
-```
+## 5. Development & Verification
 
 ### Running the Offline Test Suite
 ```bash
 uv run pytest -v
 ```
-*Current test suite: **91 passing tests (0 failures)** across all modules in ~1.2s.*
+*Current test suite: **131 passing tests (0 failures)** across all modules in ~1.3s.*
 
 ### Auditable Data Quality & Acceptance Reporting
 ```bash
@@ -206,8 +144,3 @@ uv run python scripts/data_quality_report.py
 # Output raw JSON report for automated monitoring
 uv run python scripts/data_quality_report.py --json-only
 ```
-
-#### Acceptance Gate Invariants:
-- **24h Acceptance Gate (`MIN_24H_SECONDS = 86400`):** Continuous production recording without data corruption, valid SHA-256 partition manifests, zero orphan `.tmp` files, and continuous coverage of all configured venues. Under 24 continuous hours, this gate evaluates strictly as `PENDING`.
-- **72h Acceptance Gate (`MIN_72H_SECONDS = 259200`):** Extended stability run verifying long-horizon continuity, feed reconnection resilience, and storage projection consistency. Under 72 continuous hours, this gate evaluates strictly as `PENDING`.
-- **Live Capital Policy:** **LOCKED ($0 Live Risk)**. No capital is unblocked until formal acceptance gates are satisfied.

@@ -1,0 +1,927 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Trading / Quant OS — Master Blueprint & Roadmap v1.4.0</title>
+<meta name="description" content="Master Blueprint interactivo del proyecto Trading / Quant OS (Quantum-OS)." />
+<style>
+:root{
+  --bg:#08111f; --bg2:#0d1728; --panel:#101b2f; --panel2:#14233b; --text:#edf5ff; --muted:#97a8c0;
+  --line:#233552; --accent:#69a7ff; --accent2:#59e1bd; --warn:#ffcc6e; --danger:#ff7c8a; --violet:#b99dff;
+  --good:#65d79b; --shadow:0 18px 50px rgba(0,0,0,.28);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:linear-gradient(180deg,#06101d 0%,#08111f 55%,#0a1321 100%);color:var(--text);
+font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;line-height:1.55}
+a{color:inherit;text-decoration:none}
+button,input,select{font:inherit}
+.shell{display:grid;grid-template-columns:300px minmax(0,1fr);min-height:100vh}
+.sidebar{
+  position:sticky;top:0;height:100vh;overflow:auto;padding:24px 18px;border-right:1px solid var(--line);
+  background:rgba(7,15,27,.96);backdrop-filter:blur(12px);z-index:30
+}
+.brand{padding:6px 8px 18px;border-bottom:1px solid var(--line);margin-bottom:14px}
+.brand .eyebrow{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent2);font-weight:800}
+.brand h1{font-size:24px;line-height:1.05;margin:8px 0 7px;letter-spacing:-.03em}
+.brand p{font-size:12px;color:var(--muted);margin:0}
+.search{margin:14px 0}
+.search input{width:100%;padding:10px 11px;border-radius:10px;border:1px solid var(--line);background:#0c1728;color:var(--text);outline:none}
+.search input:focus{border-color:var(--accent)}
+.nav-group{margin:15px 0}
+.nav-group-title{font-size:10px;color:#7184a2;text-transform:uppercase;letter-spacing:.14em;font-weight:800;padding:0 8px 7px}
+.nav-link{display:flex;gap:10px;align-items:center;padding:9px 10px;border-radius:9px;color:#b9c8df;font-size:13px;margin:2px 0}
+.nav-link:hover,.nav-link.active{background:#15243a;color:white}
+.dot{width:7px;height:7px;border-radius:50%;background:#3e5477;flex:none}
+.nav-link.active .dot{background:var(--accent2)}
+.sidebar-controls{display:grid;gap:8px;margin-top:18px;padding-top:14px;border-top:1px solid var(--line)}
+.control-btn{border:1px solid var(--line);background:#111e33;color:#d9e5f6;border-radius:9px;padding:9px 10px;cursor:pointer}
+.control-btn:hover{background:#172842}
+.main{min-width:0}
+.hero{
+  padding:54px 48px 36px;border-bottom:1px solid var(--line);
+  background:
+    radial-gradient(circle at 12% 12%,rgba(105,167,255,.18),transparent 28%),
+    radial-gradient(circle at 88% 8%,rgba(89,225,189,.11),transparent 30%)
+}
+.hero .eyebrow{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent2);font-weight:800}
+.hero h2{font-size:clamp(36px,5.5vw,68px);line-height:.98;margin:12px 0 18px;letter-spacing:-.045em}
+.hero .lead{font-size:19px;max-width:1050px;color:#c9d7eb}
+.pills{display:flex;gap:8px;flex-wrap:wrap;margin-top:20px}
+.pill{border:1px solid var(--line);border-radius:999px;padding:7px 10px;font-size:12px;color:#ccd8e9;background:rgba(255,255,255,.03)}
+.pill.good{border-color:rgba(101,215,155,.35);color:#baf1d0;background:rgba(101,215,155,.08)}
+.pill.warn{border-color:rgba(255,204,110,.35);color:#ffe0a4;background:rgba(255,204,110,.07)}
+.pill.danger{border-color:rgba(255,124,138,.35);color:#ffc2c9;background:rgba(255,124,138,.07)}
+.content{max-width:1320px;margin:0 auto;padding:22px 42px 90px}
+.section{scroll-margin-top:20px;margin:28px 0 42px}
+.section.hidden-by-search{display:none}
+.section-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;cursor:pointer;padding:10px 0}
+.section h3{font-size:28px;margin:0;letter-spacing:-.02em}
+.section-sub{color:var(--muted);margin-top:5px;max-width:980px}
+.collapse{border:1px solid var(--line);background:#101c30;color:#c7d4e6;width:34px;height:34px;border-radius:9px;cursor:pointer}
+.section-body{display:block}
+.section.collapsed .section-body{display:none}
+.section.collapsed .collapse{transform:rotate(-90deg)}
+.grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:14px}
+.card{background:linear-gradient(180deg,rgba(20,35,59,.96),rgba(16,27,47,.96));border:1px solid var(--line);border-radius:15px;padding:18px;box-shadow:var(--shadow)}
+.span4{grid-column:span 4}.span6{grid-column:span 6}.span8{grid-column:span 8}.span12{grid-column:span 12}
+.kicker{font-size:10px;text-transform:uppercase;letter-spacing:.14em;color:var(--muted);font-weight:800}
+.kpi{font-size:25px;font-weight:900;margin:5px 0 7px;letter-spacing:-.03em}
+.muted{color:var(--muted)}
+.quote{border-left:4px solid var(--accent2);padding:14px 18px;margin:15px 0;background:rgba(89,225,189,.06);border-radius:0 12px 12px 0;color:#e0faf3;font-size:17px}
+.callout{border:1px solid rgba(105,167,255,.3);background:rgba(105,167,255,.07);border-radius:13px;padding:15px 17px;margin:14px 0}
+.callout.warn{border-color:rgba(255,204,110,.32);background:rgba(255,204,110,.07)}
+.callout.danger{border-color:rgba(255,124,138,.28);background:rgba(255,124,138,.06)}
+.flow{display:flex;align-items:stretch;gap:7px;flex-wrap:wrap;margin:16px 0}
+.node{flex:1 1 130px;min-width:130px;border:1px solid var(--line);background:#101b2f;border-radius:11px;padding:12px;text-align:center;font-size:11px;font-weight:800}
+.arrow{display:flex;align-items:center;color:#7f91ab;font-weight:900}
+table{width:100%;border-collapse:separate;border-spacing:0;margin:13px 0 18px;overflow:hidden;border:1px solid var(--line);border-radius:13px}
+th,td{padding:11px 12px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line);font-size:13px}
+tr:last-child td{border-bottom:0}
+th{background:#0e182a;color:#c6d5ea;font-size:11px;text-transform:uppercase;letter-spacing:.07em}
+td{background:#101b2f;color:#dce6f5}
+.status{display:inline-block;font-size:10px;font-weight:900;padding:4px 7px;border-radius:999px;white-space:nowrap}
+.approved{color:#bdf3d4;background:rgba(101,215,155,.1);border:1px solid rgba(101,215,155,.3)}
+.provisional{color:#ffe1a6;background:rgba(255,204,110,.1);border:1px solid rgba(255,204,110,.3)}
+.outscope{color:#c8d0dc;background:rgba(151,168,192,.09);border:1px solid rgba(151,168,192,.22)}
+.kill{color:#ffc5cb;background:rgba(255,124,138,.09);border:1px solid rgba(255,124,138,.27)}
+pre,code{font-family:"SFMono-Regular",Consolas,"Liberation Mono",monospace}
+pre{background:#070d17;border:1px solid var(--line);border-radius:13px;padding:16px;overflow:auto;color:#d8e8ff}
+ul{padding-left:20px} li{margin:7px 0;color:#dbe5f4}
+.roadmap-toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 16px}
+.filter-btn{border:1px solid var(--line);background:#101c31;color:#bfcce0;border-radius:999px;padding:7px 10px;cursor:pointer;font-size:12px}
+.filter-btn.active{background:#193052;color:white;border-color:#3a5e8f}
+.roadmap{display:grid;gap:11px}
+.phase{display:grid;grid-template-columns:155px minmax(0,1fr);gap:16px;padding:16px;border:1px solid var(--line);background:#0f1a2e;border-radius:13px}
+.phase .label{font-weight:900;color:var(--accent2)}
+.phase.gate{border-left:4px solid var(--warn)}
+.phase.future{opacity:.84}
+.phase.hidden-phase{display:none}
+.timeline-meta{display:flex;gap:8px;flex-wrap:wrap;margin-top:9px}
+.tag{font-size:10px;border:1px solid var(--line);border-radius:999px;padding:3px 7px;color:#aebcd1}
+.tag.good{border-color:rgba(101,215,155,.35);color:#baf1d0;background:rgba(101,215,155,.08)}
+.progress-wrap{height:7px;background:#10182a;border-radius:999px;overflow:hidden;margin:12px 0 5px}
+.progress{height:100%;width:85%;background:linear-gradient(90deg,var(--accent),var(--accent2))}
+.decision-toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.decision-row.hidden-decision{display:none}
+footer{margin:54px 0 0;padding-top:22px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
+.floating-top{position:fixed;right:22px;bottom:22px;border:1px solid var(--line);background:#14233a;color:white;border-radius:12px;padding:10px 13px;cursor:pointer;box-shadow:var(--shadow);display:none}
+@media(max-width:1000px){
+  .shell{grid-template-columns:1fr}
+  .sidebar{position:relative;height:auto;border-right:0;border-bottom:1px solid var(--line)}
+  .main{width:100%}
+  .hero{padding:42px 24px 30px}
+  .content{padding:20px 22px 70px}
+  .span4,.span6,.span8{grid-column:span 12}
+  .phase{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div class="shell">
+
+<aside class="sidebar">
+  <div class="brand">
+    <div class="eyebrow">Authoritative Blueprint v1.4.0</div>
+    <h1>Trading / Quant OS</h1>
+    <p>Operating System cuantitativo multi-estrategia.</p>
+  </div>
+
+  <div class="search"><input id="searchInput" placeholder="Buscar en el blueprint…" /></div>
+
+  <div class="nav-group">
+    <div class="nav-group-title">Blueprint</div>
+    <a class="nav-link" href="#principios"><span class="dot"></span>1. Principios & Gobernanza</a>
+    <a class="nav-link" href="#arquitectura"><span class="dot"></span>2. Top-Level Architecture</a>
+    <a class="nav-link" href="#factory"><span class="dot"></span>3. Strategy Factory & Registry</a>
+    <a class="nav-link" href="#seed-str001"><span class="dot"></span>4. Seed STR-001 (Polymarket×Deribit)</a>
+    <a class="nav-link" href="#seed-str002"><span class="dot"></span>5. STR-002 v2 (Liquidity Shock)</a>
+    <a class="nav-link" href="#regimen"><span class="dot"></span>6. Contexto y Régimen</a>
+    <a class="nav-link" href="#ia"><span class="dot"></span>7. Jev / Luna / ML</a>
+    <a class="nav-link" href="#riesgo"><span class="dot"></span>8. Risk & EventCluster</a>
+    <a class="nav-link" href="#portfolio"><span class="dot"></span>9. Portfolio Allocation</a>
+    <a class="nav-link" href="#datos"><span class="dot"></span>10. Datos / Batch 0</a>
+    <a class="nav-link" href="#portfolio-gates"><span class="dot"></span>11. Portfolio Selection Gates</a>
+    <a class="nav-link" href="#capital-pockets"><span class="dot"></span>12. Capital Pockets & Multicuenta</a>
+    <a class="nav-link" href="#roadmap"><span class="dot"></span>13. Roadmap Autorizado</a>
+    <a class="nav-link" href="#kill"><span class="dot"></span>14. Kill Criteria</a>
+    <a class="nav-link" href="#decisiones"><span class="dot"></span>15. Decision Registry</a>
+  </div>
+
+  <div class="sidebar-controls">
+    <button class="control-btn" id="expandAll">Expandir todo</button>
+    <button class="control-btn" id="collapseAll">Colapsar todo</button>
+    <button class="control-btn" id="printBtn">Imprimir / PDF</button>
+  </div>
+</aside>
+
+<div class="main">
+<header class="hero">
+  <div class="eyebrow">Master Architecture Amendment v1.4.0</div>
+  <h2>Trading / Quant OS</h2>
+  <p class="lead">
+    An evidence-driven alpha discovery, validation, allocation, risk and execution operating system.
+    El sistema está diseñado para albergar múltiples familias de estrategias bajo un embudo de validación empírica unificado.
+  </p>
+  <div class="pills">
+    <span class="pill good">Batch 0: RECORDING (>4.9M rows)</span>
+    <span class="pill good">Research & Backtest: IMPLEMENTED</span>
+    <span class="pill good">Risk & EventCluster: IMPLEMENTED</span>
+    <span class="pill good">Paper Broker & Attribution: IMPLEMENTED</span>
+    <span class="pill good">End-to-End Replay Baseline: PASS (91 tests)</span>
+    <span class="pill warn">Portfolio Selection Gates v1.4: SPECIFIED</span>
+    <span class="pill warn">STR-002 v2: RESEARCH / EDGE NOT VALIDATED</span>
+    <span class="pill warn">24h / 72h Data Gate: RUNNING / PENDING</span>
+    <span class="pill danger">Live Capital: LOCKED ($0 Risk)</span>
+    <span class="pill">Versión 1.4.0 — 2026-10-02</span>
+  </div>
+  <div class="progress-wrap"><div class="progress" title="Progreso de Foundation & Spike"></div></div>
+  <div class="muted" style="font-size:12px;margin-top:6px">
+    Estado: core v1.2 implementado con 91 tests baseline | v1.4 añade gobernanza de contraparte, gates de portfolio, STR-002 v2, capital pockets/multicuenta y prop-rule deployment como requisitos autoritativos | Data Gate sigue RUNNING/PENDING | Live capital LOCKED.
+  </div>
+</header>
+
+<main class="content">
+
+<section id="principios" class="section">
+  <div class="section-head">
+    <div><h3>1. Objetivo y Principios de Gobernanza</h3><div class="section-sub">Reglas no negociables que rigen la operación cuantitativa.</div></div>
+    <button class="collapse">▼</button>
+  </div>
+  <div class="section-body">
+    <div class="grid">
+      <div class="card span4"><div class="kicker">Core Rule</div><div class="kpi">No Privilege</div><p>Ninguna estrategia tiene privilegios por origen. Human, Quant, Statistical, ML y AI Research compiten bajo los mismos gates.</p></div>
+      <div class="card span4"><div class="kicker">Capital Discipline</div><div class="kpi">Evidence Gates</div><p>No se asigna capital live por “ganar un backtest”. Toda estrategia debe superar evidencia, holdout, paper y gates de portfolio.</p></div>
+      <div class="card span4"><div class="kicker">Autoridad Final</div><div class="kpi">Risk Dominance</div><p>El Risk Engine es determinístico, tiene veto absoluto y la lógica de una estrategia nunca puede relajar un hard risk limit.</p></div>
+      <div class="card span6"><div class="kicker">Portfolio Doctrine</div><div class="kpi">No Best-Backtest Winner</div><p>El OS no elige “la estrategia que mejor backtesteó”. Asigna entre edges independientemente validados, económicamente explicables, capacity-aware, regime-aware y suficientemente diversificantes.</p></div>
+      <div class="card span6"><div class="kicker">Economic Thesis</div><div class="kpi">Who Is Paying Us?</div><p>Toda estrategia debe explicitar qué contraparte entrega el edge, por qué opera ahora, por qué el impacto puede ser transitorio, qué evidencia lo respalda y qué falsaría la tesis.</p></div>
+    </div>
+
+    <div class="quote">
+      "Origin is metadata. Origin is NOT evidence. The OS does not select the best backtest; it allocates among independently validated economic edges."
+    </div>
+
+    <div class="callout">
+      <strong>Criterio rector de contraparte:</strong> no se asume que la contraparte es “tonta”. Puede estar forzada, apurada, restringida, cubriendo riesgo o pagando por liquidez. Si el movimiento representa información nueva y persistente, la reversión puede ser incorrecta.
+    </div>
+
+    <table>
+      <thead><tr><th>Principio</th><th>Decisión Autorizada</th><th>Estado</th></tr></thead>
+      <tbody>
+        <tr><td>Arquitectura Multi-Estrategia</td><td>Requerida ahora. STR-002 es una estrategia más dentro de un portfolio, no la arquitectura.</td><td><span class="status approved">APPROVED</span></td></tr>
+        <tr><td>No Best-Backtest Winner</td><td>Prohibido seleccionar capital solo por máximo Sharpe/backtest. Controlar selection bias, alpha decay, correlación y capacity.</td><td><span class="status approved">APPROVED</span></td></tr>
+        <tr><td>Counterparty Thesis</td><td>Obligatoria para promover RESEARCH → VALIDATION. Debe incluir mecanismo, contraparte, evidencia y falsificación.</td><td><span class="status approved">APPROVED</span></td></tr>
+        <tr><td>Edge vs Beta</td><td>Separar retorno explicado por BTC/ETH/factores y retorno residual atribuible a la estrategia.</td><td><span class="status approved">APPROVED</span></td></tr>
+        <tr><td>Gobernanza de Origen</td><td>Neutralidad total de origen. Intuición manual se registra como hipótesis, no como validación.</td><td><span class="status approved">APPROVED</span></td></tr>
+        <tr><td>Risk Engine</td><td>Determinístico, con veto final. Strategy exits pueden cerrar antes, nunca ampliar hard stops.</td><td><span class="status approved">APPROVED</span></td></tr>
+        <tr><td>IA / Luna</td><td>Puede producir contexto/NewsAssessment y veto informativo vía Policy; CERO ejecución directa, claves, sizing o stops.</td><td><span class="status approved">APPROVED</span></td></tr>
+        <tr><td>Pipeline</td><td>IDEA → RESEARCH → VALIDATION → HOLDOUT → PAPER → SMALL_LIVE → ACTIVE.</td><td><span class="status approved">APPROVED</span></td></tr>
+        <tr><td>Capital en Riesgo</td><td>Actualmente USD 0 live. Todo escalado descrito en v1.4 es condicional a evidencia futura.</td><td><span class="status approved">APPROVED</span></td></tr>
+      </tbody>
+    </table>
+</div>
+</section>
+
+<section id="arquitectura" class="section">
+  <div class="section-head">
+    <div><h3>2. Top-Level Authoritative Architecture</h3><div class="section-sub">Flujo integral no-negociable desde el dato crudo hasta la asignación de capital.</div></div>
+    <button class="collapse">▼</button>
+  </div>
+  <div class="section-body">
+    <div class="flow">
+      <div class="node">Market / External Data</div><div class="arrow">↓</div>
+      <div class="node">Data Fabric</div><div class="arrow">↓</div>
+      <div class="node">Feature / Context Layer</div><div class="arrow">↓</div>
+      <div class="node">Alpha Discovery / Strategy Factory</div><div class="arrow">↓</div>
+      <div class="node">Strategy Registry</div><div class="arrow">↓</div>
+      <div class="node">Discovery → Validation → Holdout → Paper</div><div class="arrow">↓</div>
+      <div class="node">Regime / Policy Engine</div><div class="arrow">↓</div>
+      <div class="node">Portfolio / Capital Allocation</div><div class="arrow">↓</div>
+      <div class="node">Risk Engine (EventCluster)</div><div class="arrow">↓</div>
+      <div class="node">Execution Engine</div><div class="arrow">↓</div>
+      <div class="node">Attribution → Scale / Reduce / Kill</div>
+    </div>
+
+    <div class="callout">
+      <strong>Arquitectura Agnóstica:</strong> Todo componente downstream (Risk, Portfolio, Execution) consume contratos estandarizados.
+      Ninguna estrategia inyecta hacks o dependencias circulares en los módulos de infraestructura.
+    </div>
+  </div>
+</section>
+
+<section id="factory" class="section">
+  <div class="section-head">
+    <div><h3>3. Strategy Factory & Strategy Registry</h3><div class="section-sub">Motor de descubrimiento y ciclo de vida de hipótesis alpha.</div></div>
+    <button class="collapse">▼</button>
+  </div>
+  <div class="section-body">
+    <div class="grid">
+      <div class="card span6">
+        <div class="kicker">Strategy Factory / Discovery</div>
+        <p>Discovery genera candidatos; <strong>DISCOVERY no es un StrategyStage</strong>. El lifecycle autoritativo comienza en IDEA/RESEARCH y la promoción gobernada es RESEARCH → VALIDATION.</p>
+        <ul>
+          <li>Human hypotheses</li><li>Quant research</li><li>Statistical discovery</li><li>ML alpha</li><li>AI-assisted research</li>
+        </ul>
+      </div>
+      <div class="card span6">
+        <div class="kicker">Registry Governance v1.4</div>
+        <ul>
+          <li><strong>counterparty_thesis:</strong> obligatoria antes de RESEARCH → VALIDATION.</li>
+          <li><strong>rule_evidence:</strong> cada regla se etiqueta por nivel de evidencia.</li>
+          <li><strong>trial_count:</strong> persiste número de variantes/experimentos para selection-bias correction.</li>
+          <li><strong>zero execution authority:</strong> el Registry nunca envía órdenes ni asigna capital.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h4>Counterparty Thesis — modelo autoritativo</h4>
+    <pre>CounterpartyThesis
+  counterparty_type
+  economic_mechanism
+  why_trade_now
+  why_impact_may_be_transient
+  why_it_may_be_information
+  observable_evidence
+  falsification_conditions
+  evidence_status</pre>
+
+    <div class="callout warn">
+      <strong>Gate obligatorio:</strong> una estrategia puede existir en RESEARCH sin tesis completa, pero NO puede avanzar a VALIDATION hasta que la tesis de contraparte esté estructurada y auditable.
+    </div>
+
+    <h4>Rule Evidence Provenance</h4>
+    <pre>StrategyRuleEvidenceStatus
+  INTUITION_UNVALIDATED
+  RESEARCH_SUPPORTED
+  BACKTEST_VALIDATED
+  HOLDOUT_VALIDATED
+  PAPER_VALIDATED
+  LIVE_OBSERVED</pre>
+    <p>Cada regla debe enlazar experiment IDs, strategy version, primera fecha propuesta y última validación. La experiencia manual del dueño se registra explícitamente como <code>INTUITION_UNVALIDATED</code> hasta que datos independientes la eleven.</p>
+
+    <h4>Counterparty theses iniciales</h4>
+    <table>
+      <thead><tr><th>Estrategia</th><th>Tesis de contraparte</th><th>Estado</th></tr></thead>
+      <tbody>
+        <tr><td>STR-001</td><td>Participantes segmentados entre prediction markets y options/derivatives pueden pagar por restricciones, modelos distintos, urgencia o falta de cross-market integration; la tesis debe demostrar que la divergencia supera costos y no es mera diferencia de creencias informativas.</td><td><span class="status provisional">RESEARCH THESIS</span></td></tr>
+        <tr><td>STR-002 v2</td><td>Vendedor forzado/apurado o flujo obligado produce shock idiosincrático de liquidez; si BTC/ETH no explican el movimiento y la presión se agota, parte del impacto puede revertir.</td><td><span class="status provisional">RESEARCH THESIS</span></td></tr>
+        <tr><td>STR-003</td><td>Scheduled Supply Events / Unlock Overshoot: contraparte vendedora por liberación/transferencia de oferta programada; requiere demostrar cuándo es flujo transitorio vs información ya incorporada.</td><td><span class="status provisional">RESEARCH</span></td></tr>
+        <tr><td>Pump.fun Copytrading</td><td>Sin tesis validada todavía. Permanece RESEARCH y debe responder las mismas preguntas económicas antes de cualquier promoción.</td><td><span class="status provisional">RESEARCH / $0</span></td></tr>
+      </tbody>
+    </table>
+</div>
+</section>
+
+<section id="seed-str001" class="section">
+  <div class="section-head">
+    <div><h3>4. Seed Research Program STR-001 — Polymarket × Deribit Relative Value</h3><div class="section-sub">Programa semilla cuantitativo de valor relativo informador por opciones.</div></div>
+    <button class="collapse">▼</button>
+  </div>
+  <div class="section-body">
+    <div class="grid">
+      <div class="card span6">
+        <div class="kicker">Ficha Técnica STR-001</div>
+        <p><strong>ID:</strong> STR-001</p>
+        <p><strong>Familia:</strong> RELATIVE_VALUE / CROSS_MARKET</p>
+        <p><strong>Origen:</strong> QUANT</p>
+        <p><strong>Estado:</strong> RESEARCH</p>
+        <p><strong>Privilegiado:</strong> NO</p>
+      </div>
+      <div class="card span6">
+        <div class="kicker">Estado de Evidencia</div>
+        <p><span class="status approved">MATH FOUNDATION: VALIDATED</span></p>
+        <p>El Spike Matemático probó la equivalencia de numéraire ($C_{USD} \equiv C_{coin} \times F$) y la derivada analítica con skew.</p>
+        <p><span class="status provisional">ECONOMIC EDGE: NOT VALIDATED</span></p>
+        <p>Falta backtest riguroso con fee structure versionada, holdout y paper trading.</p>
+      </div>
+    </div>
+
+    <h4>Ecuación Central de Probabilidad Digital (Breeden-Litzenberger con Skew):</h4>
+    <pre>P_RN(S_T >= K) = N(d2) - F * phi(d1) * sqrt(T) * (dSigma/dK)</pre>
+    <p>Validada empíricamente contra diferencias finitas cuadráticas $O(\epsilon^2)$ con discrepancia $< 10^{-11}$.</p>
+  </div>
+</section>
+
+<section id="seed-str002" class="section">
+  <div class="section-head">
+    <div><h3>5. STR-002 v2 — Liquidity Shock Reversal</h3><div class="section-sub">Long-only execution research: separar impacto temporal de liquidez de movimiento persistente/informativo.</div></div>
+    <button class="collapse">▼</button>
+  </div>
+  <div class="section-body">
+    <div class="grid">
+      <div class="card span6">
+        <div class="kicker">Ficha Técnica</div>
+        <p><strong>ID:</strong> STR-002</p>
+        <p><strong>Familia:</strong> BEHAVIORAL / MICROSTRUCTURE / SHORT-HORIZON MEAN REVERSION</p>
+        <p><strong>Origen:</strong> HUMAN</p>
+        <p><strong>Stage:</strong> RESEARCH</p>
+        <p><strong>Execution:</strong> LONG-ONLY</p>
+        <p><strong>Short side:</strong> RESEARCH ONLY</p>
+        <p><strong>Economic edge:</strong> NOT VALIDATED</p>
+      </div>
+      <div class="card span6">
+        <div class="kicker">Counterparty Thesis</div>
+        <p>La contraparte candidata es un vendedor forzado/apurado o flujo obligado que cruza liquidez y genera un impacto idiosincrático temporal. La estrategia intenta capturar la normalización después de que la presión termina.</p>
+        <p><strong>Falsificación:</strong> si el movimiento es informativo/persistente, si el residual no revierte neto de costos o si slippage/capacity destruyen el edge, la tesis falla.</p>
+      </div>
+    </div>
+
+    <h4>Descomposición conceptual del movimiento</h4>
+    <pre>ALT MOVE
+  = systematic_component(BTC, ETH, regime)
+  + persistent_idiosyncratic_information
+  + transient_liquidity_impact</pre>
+    <p>STR-002 intenta operar solamente el componente <strong>transient_liquidity_impact</strong>. La dificultad de investigación es identificarlo point-in-time con precisión suficiente para sobrevivir costos.</p>
+
+    <h4>Residuo de dos factores — Adenda autoritativa</h4>
+    <pre>residual_alt = r_alt - beta(BTC) * r_BTC - gamma(ETH) * r_ETH</pre>
+    <div class="callout">
+      <strong>Beta asimétrico:</strong> evaluar <code>beta_up</code> y <code>beta_down</code> por separado. Para mitigar colinealidad BTC/ETH, comparar regresión regularizada contra una formulación donde ETH entra como residual respecto de BTC. La ventana de shock (1–5 min candidata) NO debe confundirse con la ventana más larga usada para estimar factores.
+    </div>
+    <p>Validar estabilidad de coeficientes, OOS explanatory power, coefficient turnover, sensibilidad a ventana y residual autocorrelation. Una canasta sectorial queda como extensión posterior y paga su costo de multiple testing.</p>
+
+    <h4>BTC State Matrix — hipótesis por celda</h4>
+    <table>
+      <thead><tr><th>Shock alt</th><th>Estado BTC</th><th>Hipótesis operativa</th><th>Estado</th></tr></thead>
+      <tbody>
+        <tr><td>Caída brusca</td><td>PLANO</td><td>LONG candidate después de reversal; tolerar excursión dentro del hard risk stop.</td><td><span class="status provisional">TEST</span></td></tr>
+        <tr><td>Caída brusca</td><td>SUBE</td><td>LONG candidate; evaluar runner/extended hold si BTC sigue a favor.</td><td><span class="status provisional">TEST</span></td></tr>
+        <tr><td>Caída brusca</td><td>BAJA</td><td>No entrar; si ya existe posición, evaluar salida anticipada.</td><td><span class="status provisional">TEST</span></td></tr>
+        <tr><td>Cualquier shock</td><td>CORRIENDO FUERTE</td><td>Abstención.</td><td><span class="status provisional">TEST</span></td></tr>
+      </tbody>
+    </table>
+    <p>Estados calculados en 1m / 5m / 15m como movimiento normalizado por volatilidad de BTC. Los umbrales se calibran en research; no se congelan por intuición.</p>
+
+    <h4>Primer reversal — no catch the knife</h4>
+    <ul>
+      <li>aggressor-flow reversal en últimos N segundos;</li>
+      <li>book replenishment / resilience;</li>
+      <li>recuperación X% del impulso;</li>
+      <li>primer higher-low en barras de 1s;</li>
+      <li>price-only proxy para histórico sin libro.</li>
+    </ul>
+    <p>Immediate overshoot entry permanece como control. Cada detector se evalúa incrementalmente; si no agrega valor OOS se elimina.</p>
+
+    <h4>Objetivo de salida — referencia vs porcentaje fijo</h4>
+    <table>
+      <thead><tr><th>Variante</th><th>Definición</th></tr></thead>
+      <tbody>
+        <tr><td>Reference Price</td><td>Origen del quiebre, pre-shock VWAP, microprice o reference band point-in-time.</td></tr>
+        <tr><td>Fixed Retracement</td><td>30/50/60% u otros niveles candidatos usados únicamente como controles experimentales.</td></tr>
+        <tr><td>BTC-conditioned Exit</td><td>Tolerar mayor excursión de estrategia si BTC permanece compatible; cortar antes si BTC gira en contra.</td></tr>
+      </tbody>
+    </table>
+    <div class="callout danger"><strong>Hard Risk Boundary:</strong> la estrategia puede salir antes, pero NUNCA relaja el hard stop del Risk Engine, límites de gap/delisting, drawdown ni reglas trailing de una prop firm.</div>
+
+    <h4>Regime Snapshot persistido por señal/trade</h4>
+    <pre>RegimeSnapshot
+  ts_utc
+  btc_state_1m
+  btc_state_5m
+  btc_state_15m
+  btc_realized_vol_percentile
+  mean_alt_btc_correlation
+  cross_sectional_dispersion
+  relative_volume
+  book_depth
+  news_intensity
+  news_assessment_id
+  config_fingerprint</pre>
+    <p><strong>Fast state:</strong> segundos para BTC state, spread/depth/relative volume. <strong>Slow regime snapshot:</strong> aprox. 1 minuto para percentiles, correlaciones y dispersion. Cada trade guarda IDs/fingerprints para reconstrucción exacta.</p>
+    <p><strong>News intensity histórica:</strong> solo si existe dataset point-in-time. No se fabrican labels con hindsight.</p>
+
+    <h4>Evidence Ladder — evitar sobreingeniería</h4>
+    <div class="flow">
+      <div class="node">M0 Raw Shock</div><div class="arrow">→</div>
+      <div class="node">M1 BTC Residual</div><div class="arrow">→</div>
+      <div class="node">M2 BTC+ETH</div><div class="arrow">→</div>
+      <div class="node">M3 Asym Beta</div><div class="arrow">→</div>
+      <div class="node">M4 BTC Matrix</div><div class="arrow">→</div>
+      <div class="node">M5 First Reversal</div><div class="arrow">→</div>
+      <div class="node">M6 Regime</div><div class="arrow">→</div>
+      <div class="node">M7 Microstructure</div>
+    </div>
+    <p>Cada modelo debe demostrar <strong>incremental OOS value</strong>. Complejidad que no agrega valor fuera de muestra se elimina.</p>
+
+    <h4>Métricas obligatorias por celda / tier / régimen</h4>
+    <ul>
+      <li>net expectancy, hit rate, median return, tail/worst-case loss;</li>
+      <li>MFE, MAE, retracement ratio y time-to-retracement;</li>
+      <li>spread, fees, slippage, fill degradation y capacity;</li>
+      <li>alpha residual vs BTC/ETH beta y regime-matched baseline;</li>
+      <li>calma vs estrés vs low-liquidity tier: edge post-costos obligatorio.</li>
+    </ul>
+
+    <h4>Risk-based sizing</h4>
+    <pre>risk_budget_usd = equity * risk_fraction
+position_notional = risk_budget_usd / effective_stop_distance
+effective_stop_distance = nominal_stop + expected_slippage_by_tier</pre>
+    <p>Rangos 0,5–1,0% (capital propio) y 0,25–0,5% (prop) son <strong>policy envelopes provisionales</strong>. Leverage es output, nunca input de riesgo. Sin margin real hasta edge validado.</p>
+
+    <h4>Deployment path condicional</h4>
+    <div class="flow">
+      <div class="node">Historical Backtest</div><div class="arrow">→</div>
+      <div class="node">Frozen Holdout</div><div class="arrow">→</div>
+      <div class="node">Live Paper</div><div class="arrow">→</div>
+      <div class="node">Portfolio Gates</div><div class="arrow">→</div>
+      <div class="node">Prop Monte Carlo</div><div class="arrow">→</div>
+      <div class="node">SMALL_LIVE / PROP_EVALUATION</div>
+    </div>
+    <div class="callout warn">Todo escalado es condicional. STR-002 no recibe capital por estar bien diseñada; debe demostrar edge neto de costos y superar los mismos gates que cualquier otra estrategia.</div>
+  </div>
+</section>
+
+<section id="regimen" class="section">
+  <div class="section-head">
+    <div><h3>6. Contexto, Régimen y Policy Engine</h3><div class="section-sub">Mapeo determinístico de estados de mercado a perfiles validados.</div></div>
+    <button class="collapse">▼</button>
+  </div>
+  <div class="section-body">
+    <div class="flow">
+      <div class="node">Global Context</div><div class="arrow">→</div>
+      <div class="node">Domain Regime</div><div class="arrow">→</div>
+      <div class="node">Strategy Regime</div><div class="arrow">→</div>
+      <div class="node">Asset State</div><div class="arrow">→</div>
+      <div class="node">Validated Profile</div>
+    </div>
+    <p>No existe un único “sentimiento del día”. El Policy Engine consume estados estructurados point-in-time.</p>
+    <h4>STR-002 BTC State Module</h4>
+    <p>Estados: <strong>PLANO / SUBE / BAJA / CORRIENDO FUERTE</strong>, observados en 1m, 5m y 15m, normalizados por realized volatility de BTC. Thresholds calibrados en backtest/holdout, nunca hardcodeados como verdad.</p>
+    <h4>Regime Inputs</h4>
+    <ul>
+      <li>BTC realized-vol percentile</li>
+      <li>mean alts↔BTC rolling correlation</li>
+      <li>cross-sectional dispersion</li>
+      <li>relative volume</li>
+      <li>book depth / spread health</li>
+      <li>news intensity / structured Luna assessment</li>
+    </ul>
+    <div class="callout danger"><strong>Prohibición:</strong> Luna puede producir contexto; no cambia TP, stop, leverage, size ni order route. Policy/Risk determinístico aplica cualquier bloqueo.</div>
+</div>
+</section>
+
+<section id="ia" class="section">
+  <div class="section-head">
+    <div><h3>7. Jev, Luna y Machine Learning</h3><div class="section-sub">Límites estrictos entre razonamiento y ejecución transaccional.</div></div>
+    <button class="collapse">▼</button>
+  </div>
+  <div class="section-body">
+    <table>
+      <thead><tr><th>Componente</th><th>Responsabilidad Permitida</th><th>Prohibición Absoluta</th></tr></thead>
+      <tbody>
+        <tr><td>Jev</td><td>Clasificación rápida de streams semiestructurados y routing de contexto.</td><td>CERO autoridad sobre órdenes o routing de capital.</td></tr>
+        <tr><td>Luna</td><td>Razonamiento macro, <code>NewsAssessment</code> estructurado, news intensity, ambigüedad y post-mortem research.</td><td>CERO ejecución/cancelación, claves, sizing, leverage o modificación de stops.</td></tr>
+        <tr><td>Modelos ML</td><td>Aprendizaje de targets de microestructura y features sobre data lakehouse propio.</td><td>No reemplazan reglas determinísticas de risk.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="riesgo" class="section">
+  <div class="section-head">
+    <div><h3>8. Risk Engine & EventCluster</h3><div class="section-sub">Diversificación económica real contra shocks agregados.</div></div>
+    <button class="collapse">▼</button>
+  </div>
+  <div class="section-body">
+    <p>El sistema rechaza la falsa diversificación basada en contar posiciones o cuentas.</p>
+    <pre>BTC / Crypto Stress Event
+├── STR-002 Own Capital
+├── STR-002 Prop Firm A
+├── STR-002 Prop Firm B
+├── STR-001 Crypto-sensitive Polymarket
+└── Other correlated crypto alpha
+      ↓
+Aggregate Strategy + EventCluster Exposure
+      ↓
+Risk Engine Final Veto</pre>
+
+    <h4>Aggregate Exposure Across Capital Pockets</h4>
+    <p>STR-002 ejecutada en N cuentas sigue siendo <strong>la misma exposición económica</strong>. El Risk Engine suma exposición por estrategia, asset y EventCluster a través de todos los pockets. En estrés no se presume independencia entre capital propio, prop accounts, Polymarket crypto y alt-perp exposures.</p>
+
+    <h4>PropRuleProfile</h4>
+    <pre>PropRuleProfile
+  provider_id
+  version
+  verified_at
+  daily_loss_mode: FIXED | TRAILING_EQUITY
+  daily_loss_limit
+  max_total_loss
+  max_loss_per_trade
+  minimum_trading_days
+  consistency_rule
+  withdrawal_cap
+  instrument_universe
+  venue
+  api_bot_policy
+  multi_account_policy
+  copy_trading_policy
+  hedging_policy
+  country_eligibility
+  verification_status</pre>
+
+    <div class="callout">
+      <strong>Mubite:</strong> DESCARTADA para esta ruta según decisión del proyecto. <strong>HyroTrader:</strong> PENDING WRITTEN CONFIRMATION sobre API/bots, reversión short-horizon, naturaleza del examen y condiciones aplicables. Perfil configurable no implica aprobación.
+    </div>
+
+    <h4>Prop Exam Monte Carlo</h4>
+    <p>Simulación path-dependent usando distribución empírica de trades, MAE/MFE, daily grouping y reglas versionadas. Preferir block/bootstrap o regime-conditioned resampling cuando exista serial dependence. No modelar trades IID por defecto.</p>
+    <p>No se habilita compra de examen sin backtest + holdout + paper aprobados, prop profile verificado y pass probability sobre el hurdle configurado. El ~50% es provisional, no universal.</p>
+    <p><strong>5 exámenes fallidos</strong> para la misma combinación <code>strategy_version + prop_rule_profile_version</code> → bloquear sexto intento y volver a investigación/review. No implica archivo permanente automático.</p>
+
+    <h4>Hard Stop Independence</h4>
+    <div class="callout danger">Strategy exit logic puede ser más conservadora; nunca puede ampliar hard risk limits, trailing drawdown de prop, gap limits, delisting/news blocks ni kill switches.</div>
+</div>
+</section>
+
+<section id="portfolio" class="section">
+  <div class="section-head">
+    <div><h3>9. Portfolio / Capital Allocation Engine</h3><div class="section-sub">Asignación dinámica de capital entre estrategias validadas.</div></div>
+    <button class="collapse">▼</button>
+  </div>
+  <div class="section-body">
+    <p>Portfolio/Capital Allocation no selecciona “el mejor backtest”. Consume únicamente estrategias que superaron evidence gates y luego decide riesgo por utilidad marginal al portfolio.</p>
+    <ul>
+      <li>expectancy neta OOS y uncertainty;</li>
+      <li>Deflated Sharpe / multiple-testing burden;</li>
+      <li>temporal stability y edge decay;</li>
+      <li>latency sensitivity / edge half-life;</li>
+      <li>capacity y executable liquidity;</li>
+      <li>normal, downside y stress correlation;</li>
+      <li>EventCluster overlap y regime compatibility;</li>
+      <li>paper/live degradation.</li>
+    </ul>
+    <div class="quote">THE OS DOES NOT SELECT THE BEST BACKTEST. It allocates among independently validated, economically explainable, capacity-aware, regime-aware and sufficiently uncorrelated edges.</div>
+    <h4>Lifecycle actions driven by live gates</h4>
+    <div class="flow">
+      <div class="node">SCALE</div><div class="node">REDUCE</div><div class="node">PAUSE</div><div class="node">KILL</div>
+    </div>
+    <p>Decay, capacity compression, rising correlation, latency deterioration or gate failure can automatically reduce/pause eligibility. Fórmulas finales de optimización permanecen abiertas hasta evidencia suficiente.</p>
+</div>
+</section>
+
+<section id="datos" class="section">
+  <div class="section-head">
+    <div><h3>10. Data Architecture & Batch 0</h3><div class="section-sub">Infraestructura de datos de mercado implementada y verificada.</div></div>
+    <button class="collapse">▼</button>
+  </div>
+  <div class="section-body">
+    <p><span class="status approved">BATCH 0 BASELINE IMPLEMENTED</span> <span class="status provisional">24h/72h GATE RUNNING/PENDING</span></p>
+    <table>
+      <thead><tr><th>Venue</th><th>Baseline actual</th><th>v1.4 delta</th></tr></thead>
+      <tbody>
+        <tr><td>Polymarket</td><td>CLOB books/trades/metadata.</td><td>Sin cambio por STR-002.</td></tr>
+        <tr><td>Deribit</td><td>Options/IV/greeks/index.</td><td>Sin cambio por STR-002.</td></tr>
+        <tr><td>Binance USDⓈ-M</td><td>bookTicker, depth5, aggTrade, markPrice, forceOrder, OI.</td><td>Recorder Profile v2 separado: <strong>depth20@100ms primero</strong>; full diff book solo si depth20 demuestra insuficiencia.</td></tr>
+        <tr><td>Bybit</td><td>No baseline.</td><td>Evaluar/agregar recorder normalizado si es venue relevante para ejecución/prop. Medir slippage donde realmente se ejecutaría.</td></tr>
+      </tbody>
+    </table>
+
+    <h4>Recorder Profile v2 — Priority High</h4>
+    <ul>
+      <li><strong>No reiniciar ni alterar</strong> el run 24h/72h actual. Nuevo <code>run_id</code> y config fingerprint.</li>
+      <li><strong>Depth:</strong> comenzar con <code>depth20@100ms</code>. Full diff depth + REST snapshot es fase posterior si la evidencia muestra necesidad.</li>
+      <li><strong>forceOrder:</strong> indicador/proxy parcial de liquidaciones, nunca volumen completo de cascada.</li>
+      <li><strong>Tier 5:</strong> definir por tradability de perps, no por market cap solamente.</li>
+    </ul>
+
+    <h4>Tier 5 — Tradability Score</h4>
+    <pre>inputs:
+  perp_daily_quote_volume
+  spread_bps
+  depth_at_bps_bands
+  open_interest
+  trade_frequency
+  realized_volatility
+  listing_status
+  optional_point_in_time_market_cap</pre>
+    <p>La lista candidata debe ser dinámica y point-in-time. No congelar nombres actuales ni usar survivor-only universe.</p>
+
+    <h4>Historical STR-002 Core</h4>
+    <p>Usar Binance aggTrades/klines y metadata histórica recuperable, incluyendo tokens deslistados cuando sea posible. Reportar explícitamente coverage, listing/delisting timestamps y missing-data. PYR anecdótico no se convierte en evidencia si no hay datos recuperables.</p>
+</div>
+</section>
+
+
+<section id="portfolio-gates" class="section">
+  <div class="section-head">
+    <div><h3>11. Portfolio Selection Gates</h3><div class="section-sub">Gates auditables adicionales a backtest/holdout/paper para evitar selection bias, latency races, decay y over-allocation.</div></div>
+    <button class="collapse">▼</button>
+  </div>
+  <div class="section-body">
+    <div class="grid">
+      <div class="card span6">
+        <div class="kicker">Gate A</div><div class="kpi">Latency Sensitivity</div>
+        <p>Re-run con +1s, +5s y +30s señal→orden; estimar net expectancy decay, break-even latency, edge half-life y margen contra p95/p99 operacional.</p>
+        <p><strong>FAIL:</strong> estrategia se vuelve latency-race bajo latencias incompatibles con nuestro stack.</p>
+      </div>
+      <div class="card span6">
+        <div class="kicker">Gate B</div><div class="kpi">Temporal Stability / Alpha Decay</div>
+        <p>Early vs late sample, rolling windows y régimen bull/bear/lateral + high/low vol. Detectar tendencia de compresión y cambios de distribución.</p>
+      </div>
+      <div class="card span6">
+        <div class="kicker">Gate C</div><div class="kpi">Multiple Selection Correction</div>
+        <p>Registrar automáticamente cantidad de variantes, parámetros, features, universos y exits probados. Usar Deflated Sharpe/FDR o equivalente.</p>
+      </div>
+      <div class="card span6">
+        <div class="kicker">Gate D</div><div class="kpi">Correlation & Capacity</div>
+        <p>Matriz de retornos entre estrategias, downside/stress correlation, EventCluster overlap y capacity máxima según executable liquidity/depth.</p>
+      </div>
+    </div>
+
+    <h4>Contrato común</h4>
+    <pre>StrategyGateResult
+  strategy_id
+  gate_type
+  status: PASS | FAIL | PENDING
+  metrics
+  thresholds
+  config_fingerprint
+  dataset_fingerprint
+  experiment_ids
+  evaluated_at
+  reasons</pre>
+    <p>Estos gates siguen el estilo auditable de <code>quality/</code>. Un PASS nunca se infiere por ausencia de error.</p>
+  </div>
+</section>
+
+<section id="capital-pockets" class="section">
+  <div class="section-head">
+    <div><h3>12. Capital Pockets & Multicuenta</h3><div class="section-sub">Separación contable/operativa por cuenta sin fingir diversificación económica.</div></div>
+    <button class="collapse">▼</button>
+  </div>
+  <div class="section-body">
+
+    <h4>CapitalPocket</h4>
+    <pre>CapitalPocket
+  pocket_id
+  pocket_type: OWN | PROP
+  provider_id
+  account_id
+  execution_venue
+  enabled_strategy_ids
+  rule_profile_id
+  loss_limit
+  kill_switch_state
+  capital_authorization_state
+  manual_gate_ids</pre>
+
+    <div class="grid">
+      <div class="card span4"><div class="kicker">Own Capital</div><p>Solo estrategias autorizadas por evidencia. Puede operar venues on-chain donde corresponda. Kill switch y loss budget propios.</p></div>
+      <div class="card span4"><div class="kicker">Prop Firm A</div><p>Solo estrategias/instrumentos permitidos por términos verificados, en el venue autorizado y bajo su PropRuleProfile.</p></div>
+      <div class="card span4"><div class="kicker">Prop Firm B</div><p>Opcional. Nunca se habilita por analogía con otra firma; requiere verificación separada y manual gate.</p></div>
+    </div>
+
+    <div class="callout danger"><strong>No risk transfer:</strong> Portfolio Allocation NO mueve pérdidas/risk budget entre pockets para “rescatar” una cuenta. Cada pocket conserva límites/kill switch propios, mientras Risk Engine mantiene exposición agregada global.</div>
+
+    <h4>Manual Multi-Account Compliance Gate</h4>
+    <pre>MultiAccountEvidenceGate
+  provider_id
+  written_evidence_refs
+  multiple_accounts_allowed
+  same_bot_allowed
+  copy_trading_interpretation
+  shared_account_restriction
+  cross_account_hedging_policy
+  verified_at
+  status: PASS | FAIL | PENDING</pre>
+    <p>Antes de una segunda cuenta: confirmación escrita sobre múltiples cuentas, mismo bot/copy trading y restricciones de hedging. Sin evidencia adjunta el gate queda PENDING.</p>
+
+    <h4>Aggregate Risk</h4>
+    <p>Exposición se agrega por <strong>strategy_id + economic factor + EventCluster</strong> a través de todas las cuentas. Dos cuentas ejecutando STR-002 no son dos estrategias ni dos fuentes independientes de riesgo.</p>
+
+    <h4>Pump.fun Copytrading</h4>
+    <p><strong>Stage: RESEARCH. Capital: $0.</strong> Requiere counterparty thesis y todos los mismos gates. No puede usar capital de prop firm porque la ruta es on-chain; si algún día avanza, sería exclusivamente desde capital propio autorizado.</p>
+  </div>
+</section>
+
+<section id="roadmap" class="section">
+  <div class="section-head">
+    <div><h3>13. Roadmap Autorizado de Construcción</h3><div class="section-sub">Fases de ingeniería guiadas exclusivamente por gates de evidencia.</div></div>
+    <button class="collapse">▼</button>
+  </div>
+  <div class="section-body">
+    <div class="roadmap-toolbar">
+      <button class="filter-btn active" data-phase="all">Todos</button>
+      <button class="filter-btn" data-phase="now">Completado</button>
+      <button class="filter-btn" data-phase="gate">Gates</button>
+      <button class="filter-btn" data-phase="future">Futuro / Pendiente</button>
+    </div>
+
+    <div class="roadmap">
+      <div class="phase" data-type="now"><div class="label">FOUNDATION</div><div><strong>OS Core v1.2 Baseline</strong><p>Data, research/backtest, registry, risk, paper, regime, portfolio, attribution y E2E baseline existen. v1.4 no convierte requisitos nuevos en “ya implementados”.</p><div class="timeline-meta"><span class="tag good">BASELINE IMPLEMENTED</span></div></div></div>
+
+      <div class="phase gate" data-type="gate"><div class="label">DATA GATE</div><div><strong>24h / 72h Acceptance</strong><p>Continúa con run/config fingerprint original. No reiniciar por Recorder Profile v2.</p><div class="timeline-meta"><span class="tag warn">RUNNING / PENDING</span></div></div></div>
+
+      <div class="phase future" data-type="future"><div class="label">1. SPEC</div><div><strong>Freeze STR-002 v2 Research Spec</strong><p>Counterparty thesis, two-factor residual, BTC states, rule evidence provenance, long-only execution, reference-price exit variants y hard risk separation.</p></div></div>
+
+      <div class="phase future" data-type="future"><div class="label">2. RECORDER</div><div><strong>Recorder v2 IN PARALLEL</strong><p>Binance depth20, Tier5 tradability policy, forceOrder semantics y Bybit evaluation/collector. Inicia inmediatamente mientras corre research histórico.</p></div></div>
+
+      <div class="phase future" data-type="future"><div class="label">3. HISTORICAL</div><div><strong>Core Historical Research</strong><p>Raw shock → BTC residual → BTC+ETH → asymmetric beta → BTC matrix → first reversal → regimes. Universo point-in-time, delisteds donde recuperables.</p></div></div>
+
+      <div class="phase gate" data-type="gate"><div class="label">4. VALIDATE</div><div><strong>Holdout + Portfolio Selection Gates</strong><p>Latency sensitivity, temporal stability/decay, multiple-selection correction, correlation/capacity. Freeze params antes de holdout.</p></div></div>
+
+      <div class="phase future" data-type="future"><div class="label">5. PAPER</div><div><strong>Live Paper</strong><p>Forward microstructure, Binance/Bybit execution realism, NewsAssessment forward, latency/slippage/capacity observados.</p></div></div>
+
+      <div class="phase future" data-type="future"><div class="label">6. PORTFOLIO</div><div><strong>Portfolio Allocation Eligibility</strong><p>Solo estrategias aprobadas. No winner-take-all por backtest. SCALE/REDUCE/PAUSE/KILL por gates live.</p></div></div>
+
+      <div class="phase future" data-type="future"><div class="label">7. PROP</div><div><strong>PropRuleProfile + Monte Carlo</strong><p>Solo después de holdout/paper. HyroTrader PENDING written verification. Mubite descartada. Multi-account gate requerido antes de segunda cuenta.</p></div></div>
+
+      <div class="phase gate" data-type="gate"><div class="label">8. EXAM</div><div><strong>Primer examen</strong><p>Solo si todos los gates pasan. Hurdle Monte Carlo versionado. Máximo 5 fallos por strategy/profile version antes de volver a research.</p><div class="timeline-meta"><span class="tag warn">NO CAPITAL AUTHORIZED YET</span></div></div></div>
+    </div>
+</div>
+</section>
+
+<section id="kill" class="section">
+  <div class="section-head">
+    <div><h3>14. Criterios de Archivo (Kill Criteria)</h3><div class="section-sub">Mecanismos automáticos para prevenir el costo hundido de investigación.</div></div>
+    <button class="collapse">▼</button>
+  </div>
+  <div class="section-body">
+    <div class="grid">
+      <div class="card span6">
+        <h4>STR-001 (Polymarket × Deribit)</h4>
+        <ul>
+          <li>Expectancy neta insuficiente tras comisiones taker y spread.</li>
+          <li>Inestabilidad en la calibración de la superficie de volatilidad.</li>
+          <li>Falla en el período holdout fuera de muestra.</li>
+          <li>Capacidad insuficiente en libros de Polymarket.</li>
+        </ul>
+      </div>
+      <div class="card span6">
+        <h4>STR-002 v2 (Liquidity Shock Reversal)</h4>
+        <ul>
+          <li>El residual shock + reversal no supera baseline/benchmark tras costos y factor attribution.</li>
+          <li>Edge económico < 1.5× costo de round-trip.</li>
+          <li>No sobrevive corrección de múltiples hipótesis (FDR).</li>
+          <li>El edge desaparece con latency realism, fills/slippage reales o capacity constraints.</li>
+          <li><strong>Timebox:</strong> 3-4 semanas de análisis empírico. Si no hay edge: ARCHIVE.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="decisiones" class="section">
+  <div class="section-head">
+    <div><h3>15. Decision Registry</h3><div class="section-sub">Registro auditable de decisiones arquitectónicas y de gobernanza.</div></div>
+    <button class="collapse">▼</button>
+  </div>
+  <div class="section-body">
+    <div class="decision-toolbar">
+      <button class="filter-btn active" data-decision="all">Todas</button>
+      <button class="filter-btn" data-decision="approved">Approved</button>
+      <button class="filter-btn" data-decision="provisional">Provisional</button>
+      <button class="filter-btn" data-decision="outscope">Out of scope</button>
+    </div>
+
+    <table id="decisionTable">
+      <thead><tr><th>Área</th><th>Decisión</th><th>Estado</th></tr></thead>
+      <tbody>
+        <tr class="decision-row" data-status="approved"><td>OS Definition</td><td>Evidence-driven multi-strategy alpha discovery, validation, allocation, risk and execution OS.</td><td><span class="status approved">APPROVED</span></td></tr>
+        <tr class="decision-row" data-status="approved"><td>No Best-Backtest Winner</td><td>Portfolio no selecciona únicamente el máximo Sharpe/backtest; controla selection bias, decay, correlation y capacity.</td><td><span class="status approved">APPROVED</span></td></tr>
+        <tr class="decision-row" data-status="approved"><td>Counterparty Thesis</td><td>Obligatoria para RESEARCH → VALIDATION. Debe ser estructurada, falsable y auditable.</td><td><span class="status approved">APPROVED</span></td></tr>
+        <tr class="decision-row" data-status="approved"><td>Rule Evidence Provenance</td><td>Cada regla marca intuición no validada vs backtest/holdout/paper/live evidence.</td><td><span class="status approved">APPROVED</span></td></tr>
+        <tr class="decision-row" data-status="approved"><td>Portfolio Selection Gates</td><td>Latency, temporal stability/decay, multiple-selection correction, correlation/capacity retornan PASS/FAIL/PENDING con fingerprints.</td><td><span class="status approved">APPROVED</span></td></tr>
+        <tr class="decision-row" data-status="approved"><td>Edge vs Beta</td><td>Todo alpha direccional debe separar exposición BTC/ETH/factores de retorno residual.</td><td><span class="status approved">APPROVED</span></td></tr>
+        <tr class="decision-row" data-status="approved"><td>STR-002 v2</td><td>Liquidity Shock Reversal; LONG-only execution; short-side research only; edge económico NOT VALIDATED.</td><td><span class="status approved">APPROVED RESEARCH SPEC</span></td></tr>
+        <tr class="decision-row" data-status="approved"><td>STR-002 Factors</td><td>Evaluar residual BTC+ETH, beta asimétrico y BTC state matrix como hipótesis, pagando multiple-testing cost.</td><td><span class="status approved">APPROVED RESEARCH DESIGN</span></td></tr>
+        <tr class="decision-row" data-status="approved"><td>STR-002 Exit</td><td>Reference price/VWAP pre-shock vs fixed retracement como variantes; Risk hard stop nunca se relaja.</td><td><span class="status approved">APPROVED</span></td></tr>
+        <tr class="decision-row" data-status="approved"><td>Recorder v2</td><td>Separate run. depth20 primero; forceOrder proxy parcial; Tier5 por tradability; evaluar Bybit.</td><td><span class="status approved">APPROVED</span></td></tr>
+        <tr class="decision-row" data-status="approved"><td>Capital Pockets</td><td>Own/Prop pockets con reglas y kill switches separados; no risk transfer entre bolsillos.</td><td><span class="status approved">APPROVED</span></td></tr>
+        <tr class="decision-row" data-status="approved"><td>Aggregate Multiaccount Risk</td><td>Misma estrategia en N cuentas = misma exposición económica; sumar globalmente por strategy/EventCluster.</td><td><span class="status approved">APPROVED</span></td></tr>
+        <tr class="decision-row" data-status="approved"><td>Multiaccount Manual Gate</td><td>Segunda cuenta requiere evidencia escrita sobre multiple accounts, same-bot/copy-trading y hedging policy.</td><td><span class="status approved">APPROVED</span></td></tr>
+        <tr class="decision-row" data-status="provisional"><td>HyroTrader</td><td>Perfil configurable; PENDING written verification. No asumir aprobación de bots/API/reversal ni naturaleza del examen.</td><td><span class="status provisional">PENDING</span></td></tr>
+        <tr class="decision-row" data-status="outscope"><td>Mubite</td><td>Descartada para esta ruta según decisión del proyecto.</td><td><span class="status outscope">DISCARDED</span></td></tr>
+        <tr class="decision-row" data-status="approved"><td>Prop Monte Carlo</td><td>Path-dependent, versioned rules, block/regime resampling preferido; ~50% hurdle provisional.</td><td><span class="status approved">APPROVED DESIGN</span></td></tr>
+        <tr class="decision-row" data-status="approved"><td>Prop Attempt Kill</td><td>5 fallos por strategy_version + prop_profile_version bloquean sexto intento y fuerzan research/review.</td><td><span class="status approved">APPROVED</span></td></tr>
+        <tr class="decision-row" data-status="provisional"><td>STR-003</td><td>Scheduled Supply Events / Unlock Overshoot. Stage RESEARCH, sin capital, misma gobernanza.</td><td><span class="status provisional">RESEARCH</span></td></tr>
+        <tr class="decision-row" data-status="provisional"><td>Pump.fun Copytrading</td><td>RESEARCH, $0, requiere counterparty thesis y mismos gates. Prop capital no puede operar on-chain.</td><td><span class="status provisional">RESEARCH</span></td></tr>
+        <tr class="decision-row" data-status="approved"><td>AI Execution Policy</td><td>Luna/Jev sin ejecución ni claves; Luna produce contexto/NewsAssessment, Policy/Risk decide.</td><td><span class="status approved">APPROVED</span></td></tr>
+        <tr class="decision-row" data-status="approved"><td>Live Capital</td><td>USD 0 LOCKED. Todo esquema de escalado es condicional a gates; no existen asignaciones pre-aprobadas.</td><td><span class="status approved">APPROVED</span></td></tr>
+</tbody>
+    </table>
+  </div>
+</section>
+
+<footer>
+  <strong>Trading / Quant OS — Master Blueprint & Roadmap v1.4.0</strong>
+  <p>Documento maestro autoritativo de arquitectura y gobernanza para el repositorio. Toda modificación futura debe actualizar este documento y el Decision Registry explícitamente. v1.4.0 incorpora como decisiones autoritativas: counterparty thesis obligatoria, evidence provenance por regla, portfolio selection gates anti-selection-bias/decay/latency/capacity, STR-002 v2 con residual BTC+ETH y BTC-state matrix, recorder v2 separado, capital pockets/multicuenta y prop-rule deployment. Estas decisiones NO implican edge validado ni capital autorizado. Live capital permanece LOCKED.</p>
+</footer>
+
+</main>
+</div>
+</div>
+
+<button id="topBtn" class="floating-top">↑ Arriba</button>
+
+<script>
+const sections = [...document.querySelectorAll('.section')];
+const navLinks = [...document.querySelectorAll('.nav-link')];
+const topBtn = document.getElementById('topBtn');
+
+document.querySelectorAll('.section-head').forEach(head=>{
+  head.addEventListener('click', e=>{
+    if(e.target.closest('button') || e.currentTarget===e.target || !e.target.closest('a')){
+      head.parentElement.classList.toggle('collapsed');
+    }
+  });
+});
+
+document.getElementById('expandAll').onclick=()=>sections.forEach(s=>s.classList.remove('collapsed'));
+document.getElementById('collapseAll').onclick=()=>sections.forEach(s=>s.classList.add('collapsed'));
+document.getElementById('printBtn').onclick=()=>window.print();
+
+const observer = new IntersectionObserver(entries=>{
+  entries.forEach(entry=>{
+    if(entry.isIntersecting){
+      navLinks.forEach(a=>a.classList.toggle('active', a.getAttribute('href')==='#'+entry.target.id));
+    }
+  });
+},{rootMargin:'-25% 0px -65% 0px',threshold:0});
+sections.filter(s=>s.id).forEach(s=>observer.observe(s));
+
+window.addEventListener('scroll',()=>{ topBtn.style.display = window.scrollY>500 ? 'block':'none'; });
+topBtn.onclick=()=>window.scrollTo({top:0,behavior:'smooth'});
+
+document.querySelectorAll('[data-phase]').forEach(btn=>{
+  if(!btn.classList.contains('filter-btn')) return;
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.roadmap-toolbar .filter-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    const type=btn.dataset.phase;
+    document.querySelectorAll('.phase').forEach(p=>{
+      p.classList.toggle('hidden-phase', type!=='all' && p.dataset.type!==type);
+    });
+  });
+});
+
+document.querySelectorAll('[data-decision]').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.decision-toolbar .filter-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    const type=btn.dataset.decision;
+    document.querySelectorAll('.decision-row').forEach(r=>{
+      r.classList.toggle('hidden-decision', type!=='all' && r.dataset.status!==type);
+    });
+  });
+});
+
+const searchInput=document.getElementById('searchInput');
+searchInput.addEventListener('input',()=>{
+  const q=searchInput.value.trim().toLowerCase();
+  sections.forEach(s=>{
+    const hit=!q || s.innerText.toLowerCase().includes(q);
+    s.classList.toggle('hidden-by-search',!hit);
+    if(hit && q) s.classList.remove('collapsed');
+  });
+});
+
+document.addEventListener('keydown',e=>{
+  if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='k'){
+    e.preventDefault(); searchInput.focus();
+  }
+});
+</script>
+</body>
+</html>
