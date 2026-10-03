@@ -1,0 +1,154 @@
+"""Unit tests for Portfolio Selection Gates (v1.4.0)."""
+
+import pytest
+import math
+from src.portfolio.gates import (
+    GateStatus,
+    StrategyGateResult,
+    LatencySensitivityGate,
+    TemporalStabilityGate,
+    MultipleSelectionGate,
+    CorrelationCapacityGate,
+    all_gates_pass,
+)
+
+
+def test_latency_sensitivity_gate_robust():
+    """Verify that strategies with slow decay pass the latency sensitivity gate."""
+    gate = LatencySensitivityGate(max_sharpe_drop_pct_at_5s=0.50, min_edge_half_life_s=5.0)
+
+    # Robust strategy: Sharpe 2.5 at 0s, 2.3 at 1s, 2.0 at 5s, 1.5 at 30s
+    sharpes = {0.0: 2.5, 1.0: 2.3, 5.0: 2.0, 30.0: 1.5}
+    result = gate.evaluate(sharpes)
+
+    assert result.status == GateStatus.PASS
+    assert result.diagnostics["is_latency_race"] is False
+    assert result.diagnostics["classification"] == "ROBUST_EXECUTION"
+    assert result.diagnostics["edge_half_life_s"] > 5.0
+    assert result.diagnostics["sharpe_drop_pct_at_5s"] == pytest.approx(0.20, abs=1e-3)
+    assert result.falsification_evidence is None
+
+
+def test_latency_sensitivity_gate_latency_race_rejection():
+    """Verify that fast-decaying strategies are flagged as LATENCY_RACE and rejected."""
+    gate = LatencySensitivityGate(max_sharpe_drop_pct_at_5s=0.50, min_edge_half_life_s=5.0)
+
+    # Latency race strategy: Sharpe 3.0 at 0s, 1.2 at 1s, 0.3 at 5s, 0.0 at 30s
+    sharpes = {0.0: 3.0, 1.0: 1.2, 5.0: 0.3, 30.0: 0.0}
+    result = gate.evaluate(sharpes)
+
+    assert result.status == GateStatus.FAIL
+    assert result.diagnostics["is_latency_race"] is True
+    assert result.diagnostics["classification"] == "LATENCY_RACE"
+    assert result.diagnostics["edge_half_life_s"] < 5.0
+    assert result.diagnostics["sharpe_drop_pct_at_5s"] == pytest.approx(0.90, abs=1e-3)
+    assert "LATENCY_RACE" in result.falsification_evidence
+
+
+def test_temporal_stability_gate_pass_and_decay():
+    """Verify Gate B detects alpha decay and rolling instability."""
+    gate = TemporalStabilityGate(min_decay_ratio=0.50, min_positive_rolling_pct=0.75, rolling_window_periods=10)
+
+    # 1. Stable positive returns (80 periods)
+    stable_returns = [0.01 + 0.002 * (i % 3) for i in range(80)]
+    result_stable = gate.evaluate(stable_returns)
+    assert result_stable.status == GateStatus.PASS
+    assert result_stable.diagnostics["is_decaying"] is False
+    assert result_stable.diagnostics["is_unstable"] is False
+    assert result_stable.diagnostics["rolling_positive_pct"] == 1.0
+
+    # 2. Decaying strategy: good early (periods 0..40), zero/negative late (periods 40..80)
+    decaying_returns = [0.02 + 0.005 * (i % 2) for i in range(40)] + [-0.005 + 0.002 * (i % 2) for i in range(40)]
+    result_decay = gate.evaluate(decaying_returns)
+    assert result_decay.status == GateStatus.FAIL
+    assert result_decay.diagnostics["is_decaying"] is True
+    assert "alpha decay" in result_decay.falsification_evidence.lower()
+
+
+def test_multiple_selection_gate_dsr_and_trial_count_penalty():
+    """Verify Gate C applies Bailey & López de Prado multiple testing correction."""
+    gate = MultipleSelectionGate(min_dsr=0.95, max_adjusted_pvalue=0.05)
+
+    # Strategy with Sharpe = 1.2, 100 observations
+    # Single trial: should have moderate confidence
+    res_1_trial = gate.evaluate(sharpe_ratio=1.2, trial_count=1, sample_length=100)
+    # Expected null Sharpe for N=1 is 0.0
+    assert res_1_trial.diagnostics["expected_max_null_sharpe"] == 0.0
+
+    # Same strategy evaluated after 200 trials in ExperimentRegistry
+    # Null threshold jumps significantly due to max of 200 standard normals
+    res_200_trials = gate.evaluate(sharpe_ratio=1.2, trial_count=200, sample_length=100)
+    assert res_200_trials.status == GateStatus.FAIL
+    assert res_200_trials.diagnostics["expected_max_null_sharpe"] > 1.5
+    assert res_200_trials.diagnostics["deflated_sharpe_ratio"] < 0.95
+    assert "multiple testing correction" in res_200_trials.falsification_evidence
+
+    # Highly robust strategy with Sharpe = 3.5 surviving 200 trials
+    res_exceptional = gate.evaluate(sharpe_ratio=3.5, trial_count=200, sample_length=250)
+    assert res_exceptional.status == GateStatus.PASS
+    assert res_exceptional.diagnostics["deflated_sharpe_ratio"] >= 0.95
+
+
+def test_correlation_capacity_gate():
+    """Verify Gate D enforces correlation ceilings and 1% 5m volume capacity."""
+    gate = CorrelationCapacityGate(
+        max_normal_correlation=0.60,
+        max_stress_correlation=0.70,
+        max_capacity_volume_pct=0.01,
+    )
+
+    n = 50
+    # Candidate returns
+    cand_returns = [0.01 * (1 if i % 2 == 0 else -1) for i in range(n)]
+
+    # 1. Orthogonal active strategy, well within capacity
+    active_returns_ortho = {"STR-001": [0.01 * (1 if i % 3 == 0 else -1) for i in range(n)]}
+    result_clean = gate.evaluate(
+        candidate_returns=cand_returns,
+        active_returns_by_strategy=active_returns_ortho,
+        avg_5m_volume_usd=1_000_000.0,
+        proposed_allocation_usd=5_000.0,  # 5,000 <= 1% of 1,000,000 (10,000)
+    )
+    assert result_clean.status == GateStatus.PASS
+
+    # 2. Capacity exceeded: proposed $25,000 on $1,000,000 5m volume (cap $10,000)
+    result_cap_fail = gate.evaluate(
+        candidate_returns=cand_returns,
+        active_returns_by_strategy=active_returns_ortho,
+        avg_5m_volume_usd=1_000_000.0,
+        proposed_allocation_usd=25_000.0,
+    )
+    assert result_cap_fail.status == GateStatus.FAIL
+    assert "exceeds 1% 5m volume capacity" in result_cap_fail.falsification_evidence
+
+    # 3. High correlation failure: identical returns
+    active_returns_high_corr = {"STR-002": list(cand_returns)}
+    result_corr_fail = gate.evaluate(
+        candidate_returns=cand_returns,
+        active_returns_by_strategy=active_returns_high_corr,
+        avg_5m_volume_usd=1_000_000.0,
+        proposed_allocation_usd=5_000.0,
+    )
+    assert result_corr_fail.status == GateStatus.FAIL
+    assert "breaches threshold" in result_corr_fail.falsification_evidence
+
+
+def test_all_gates_pass_orchestrator():
+    """Verify all_gates_pass helper requires all gates to be PASS."""
+    passing_result = StrategyGateResult(
+        gate_name="Gate A",
+        status=GateStatus.PASS,
+        score=0.9,
+        threshold=0.5,
+    )
+    failing_result = StrategyGateResult(
+        gate_name="Gate B",
+        status=GateStatus.FAIL,
+        score=0.3,
+        threshold=0.5,
+        falsification_evidence="Failed decay",
+    )
+
+    assert all_gates_pass({"A": passing_result}) is True
+    assert all_gates_pass({"A": passing_result, "B": failing_result}) is False
+    assert all_gates_pass({}) is False
