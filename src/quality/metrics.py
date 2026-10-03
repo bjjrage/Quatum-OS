@@ -1,6 +1,6 @@
-"""Metrics collection for storage, timestamp integrity, feed continuity, and system health."""
 import glob
 from pathlib import Path
+import re
 import time
 from typing import Dict, Any, List, Optional, Set
 import duckdb
@@ -10,6 +10,33 @@ from pydantic import BaseModel, Field
 from config.settings import settings, Settings
 from src.common.manifest import compute_sha256
 from .acceptance import RuntimeManifest
+
+
+class SingleStreamContinuity(BaseModel):
+    """Continuity metrics for a single market data stream."""
+    stream_name: str
+    venue: str
+    table: str
+    exists: bool = False
+    row_count: int = 0
+    file_count: int = 0
+    min_ts_ns: Optional[int] = None
+    max_ts_ns: Optional[int] = None
+    span_seconds: float = 0.0
+    largest_gap_seconds: float = 0.0
+    freshness_seconds: float = 0.0
+    status: str = "PENDING"  # PASS | FAIL_MISSING | FAIL_GAP | FAIL_STALE | FAIL_VOLUME | FAIL_BURST
+    reasons: List[str] = Field(default_factory=list)
+
+
+class StreamContinuityReport(BaseModel):
+    """Aggregate continuity evaluation across all required streams."""
+    streams: Dict[str, SingleStreamContinuity] = Field(default_factory=dict)
+    effective_data_span_seconds: float = 0.0
+    overlap_min_ts_ns: Optional[int] = None
+    overlap_max_ts_ns: Optional[int] = None
+    all_streams_pass: bool = False
+    failures: List[str] = Field(default_factory=list)
 
 
 class StorageMetrics(BaseModel):
@@ -340,3 +367,175 @@ class QualityMetricsCollector:
             elapsed_seconds=elapsed,
             elapsed_formatted=formatted,
         )
+
+    def collect_stream_continuity_metrics(
+        self,
+        since_ts_ns: Optional[int] = None,
+        current_time_s: Optional[float] = None,
+        required_streams: Optional[List[str]] = None,
+        max_gap_seconds: Optional[float] = None,
+        max_freshness_seconds: Optional[float] = None,
+        min_rows: Optional[int] = None,
+    ) -> StreamContinuityReport:
+        """Inspect and verify continuity, data spans, freshness, and gaps across required data feeds."""
+        from src.quality.acceptance import (
+            PROVISIONAL_REQUIRED_STREAMS,
+            PROVISIONAL_MAX_STREAM_GAP_SECONDS,
+            PROVISIONAL_TICK_STREAM_MAX_GAP_SECONDS,
+            PROVISIONAL_MAX_FRESHNESS_SECONDS,
+            PROVISIONAL_MIN_STREAM_ROWS,
+        )
+
+        req_streams = required_streams or PROVISIONAL_REQUIRED_STREAMS
+        default_max_gap = max_gap_seconds if max_gap_seconds is not None else PROVISIONAL_MAX_STREAM_GAP_SECONDS
+        max_freshness = max_freshness_seconds if max_freshness_seconds is not None else PROVISIONAL_MAX_FRESHNESS_SECONDS
+        threshold_min_rows = min_rows if min_rows is not None else PROVISIONAL_MIN_STREAM_ROWS
+        now_s = current_time_s if current_time_s is not None else time.time()
+
+        report = StreamContinuityReport()
+        part_re = re.compile(r"part-(\d+)-")
+
+        con = None
+        try:
+            con = duckdb.connect()
+        except Exception:
+            con = None
+
+        valid_spans: List[tuple[int, int]] = []
+
+        for s_name in req_streams:
+            venue, tbl = s_name.split("/")
+            stream_dir = self.base_data_path / venue / f"table={tbl}"
+            all_files = sorted(stream_dir.glob("**/*.parquet"))
+
+            # Filter by since_ts_ns if specified
+            files = []
+            file_timestamps = []
+            for f in all_files:
+                m = part_re.search(f.name)
+                ts_part = int(m.group(1)) if m else None
+                if since_ts_ns is not None:
+                    if ts_part is not None and ts_part < since_ts_ns:
+                        continue
+                files.append(f)
+                if ts_part is not None:
+                    file_timestamps.append(ts_part)
+
+            stream_metric = SingleStreamContinuity(
+                stream_name=s_name,
+                venue=venue,
+                table=tbl,
+                exists=len(files) > 0,
+                file_count=len(files),
+            )
+
+            if not files:
+                stream_metric.status = "FAIL_MISSING"
+                stream_metric.reasons.append(f"Required stream {s_name} is missing from recording storage.")
+                report.failures.append(f"Required stream missing: {s_name}")
+                report.streams[s_name] = stream_metric
+                continue
+
+            # Calculate largest gap between parts
+            largest_gap = 0.0
+            for i in range(len(file_timestamps) - 1):
+                gap = (file_timestamps[i + 1] - file_timestamps[i]) / 1e9
+                if gap > largest_gap:
+                    largest_gap = gap
+            stream_metric.largest_gap_seconds = largest_gap
+
+            min_ts = None
+            max_ts = None
+            row_count = 0
+
+            # Count rows from manifests where available
+            manifests = list(stream_dir.glob("**/manifest.json"))
+            if manifests:
+                import json
+                for m_path in manifests:
+                    try:
+                        with open(m_path, "r", encoding="utf-8") as f:
+                            m_data = json.load(f)
+                        for part in m_data.get("parts", []):
+                            pname = part.get("part_filename", "")
+                            m_match = part_re.search(pname)
+                            if m_match and since_ts_ns is not None:
+                                if int(m_match.group(1)) < since_ts_ns:
+                                    continue
+                            row_count += part.get("row_count", 0)
+                    except Exception:
+                        pass
+
+            if con is not None:
+                try:
+                    f0 = files[0].as_posix()
+                    f1 = files[-1].as_posix()
+                    r0 = con.execute("SELECT min(ts_received_utc_ns) FROM read_parquet(?)", [[f0]]).fetchone()[0]
+                    r1 = con.execute("SELECT max(ts_received_utc_ns) FROM read_parquet(?)", [[f1]]).fetchone()[0]
+                    min_ts = r0
+                    max_ts = r1
+                    if row_count == 0:
+                        rc = con.execute("SELECT count(*) FROM read_parquet(?)", [[f.as_posix() for f in files]]).fetchone()[0]
+                        row_count = rc
+                except Exception:
+                    pass
+
+            if min_ts is None and file_timestamps:
+                min_ts = file_timestamps[0]
+            if max_ts is None and file_timestamps:
+                max_ts = file_timestamps[-1]
+
+            stream_metric.row_count = row_count
+            stream_metric.min_ts_ns = min_ts
+            stream_metric.max_ts_ns = max_ts
+
+            span = max(0.0, (max_ts - min_ts) / 1e9) if (min_ts is not None and max_ts is not None) else 0.0
+            stream_metric.span_seconds = span
+
+            freshness = max(0.0, now_s - (max_ts / 1e9)) if max_ts else float("inf")
+            stream_metric.freshness_seconds = freshness
+
+            # Determine max allowed gap based on stream kind
+            stream_max_gap = PROVISIONAL_TICK_STREAM_MAX_GAP_SECONDS if "tick" in tbl else default_max_gap
+
+            stream_failures = []
+            if row_count < threshold_min_rows:
+                stream_failures.append(f"Insufficient rows: {row_count} < {threshold_min_rows}.")
+            if largest_gap > stream_max_gap:
+                stream_failures.append(f"Excessive continuity gap: {largest_gap:.1f}s > max {stream_max_gap:.1f}s.")
+            if freshness > max_freshness:
+                stream_failures.append(f"Stale stream: last event received {freshness:.1f}s ago > max {max_freshness:.1f}s.")
+
+            # Burst without continuity check: e.g. lots of rows in very small span in a long run
+            if row_count >= threshold_min_rows and span < 60.0 and len(files) <= 2 and since_ts_ns is not None:
+                run_elapsed = (now_s * 1e9 - since_ts_ns) / 1e9
+                if run_elapsed > 3600.0:
+                    stream_failures.append(f"Burst without continuity: {row_count} rows across only {span:.1f}s span in {run_elapsed/3600:.1f}h run.")
+
+            if stream_failures:
+                stream_metric.status = "FAIL"
+                stream_metric.reasons.extend(stream_failures)
+                report.failures.extend([f"Stream {s_name}: {r}" for r in stream_failures])
+            else:
+                stream_metric.status = "PASS"
+                if min_ts is not None and max_ts is not None:
+                    valid_spans.append((min_ts, max_ts))
+
+            report.streams[s_name] = stream_metric
+
+        # Overall effective continuous data span
+        if len(report.streams) == len(req_streams) and len(valid_spans) == len(req_streams) and not report.failures:
+            report.overlap_min_ts_ns = max(s[0] for s in valid_spans)
+            report.overlap_max_ts_ns = min(s[1] for s in valid_spans)
+            report.effective_data_span_seconds = max(0.0, (report.overlap_max_ts_ns - report.overlap_min_ts_ns) / 1e9)
+            report.all_streams_pass = True
+        else:
+            if valid_spans:
+                report.overlap_min_ts_ns = max(s[0] for s in valid_spans)
+                report.overlap_max_ts_ns = min(s[1] for s in valid_spans)
+                report.effective_data_span_seconds = max(0.0, (report.overlap_max_ts_ns - report.overlap_min_ts_ns) / 1e9)
+            else:
+                report.effective_data_span_seconds = 0.0
+            report.all_streams_pass = False
+
+        return report

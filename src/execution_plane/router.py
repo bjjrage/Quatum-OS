@@ -13,9 +13,9 @@ import time
 import uuid
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from src.execution_plane.adapters.base import (AdapterError, AuthFailure, ExchangeAdapter, InvalidOrder,
-                                               LiveLockedError, TransportNotConfigured, UnknownOutcomeError,
-                                               VenueUnavailable, issue_permit)
+from src.execution_plane.adapters.base import (AdapterError, AuthFailure, ExchangeAdapter, ExecutionAuthorization,
+                                               ExecutionAuthorizer, InvalidOrder, LiveLockedError, SubmitPermit,
+                                               TransportNotConfigured, UnknownOutcomeError, VenueUnavailable)
 from src.execution_plane.models import (ExecFill, ExecutionMode, FailureClass, InstrumentMeta, OrderIntent,
                                         OrderRecord, OrderState, TERMINAL_STATES, VALID_TRANSITIONS)
 from src.execution_plane.security import CONFIGURED, CredentialProvider, scrub
@@ -51,12 +51,15 @@ class ExecutionRouter:
                  killswitch: Optional[ExecutionKillSwitch] = None, clock_monitor: Optional[ClockMonitor] = None,
                  audit=None, clock_ns: Callable[[], int] = time.time_ns, sleep: Callable[[float], None] = time.sleep,
                  max_rate_retries: int = 2, allow_test_adapters: bool = False,
-                 future_skew_ms: float = 1000.0):
+                 future_skew_ms: float = 1000.0, authorizer: Optional[ExecutionAuthorizer] = None):
         self.store, self.risk, self.adapters, self.instruments = store, risk_engine, adapters, instruments
         self.mode = mode
         self.capital_authorizer = capital_authorizer
         self.credentials = credentials or CredentialProvider()
         self.paper_broker = paper_broker
+        self.authorizer = authorizer or ExecutionAuthorizer.get_default()
+        if self.paper_broker is not None and hasattr(self.paper_broker, "authorizer"):
+            self.paper_broker.authorizer = self.authorizer
         self.killswitch = killswitch or ExecutionKillSwitch(store.backend)
         self.clock_monitor = clock_monitor or ClockMonitor()
         self.audit = audit
@@ -71,6 +74,34 @@ class ExecutionRouter:
         for v, a in adapters.items():
             if getattr(a, "is_test_only", False) and not allow_test_adapters:
                 raise ValueError(f"test-only adapter {v!r} cannot be registered as a production venue")
+
+    def _mint_authorization(self, kind: str, rec: OrderRecord, authorized: float = 0.0) -> ExecutionAuthorization:
+        i = rec.intent
+        decision = getattr(rec, "risk_decision", None)
+        if isinstance(decision, dict):
+            from src.risk.engine import RiskDecision, RiskViolationCode
+            approved = decision.get("approved", False)
+            violation_code = decision.get("violation_code", "NONE")
+            reason = decision.get("reason", "")
+            metrics = decision.get("metrics", {})
+            vcode = RiskViolationCode(violation_code) if str(violation_code) in RiskViolationCode._value2member_map_ else RiskViolationCode.NONE
+            decision = RiskDecision(approved=approved, violation_code=vcode, reason=reason, metrics=metrics)
+            rec.risk_decision = decision
+
+        if decision is None or not getattr(decision, "approved", False):
+            raise PermissionError(f"Cannot mint authorization for intent {i.intent_id}: RiskDecision is missing or unapproved.")
+        return self.authorizer.mint(
+            kind=kind,
+            venue=i.venue,
+            mode=self.mode,
+            client_order_id=i.client_order_id,
+            intent_id=i.intent_id,
+            symbol=i.symbol,
+            side=i.side,
+            risk_decision=decision,
+            authorized_live_capital_usd=authorized,
+            current_time_ns=self._now(),
+        )
 
     # ------------------------------------------------------------ plumbing
     def _secrets(self) -> List[str]:
@@ -261,6 +292,7 @@ class ExecutionRouter:
         if not decision.approved:
             return self._reject(rec, f"RISK_VETO:{getattr(decision.violation_code, 'value', decision.violation_code)}",
                                 state=S.RISK_REJECTED)
+        rec.risk_decision = decision
         self._to(rec, S.RISK_APPROVED, "risk approved")
         if hasattr(self.risk, "register_in_flight"):
             self.risk.register_in_flight(po)
@@ -283,11 +315,10 @@ class ExecutionRouter:
         if self.paper_broker is None:
             return self._reject(rec, "PAPER_NOT_WIRED")
         from src.paper.broker import PaperOrderSide, PaperOrderType
-        from src.execution_plane.adapters.base import issue_permit
         i = rec.intent
         self._to(rec, S.ROUTING, "paper route")
         self._trace(rec).mark("router_dispatch_at_ns", self._now())
-        permit = issue_permit("SUBMIT", i.venue, i.client_order_id, self.mode, 0.0, True, self._now())
+        permit = self._mint_authorization("SUBMIT", rec, authorized=0.0)
         po = self.paper_broker.submit_order(
             symbol=i.symbol, side=PaperOrderSide(i.side), order_type=PaperOrderType(i.order_type),
             quantity=i.quantity, limit_price=i.limit_price, venue=i.venue, current_time_ns=self._now(),
@@ -333,7 +364,7 @@ class ExecutionRouter:
                 first = False
             else:
                 self.store.save_order(rec)
-            permit = issue_permit("SUBMIT", i.venue, i.client_order_id, self.mode, authorized, True, self._now())
+            permit = self._mint_authorization("SUBMIT", rec, authorized=authorized)
             tr.mark("submit_started_at_ns", self._now(), overwrite=True)
             try:
                 ack = adapter.submit_order(permit, i, meta)
@@ -435,8 +466,10 @@ class ExecutionRouter:
         adapter = self.adapters[rec.intent.venue]
         rec.prior_state = rec.state
         self._to(rec, S.CANCEL_PENDING, f"cancel requested: {reason}")
-        permit = issue_permit("CANCEL", rec.intent.venue, rec.intent.client_order_id, self.mode,
-                              self._authorized(rec.intent), True, self._now())
+        if getattr(rec, "risk_decision", None) is None:
+            from src.risk.engine import RiskDecision
+            rec.risk_decision = RiskDecision(approved=True, reason=f"cancel: {reason}")
+        permit = self._mint_authorization("CANCEL", rec, authorized=self._authorized(rec.intent))
         try:
             res = adapter.cancel_order(permit, rec.intent.client_order_id, rec.intent.symbol)
         except InvalidOrder as e:

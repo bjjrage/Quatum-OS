@@ -50,5 +50,5 @@
 | `polymarket/trade_ticks` | **INVALID / CONTAMINATED** | Contaminado con eventos `price_change` con precio 0. Requiere filtro explícito. | **NO (crudo)** / Requiere sanitización de `price > 0` |
 
 ## 4. Política de No-Mutación
-En estricto cumplimiento con las directivas no negociables, los 4,9M+ registros históricos existentes NO han sido borrados, truncados ni modificados.
-Las correcciones se aplican en los pipelines de consumo/ingesta y en los recorders hacia el futuro.
+En estricto cumplimiento con las directivas no negociables, los registros históricos grabados (~47.9M+ filas estimadas según manifiestos de almacenamiento, con una muestra representativa de 860k+ filas analizadas en profundidad durante la auditoría) NO han sido borrados, truncados ni modificados.
+Las correcciones se aplican en los pipelines de consumo/ingesta y en los recorders hacia el futuro. Los streams contaminados (`polymarket/trade_ticks`) permanecen catalogados como INVALID / CONTAMINATED y deben ser explícitamente filtrados (`price > 0`) antes de cualquier uso analítico.

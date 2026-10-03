@@ -23,6 +23,9 @@ import math
 import uuid
 from typing import Dict, Any, List, Optional, Tuple
 
+from src.execution_plane.adapters.base import ExecutionAuthorization, ExecutionAuthorizer, SubmitPermit
+from src.execution_plane.models import ExecutionMode
+
 
 class PaperOrderSide(str, Enum):
     BUY = "BUY"
@@ -101,6 +104,7 @@ class PaperBroker:
         taker_fee_bps: float = 5.0,
         base_slippage_bps: float = 2.0,
         enforce_risk_permit: bool = True,
+        authorizer: Optional[ExecutionAuthorizer] = None,
     ):
         self.initial_cash_usd = initial_cash_usd
         self.cash_usd = initial_cash_usd
@@ -110,6 +114,7 @@ class PaperBroker:
         self.taker_fee_bps = taker_fee_bps
         self.base_slippage_bps = base_slippage_bps
         self.enforce_risk_permit = enforce_risk_permit
+        self.authorizer = authorizer or ExecutionAuthorizer.get_default()
 
         self.positions: Dict[str, PaperPosition] = {}
         self.orders: Dict[str, PaperOrder] = {}
@@ -143,11 +148,32 @@ class PaperBroker:
                 raise PermissionError(
                     "PaperBroker: Order rejected. Pre-trade Risk permit is mandatory (UNKNOWN != ALLOWED)."
                 )
-            is_approved = getattr(permit, "risk_approved", None)
-            if is_approved is None:
-                is_approved = getattr(permit, "approved", False)
-            if not is_approved:
-                raise PermissionError("PaperBroker: Order rejected. Risk permit is not approved.")
+            from src.risk.engine import RiskDecision
+            if isinstance(permit, RiskDecision):
+                if not permit.approved:
+                    raise PermissionError("PaperBroker: Order rejected. Risk permit is not approved.")
+                auth_to_verify = self.authorizer or ExecutionAuthorizer.get_default()
+                permit = auth_to_verify.mint(
+                    kind="SUBMIT",
+                    venue=venue,
+                    symbol=symbol,
+                    mode=ExecutionMode.PAPER,
+                    risk_decision=permit,
+                    current_time_ns=current_time_ns,
+                )
+            elif isinstance(permit, ExecutionAuthorization):
+                auth_to_verify = self.authorizer or ExecutionAuthorizer.get_default()
+                auth_to_verify.verify(
+                    permit,
+                    expected_venue=venue,
+                    expected_kind="SUBMIT",
+                    expected_symbol=symbol,
+                    current_time_ns=current_time_ns,
+                )
+            else:
+                raise PermissionError(
+                    "PaperBroker: Order rejected. Invalid authorization type (duck typing strictly prohibited)."
+                )
 
         if quantity <= 0.0:
             raise ValueError(f"Quantity must be positive: {quantity}")

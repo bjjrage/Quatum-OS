@@ -53,6 +53,21 @@ def generate_quality_report(
     # 4. Coverage metrics
     coverage = collector.collect_coverage_metrics(venue_feeds)
 
+    # 4b. Stream continuity & data span metrics across required feeds
+    since_ts_ns = None
+    if manifest and getattr(manifest, "started_at_utc", None):
+        try:
+            from datetime import datetime
+            st_dt = datetime.fromisoformat(manifest.started_at_utc.replace("Z", "+00:00"))
+            since_ts_ns = int(st_dt.timestamp() * 1e9)
+        except Exception:
+            since_ts_ns = None
+
+    stream_continuity = collector.collect_stream_continuity_metrics(
+        since_ts_ns=since_ts_ns,
+        current_time_s=time.time(),
+    )
+
     # 5. Invariant criteria assessment for gates
     hard_failure_reasons = []
     observational_notes = []
@@ -67,6 +82,9 @@ def generate_quality_report(
         )
     if storage.parquet_file_count == 0 or storage.total_row_count == 0:
         hard_failure_reasons.append("Storage is empty: no parquet parts or rows have been committed.")
+
+    if not stream_continuity.all_streams_pass:
+        hard_failure_reasons.extend(stream_continuity.failures)
 
     if integrity.is_host_clock_skew_detected:
         observational_notes.append(
@@ -83,9 +101,11 @@ def generate_quality_report(
     gate_24h = evaluate_duration_gate(
         gate_name="24h",
         elapsed_seconds=elapsed_seconds,
-        metrics_pass=base_criteria_pass,
+        metrics_pass=base_criteria_pass and stream_continuity.all_streams_pass,
+        effective_data_span_seconds=stream_continuity.effective_data_span_seconds,
         is_process_alive=health.is_process_alive if manifest else None,
         total_row_count=storage.total_row_count,
+        stream_continuity_failures=list(stream_continuity.failures),
         reasons=list(hard_failure_reasons),
     )
 
@@ -93,9 +113,11 @@ def generate_quality_report(
     gate_72h = evaluate_duration_gate(
         gate_name="72h",
         elapsed_seconds=elapsed_seconds,
-        metrics_pass=base_criteria_pass,
+        metrics_pass=base_criteria_pass and stream_continuity.all_streams_pass,
+        effective_data_span_seconds=stream_continuity.effective_data_span_seconds,
         is_process_alive=health.is_process_alive if manifest else None,
         total_row_count=storage.total_row_count,
+        stream_continuity_failures=list(stream_continuity.failures),
         reasons=list(hard_failure_reasons),
     )
 
@@ -133,6 +155,7 @@ def generate_quality_report(
         },
         "runtime_health": health.model_dump(),
         "storage_metrics": storage.model_dump(),
+        "stream_continuity": stream_continuity.model_dump(),
         "timestamp_integrity": integrity.model_dump(),
         "venue_feeds": {k: v.model_dump() for k, v in venue_feeds.items()},
         "coverage_metrics": coverage.model_dump(),
