@@ -123,6 +123,8 @@ class RegimeSnapshot(BaseModel):
     pre_shock_vwap: Optional[float] = None
     pre_shock_origin: Optional[float] = None
     entry_price: Optional[float] = None
+    stop_price: Optional[float] = None
+    risk_distance: Optional[float] = None
     realized_mfe: Optional[float] = None
     realized_mae: Optional[float] = None
     holding_time_s: Optional[float] = None
