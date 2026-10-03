@@ -4,7 +4,7 @@ import json
 import os
 from pathlib import Path
 import time
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 from pydantic import BaseModel, Field
 
 
@@ -126,6 +126,7 @@ class RuntimeManifest(BaseModel):
     config_fingerprint: str
     status: AcceptanceState
     heartbeat_at_utc: str
+    last_heartbeat_timestamp_ns: Optional[int] = None
     venues: List[str]
 
     @classmethod
@@ -154,6 +155,7 @@ class RuntimeManifest(BaseModel):
             config_fingerprint=config_fingerprint,
             status=AcceptanceState.RUNNING,
             heartbeat_at_utc=now_utc,
+            last_heartbeat_timestamp_ns=now_ns,
             venues=default_venues,
         )
 
@@ -165,6 +167,7 @@ class RuntimeManifest(BaseModel):
     def update_heartbeat(self) -> None:
         """Update last heartbeat timestamp."""
         self.heartbeat_at_utc = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        self.last_heartbeat_timestamp_ns = time.time_ns()
 
     def save(self, filepath: Path = Path("data/runtime/current_run.json")) -> None:
         """Atomically persist manifest to JSON file."""
@@ -182,3 +185,40 @@ class RuntimeManifest(BaseModel):
         with open(filepath, "r", encoding="utf-8") as f:
             data = json.load(f)
         return cls(**data)
+
+    @classmethod
+    def resume_or_create(
+        cls,
+        filepath: Path,
+        pid: int,
+        git_sha: str,
+        config_fingerprint: str,
+        venues: Optional[List[str]] = None,
+    ) -> Tuple["RuntimeManifest", bool]:
+        """Attempt to resume an existing manifest if config_fingerprint matches.
+        
+        Preserves original run_id, started_at_utc, and started_at_timestamp_ns while
+        updating pid, git_sha, status, and heartbeat.
+        
+        Returns:
+            (manifest, was_resumed)
+        """
+        if filepath.exists():
+            try:
+                existing = cls.load(filepath)
+                if existing.config_fingerprint == config_fingerprint:
+                    existing.pid = pid
+                    existing.git_sha = git_sha
+                    existing.status = AcceptanceState.RUNNING
+                    existing.update_heartbeat()
+                    return existing, True
+            except Exception:
+                pass
+
+        new_manifest = cls.create_new(
+            pid=pid,
+            git_sha=git_sha,
+            config_fingerprint=config_fingerprint,
+            venues=venues,
+        )
+        return new_manifest, False
