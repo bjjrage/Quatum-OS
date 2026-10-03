@@ -67,7 +67,7 @@ export interface SystemStatus {
   total_experiments: number;
   failed_gates: number;
   risk_state: string;
-  paper_pnl_usd: number;
+  paper_pnl_usd?: number | null;
   system_alerts: Array<{
     level: string;
     code: string;
@@ -81,16 +81,17 @@ export interface SystemStatus {
 
 export interface VenueInfo {
   venue: string;
-  connected: boolean;
+  connected?: boolean | null;
+  feed_health?: string;
   last_event_timestamp?: string | null;
   total_events: number;
   event_rate: number;
-  lag_ms?: number;
-  clock_skew_detected?: boolean;
-  clock_skew_ms?: number;
+  lag_ms?: number | null;
+  clock_skew_detected?: boolean | null;
+  clock_skew_ms?: number | null;
   files_written?: number;
   manifest_health?: string;
-  dropped_or_invalid_events?: number;
+  dropped_or_invalid_events?: number | null;
   storage_size_bytes?: number;
   unique_symbols_count?: number;
   status?: string;
@@ -354,15 +355,18 @@ export interface PortfolioState {
 }
 
 export interface PaperAccount {
-  initial_cash_usd: number;
-  cash_usd: number;
-  equity_usd: number;
-  realized_pnl_usd: number;
-  unrealized_pnl_usd: number;
-  simulated_latency_ms: number;
-  maker_fee_bps: number;
-  taker_fee_bps: number;
-  base_slippage_bps: number;
+  status?: string;
+  operational_state?: string;
+  message?: string;
+  initial_cash_usd?: number | null;
+  cash_usd?: number | null;
+  equity_usd?: number | null;
+  realized_pnl_usd?: number | null;
+  unrealized_pnl_usd?: number | null;
+  simulated_latency_ms?: number;
+  maker_fee_bps?: number;
+  taker_fee_bps?: number;
+  base_slippage_bps?: number;
   positions: Array<{
     symbol: string;
     quantity: number;

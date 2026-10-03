@@ -57,13 +57,13 @@ class PersistenceBackend(ABC):
     name: str = "ABSTRACT"
 
     @abstractmethod
-    def put(self, table: str, key: str, data: Dict[str, Any]) -> str: ...
+    def put(self, table: str, key: str, data: Dict[str, Any], expected_hash: Optional[str] = None) -> str: ...
 
     @abstractmethod
     def get(self, table: str, key: str) -> Optional[Dict[str, Any]]: ...
 
     @abstractmethod
-    def list(self, table: str, **filters: Any) -> List[Dict[str, Any]]: ...
+    def list(self, table: str, limit: Optional[int] = None, **filters: Any) -> List[Dict[str, Any]]: ...
 
     @abstractmethod
     def status(self) -> Dict[str, Any]: ...
@@ -124,7 +124,7 @@ class LocalPersistenceBackend(PersistenceBackend):
             )
 
     # ---- records -------------------------------------------------------
-    def put(self, table: str, key: str, data: Dict[str, Any]) -> str:
+    def put(self, table: str, key: str, data: Dict[str, Any], expected_hash: Optional[str] = None) -> str:
         spec = get_spec(table)
         if not key:
             raise ValueError("key must be non-empty")
@@ -145,12 +145,22 @@ class LocalPersistenceBackend(PersistenceBackend):
                         raise ImmutableConflictError(
                             f"{table}[{key}] is append-only; refusing to overwrite existing evidence."
                         )
+                    if expected_hash is not None and row["data_hash"] != expected_hash:
+                        self._conn.execute("ROLLBACK")
+                        raise PersistenceError(
+                            f"Lost update detected on {table}[{key}]: expected hash {expected_hash} but found {row['data_hash']}."
+                        )
                     self._conn.execute(
                         "UPDATE records SET data=?, data_hash=?, updated_at=? WHERE table_name=? AND key=?",
                         (canonical_json(data), h, now, table, key),
                     )
                     result = UPDATED
                 else:
+                    if expected_hash is not None:
+                        self._conn.execute("ROLLBACK")
+                        raise PersistenceError(
+                            f"Lost update detected on {table}[{key}]: expected hash {expected_hash} but record does not exist."
+                        )
                     seq = self._conn.execute("SELECT COALESCE(MAX(seq),0)+1 FROM records WHERE table_name=?", (table,)).fetchone()[0]
                     self._conn.execute(
                         "INSERT INTO records(table_name,key,data,data_hash,seq,created_at,updated_at) VALUES (?,?,?,?,?,?,?)",
@@ -165,7 +175,7 @@ class LocalPersistenceBackend(PersistenceBackend):
                 )
                 self._conn.execute("COMMIT")
                 return result
-            except ImmutableConflictError:
+            except (ImmutableConflictError, PersistenceError):
                 raise
             except Exception:
                 try:
@@ -180,13 +190,15 @@ class LocalPersistenceBackend(PersistenceBackend):
             row = self._conn.execute("SELECT data FROM records WHERE table_name=? AND key=?", (table, key)).fetchone()
         return json.loads(row["data"]) if row else None
 
-    def list(self, table: str, **filters: Any) -> List[Dict[str, Any]]:
+    def list(self, table: str, limit: Optional[int] = None, **filters: Any) -> List[Dict[str, Any]]:
         get_spec(table)
         with self._lock:
             rows = self._conn.execute("SELECT data FROM records WHERE table_name=? ORDER BY seq", (table,)).fetchall()
         out = [json.loads(r["data"]) for r in rows]
         for k, v in filters.items():
             out = [r for r in out if r.get(k) == v]
+        if limit is not None:
+            out = out[:limit]
         return out
 
     def count(self, table: str) -> int:

@@ -18,6 +18,7 @@ Connects FastAPI directly to real Python modules and data artifacts in Trading /
 
 from __future__ import annotations
 
+import datetime
 import json
 import math
 import os
@@ -27,6 +28,11 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import psutil
+
+from src.common.operational_truth import OperationalStatus, is_fresh, safe_metric
+from src.persistence.backend import LocalPersistenceBackend
+from src.execution_plane.store import ExecutionKillSwitch
+from src.execution_plane.service import ExecutionPlaneService
 
 # Domain imports
 from src.strategies.registry import (
@@ -354,6 +360,48 @@ class QuantOSDataService:
             self.risk_decisions = []
             self.audit_events = []
 
+        # Persistent Control Plane & Scoped Kill Switch Authority
+        cp_db = self.data_dir / "control_plane" / "control_plane.db"
+        self.persistence_backend = LocalPersistenceBackend(db_path=cp_db)
+        self.execution_kill_switch = ExecutionKillSwitch(self.persistence_backend)
+
+        # Sync persistent global kill switch into deterministic risk engine on startup
+        if self.execution_kill_switch._active.get(("GLOBAL", "")):
+            self.risk_engine.trigger_kill_switch("Persisted global kill switch is active")
+
+        # Operational Paper Session State (Invariant: PAPER OPERATIONAL = NOT STARTED)
+        self.paper_session_active: bool = False
+
+    def activate_kill_switch(self, scope: str, actor: str, reason: str, target: str = "") -> Dict[str, Any]:
+        """Activate scoped kill switch with durable persistence and risk engine sync."""
+        self.execution_kill_switch.activate(scope, actor, reason, target)
+        if scope == "GLOBAL":
+            self.risk_engine.trigger_kill_switch(reason)
+        self.audit_events.append({
+            "audit_id": f"KS-ACT-{time.time_ns()}",
+            "timestamp_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "category": "KILL_SWITCH_ACTIVATED",
+            "actor": actor,
+            "summary": f"Kill switch activated: scope={scope}, target={target}, reason={reason}",
+            "details": {"scope": scope, "target": target, "reason": reason},
+        })
+        return self.get_risk_status()
+
+    def reset_kill_switch(self, scope: str, actor: str, reason: str, target: str = "") -> Dict[str, Any]:
+        """Reset scoped kill switch with durable persistence and risk engine sync."""
+        self.execution_kill_switch.reset(scope, actor, reason, target)
+        if scope == "GLOBAL":
+            self.risk_engine.reset_kill_switch()
+        self.audit_events.append({
+            "audit_id": f"KS-RST-{time.time_ns()}",
+            "timestamp_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "category": "KILL_SWITCH_RESET",
+            "actor": actor,
+            "summary": f"Kill switch reset: scope={scope}, target={target}, reason={reason}",
+            "details": {"scope": scope, "target": target, "reason": reason},
+        })
+        return self.get_risk_status()
+
     @classmethod
     def get_instance(cls) -> "QuantOSDataService":
         mode = os.environ.get("QUANT_OS_MOCK_MODE", "0") == "1"
@@ -474,12 +522,12 @@ class QuantOSDataService:
             "total_experiments": total_exp,
             "failed_gates": None,  # not computed here: MISSING != ZERO
             "risk_state": "CAPITAL_LOCKED",
-            "paper_pnl_usd": self.paper_broker.cash_usd - self.paper_broker.initial_cash_usd,
+            "paper_pnl_usd": (self.paper_broker.cash_usd - self.paper_broker.initial_cash_usd) if (self.paper_session_active or self.mock_mode) else None,
             "system_alerts": [
                 {
                     "level": "INFO",
                     "code": "LIVE_CAPITAL_LOCKED",
-                    "message": "Live risk locked ($0 Live Capital). Dry-run and paper execution active.",
+                    "message": "Live risk locked ($0 Live Capital). Live routing disabled. Paper operational: NOT_STARTED.",
                 }
             ],
             "last_heartbeat": rec_status.get("heartbeat_at_utc") or "UNKNOWN",
@@ -496,21 +544,22 @@ class QuantOSDataService:
     # --------------------------------------------------------------------------
 
     def get_recorder_status(self) -> Dict[str, Any]:
-        manifest_path = self.data_dir / "runtime" / "current_run.json"
-        if not manifest_path.exists():
-            return {
-                "status": "STOPPED",
-                "continuity_state": "UNVERIFIED",
-                "data_source": "UNAVAILABLE",
-                "heartbeat_at_utc": None,
-                "message": "current_run.json does not exist",
-                "elapsed_seconds": 0.0,
-                "progress_24h_pct": 0.0,
-                "progress_72h_pct": 0.0,
-                "venues": {},
-            }
-
         try:
+            manifest_path = self.data_dir / "runtime" / "current_run.json"
+            if not manifest_path.exists():
+                return {
+                    "status": "STOPPED",
+                    "continuity_state": "UNVERIFIED",
+                    "data_source": "UNAVAILABLE",
+                    "heartbeat_at_utc": None,
+                    "message": "current_run.json does not exist",
+                    "elapsed_seconds": 0.0,
+                    "progress_24h_pct": 0.0,
+                    "progress_72h_pct": 0.0,
+                    "venues": {},
+                    "is_process_alive": False,
+                }
+
             with open(manifest_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
 
@@ -530,29 +579,75 @@ class QuantOSDataService:
             storage = latest_report.get("storage_metrics", {}) if latest_report else {}
             ts_integrity = latest_report.get("timestamp_integrity", {}) if latest_report else {}
 
+            # Timing and clock integrity (missing measurement is None, NOT 0.0)
+            est_offset = ts_integrity.get("estimated_clock_offset_ms") if ts_integrity else None
+            has_clock = est_offset is not None
+            lag_ms = abs(est_offset) if has_clock else None
+            clock_skew_ms = est_offset if has_clock else None
+            clock_skew_detected = ts_integrity.get("is_host_clock_skew_detected") if has_clock else None
+
+            # Manifest integrity
+            m_valid = storage.get("manifest_valid") if storage else None
+            manifest_health = "VALID" if m_valid is True else ("INVALID" if m_valid is False else "UNVERIFIED")
+
+            # Storage sink state
+            p_files = storage.get("parquet_file_count", 0) if storage else 0
+            if not is_alive:
+                sink_state = "STOPPED"
+            elif p_files > 0:
+                sink_state = "WRITING"
+            else:
+                sink_state = "IDLE"
+
             venues_out: Dict[str, Any] = {}
             for v_name in ["polymarket", "deribit", "binance_perp"]:
                 v_data = venue_feeds.get(v_name, {})
+                last_ts = v_data.get("last_event_received_at_utc")
+                fresh = False
+                if last_ts:
+                    try:
+                        dt = datetime.datetime.fromisoformat(last_ts.replace("Z", "+00:00"))
+                        age_s = (datetime.datetime.now(datetime.timezone.utc) - dt).total_seconds()
+                        fresh = (age_s <= 1800.0)
+                    except Exception:
+                        fresh = False
+
+                if not is_alive:
+                    v_connected = False
+                    v_feed_health = "PROCESS_DOWN"
+                elif last_ts is None:
+                    # Missing evidence is UNKNOWN, not connected
+                    v_connected = None
+                    v_feed_health = "UNKNOWN"
+                elif fresh:
+                    v_connected = True
+                    v_feed_health = "HEALTHY"
+                else:
+                    v_connected = False
+                    v_feed_health = "STALE"
+
                 venues_out[v_name] = {
                     "venue": v_name,
-                    "connected": is_alive,
-                    "last_event_timestamp": v_data.get("last_event_received_at_utc", data.get("heartbeat_at_utc")),
+                    "connected": v_connected,
+                    "feed_health": v_feed_health,
+                    "last_event_timestamp": last_ts,
                     "total_events": v_data.get("total_events"),
                     "event_rate": round(v_data["total_events"] / max(1.0, elapsed_s), 1) if (v_data.get("total_events") is not None and elapsed_s > 0) else None,
-                    "lag_ms": abs(ts_integrity.get("estimated_clock_offset_ms", 0.0)),
-                    "clock_skew_detected": ts_integrity.get("is_host_clock_skew_detected", False),
-                    "clock_skew_ms": ts_integrity.get("estimated_clock_offset_ms", 0.0),
-                    "files_written": storage.get("parquet_file_count", 0),
-                    "manifest_health": "VALID" if storage.get("manifest_valid", True) else "INVALID",
-                    "dropped_or_invalid_events": ts_integrity.get("true_causal_violations", 0),
-                    "storage_size_bytes": storage.get("total_compressed_bytes", 0),
-                    "unique_symbols_count": v_data.get("unique_symbols_count", 0),
+                    "lag_ms": lag_ms,
+                    "clock_skew_detected": clock_skew_detected,
+                    "clock_skew_ms": clock_skew_ms,
+                    "files_written": p_files,
+                    "manifest_health": manifest_health,
+                    "dropped_or_invalid_events": ts_integrity.get("true_causal_violations") if ts_integrity else None,
+                    "storage_size_bytes": storage.get("total_compressed_bytes", 0) if storage else 0,
+                    "unique_symbols_count": v_data.get("unique_symbols_count"),
                 }
 
             # Add Bybit status (adapter exists, continuous integration pending)
             venues_out["bybit"] = {
                 "venue": "bybit",
                 "connected": False,
+                "feed_health": "INTEGRATION_PENDING",
                 "status": "ADAPTER_READY_INTEGRATION_PENDING",
                 "last_event_timestamp": None,
                 "total_events": 0,
@@ -561,13 +656,46 @@ class QuantOSDataService:
                 "notes": "Bybit linear adapter implemented in src/collectors/bybit_adapter.py. Live socket wiring pending.",
             }
 
-            status_val = "RUNNING" if is_alive else "DEGRADED"
+            # Hardening 01 required feeds status breakdown
+            req_feeds = [
+                "binance_perp/bbo_ticks",
+                "binance_perp/trade_ticks",
+                "deribit/bbo_ticks",
+                "deribit/deribit_metrics",
+                "polymarket/orderbook_l2_depth",
+                "polymarket/bbo_ticks",
+            ]
+            stream_metrics = latest_report.get("stream_metrics", {}) if latest_report else {}
+            feed_states = {}
+            for sf in req_feeds:
+                sf_data = stream_metrics.get(sf, {})
+                sf_rows = sf_data.get("row_count")
+                sf_last = sf_data.get("last_event_timestamp")
+                sf_fresh = False
+                if sf_last:
+                    try:
+                        dt = datetime.datetime.fromisoformat(sf_last.replace("Z", "+00:00"))
+                        sf_fresh = (datetime.datetime.now(datetime.timezone.utc) - dt).total_seconds() <= 1800.0
+                    except Exception:
+                        pass
+                feed_states[sf] = {
+                    "stream": sf,
+                    "status": "HEALTHY" if sf_fresh else ("STALE" if sf_last else "UNKNOWN"),
+                    "row_count": sf_rows,
+                    "last_event_timestamp": sf_last,
+                    "fresh": sf_fresh if sf_last else None,
+                }
+
+            status_val = "RUNNING" if is_alive else "STOPPED"
 
             return {
                 "run_id": data.get("run_id"),
                 "git_sha": data.get("git_sha") or "UNKNOWN",
                 "pid": pid,
                 "is_process_alive": is_alive,
+                "storage_sink_state": sink_state,
+                "all_venues_connected": False if not is_alive else None,
+                "all_feeds_healthy": False if not is_alive else None,
                 "started_at_utc": data.get("started_at_utc"),
                 "heartbeat_at_utc": data.get("heartbeat_at_utc"),
                 "config_fingerprint": data.get("config_fingerprint"),
@@ -582,6 +710,7 @@ class QuantOSDataService:
                 "gate_24h_status": "PENDING" if prog_24h < 100.0 else "READY",
                 "gate_72h_status": "PENDING" if prog_72h < 100.0 else "READY",
                 "venues": venues_out,
+                "required_feeds": feed_states,
             }
         except Exception as e:
             return {
@@ -590,6 +719,7 @@ class QuantOSDataService:
                 "error": str(e),
                 "elapsed_seconds": 0.0,
                 "venues": {},
+                "is_process_alive": False,
             }
 
     def _format_seconds(self, s: float) -> str:
@@ -1180,6 +1310,30 @@ class QuantOSDataService:
     # --------------------------------------------------------------------------
 
     def get_paper_account(self) -> Dict[str, Any]:
+        if not (self.paper_session_active or self.mock_mode):
+            return {
+                "data_source": "PAPER_SIMULATION",
+                "status": "NOT_STARTED",
+                "operational_state": "NOT_STARTED",
+                "is_fixture": False,
+                "state_kind": "PAPER",
+                "is_own_capital": False,
+                "persisted": False,
+                "initial_cash_usd": None,
+                "cash_usd": None,
+                "equity_usd": None,
+                "realized_pnl_usd": None,
+                "unrealized_pnl_usd": None,
+                "simulated_latency_ms": self.paper_broker.simulated_latency_ms,
+                "maker_fee_bps": self.paper_broker.maker_fee_bps,
+                "taker_fee_bps": self.paper_broker.taker_fee_bps,
+                "base_slippage_bps": self.paper_broker.base_slippage_bps,
+                "positions": [],
+                "orders": [],
+                "fills": [],
+                "message": "Paper broker session is NOT_STARTED. Live risk locked at $0.",
+            }
+
         positions_out = []
         for sym, pos in self.paper_broker.positions.items():
             positions_out.append({
@@ -1226,14 +1380,15 @@ class QuantOSDataService:
 
         return {
             "data_source": "MOCK" if self.mock_mode else "PAPER_SIMULATION",
-            "status": "MOCK" if self.mock_mode else "LOCAL_ONLY",
+            "status": "MOCK" if self.mock_mode else "RUNNING",
+            "operational_state": "MOCK" if self.mock_mode else "RUNNING",
             "is_fixture": self.mock_mode,
             "state_kind": "PAPER",
             "is_own_capital": False,
             "persisted": False,
             "initial_cash_usd": self.paper_broker.initial_cash_usd,
             "cash_usd": self.paper_broker.cash_usd,
-            "equity_usd": self.paper_broker.cash_usd,  # Mark prices can be integrated
+            "equity_usd": self.paper_broker.cash_usd,
             "realized_pnl_usd": sum(p.realized_pnl_usd for p in self.paper_broker.positions.values()),
             "unrealized_pnl_usd": 0.0,
             "simulated_latency_ms": self.paper_broker.simulated_latency_ms,
@@ -1250,14 +1405,25 @@ class QuantOSDataService:
     # --------------------------------------------------------------------------
 
     def get_execution_state(self) -> Dict[str, Any]:
+        recon_data = ExecutionPlaneService.get_instance().get_reconciliation()
+        recon_status = recon_data.get("status", "NOT_CONFIGURED")
+        events_count = recon_data.get("reconciliation_events_count", 0)
+        has_run = events_count > 0 and recon_status not in ("NOT_CONFIGURED", "UNKNOWN", "NOT_RUN")
+
         return {
             "execution_mode": "DRY_RUN_PAPER_SIMULATION",
             "live_execution_authority": False,
             "live_capital_authorized": 0.0,
-            "reconciliation_status": "NOT_CONFIGURED",
-            "mismatch_detected": False,
+            "reconciliation_status": recon_status if has_run else "NOT_RUN",
+            "mismatch_detected": (recon_status == "MISMATCH") if has_run else None,
+            "drift_usd": 0.0 if (has_run and recon_status == "HEALTHY") else None,
             "tracked_orders_count": len(self.lifecycle_tracker._intents),
             "orders": [],
+            "provenance": {
+                "source": "EXECUTION_PLANE",
+                "reconciliation_events_count": events_count,
+                "latest_event": recon_data.get("latest_event"),
+            },
         }
 
     # --------------------------------------------------------------------------
@@ -1265,12 +1431,13 @@ class QuantOSDataService:
     # --------------------------------------------------------------------------
 
     def get_risk_status(self) -> Dict[str, Any]:
+        global_active = self.risk_engine.kill_switch_active or bool(self.execution_kill_switch._active.get(("GLOBAL", "")))
         return {
             **self._prov("LOCAL_RUNTIME"),
             "live_capital_state": "CAPITAL_LOCKED",
             "authorized_live_capital_usd": 0.0,
-            "kill_switch_active": self.risk_engine.kill_switch_active,
-            "kill_switch_reason": self.risk_engine.kill_switch_reason,
+            "kill_switch_active": global_active,
+            "kill_switch_reason": self.risk_engine.kill_switch_reason or ("Global kill switch active" if global_active else None),
             "current_equity_usd": self.risk_engine.current_equity_usd,
             "peak_equity_usd": self.risk_engine.peak_equity_usd,
             "current_drawdown_pct": self.risk_engine.current_drawdown_pct(),
@@ -1282,13 +1449,17 @@ class QuantOSDataService:
                 "live_capital_locked": True,
             },
             "kill_switches": {
-                "GLOBAL": {"active": self.risk_engine.kill_switch_active, "status": "LOCKED" if self.risk_engine.kill_switch_active else "ARMED"},
-                "OWN_POCKET": {"active": False, "status": "ARMED"},
-                "PROP_POCKET": {"active": False, "status": "ARMED"},
-                "STRATEGY": {"active": False, "status": "ARMED"},
-                "ASSET": {"active": False, "status": "ARMED"},
-                "EVENT_CLUSTER": {"active": False, "status": "ARMED"},
+                "GLOBAL": {"active": global_active, "status": "LOCKED" if global_active else "ARMED", "persisted": True},
+                "OWN_POCKET": {"active": any(k[0] == "ACCOUNT" and k[1] == "OWN_MAIN" and v for k, v in self.execution_kill_switch._active.items()), "status": "ARMED", "persisted": True},
+                "PROP_POCKET": {"active": any(k[0] == "ACCOUNT" and k[1] == "PROP_ALPHA_100K" and v for k, v in self.execution_kill_switch._active.items()), "status": "ARMED", "persisted": True},
+                "VENUE": {"active": any(k[0] == "VENUE" and v for k, v in self.execution_kill_switch._active.items()), "status": "ARMED", "persisted": True},
+                "ACCOUNT": {"active": any(k[0] == "ACCOUNT" and v for k, v in self.execution_kill_switch._active.items()), "status": "ARMED", "persisted": True},
+                "STRATEGY": {"active": any(k[0] == "STRATEGY" and v for k, v in self.execution_kill_switch._active.items()), "status": "ARMED", "persisted": True},
+                "SYMBOL": {"active": any(k[0] == "SYMBOL" and v for k, v in self.execution_kill_switch._active.items()), "status": "ARMED", "persisted": True},
+                "ASSET": {"active": any(k[0] == "SYMBOL" and v for k, v in self.execution_kill_switch._active.items()), "status": "ARMED", "persisted": True},
+                "EVENT_CLUSTER": {"active": False, "status": "ARMED", "persisted": False},
             },
+            "active_scopes": self.execution_kill_switch.active_scopes(),
             "recent_decisions": self.risk_decisions,
         }
 

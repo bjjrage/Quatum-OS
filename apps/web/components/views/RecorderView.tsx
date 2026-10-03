@@ -241,7 +241,7 @@ export function RecorderView({ recorder, dataQuality, onRefresh }: RecorderViewP
                   <div className="flex justify-between">
                     <span>Clock Skew:</span>
                     <span className={v.clock_skew_detected ? "text-amber-400 font-medium" : "text-emerald-400"}>
-                      {v.clock_skew_ms !== undefined ? `${v.clock_skew_ms.toFixed(1)} ms` : "UNKNOWN"} {v.clock_skew_detected ? "(offset)" : ""}
+                      {v.clock_skew_ms !== undefined && v.clock_skew_ms !== null ? `${v.clock_skew_ms.toFixed(1)} ms` : "UNKNOWN"} {v.clock_skew_detected ? "(offset)" : ""}
                     </span>
                   </div>
                   <div className="flex justify-between">

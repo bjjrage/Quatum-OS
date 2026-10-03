@@ -25,6 +25,7 @@ from .backend import (
     PersistenceBackend,
     PersistenceError,
     canonical_json,
+    payload_hash,
 )
 from .config import SupabaseConfig
 from .schema import get_spec, remote_row
@@ -100,14 +101,23 @@ class SupabasePersistenceBackend(PersistenceBackend):
         self._check(status, body)
         return body[0]["payload"] if body else None
 
-    def put(self, table: str, key: str, data: Dict[str, Any]) -> str:
+    def put(self, table: str, key: str, data: Dict[str, Any], expected_hash: Optional[str] = None) -> str:
         spec = get_spec(table)
         existing = self.get(table, key)
         if existing is not None:
+            curr_hash = payload_hash(existing)
             if canonical_json(existing) == canonical_json(data):
                 return UNCHANGED
             if spec.immutable:
                 raise ImmutableConflictError(f"remote {table}[{key}] is append-only with a different payload")
+            if expected_hash is not None and curr_hash != expected_hash:
+                raise PersistenceError(
+                    f"Lost update detected on {table}[{key}]: expected hash {expected_hash} but found {curr_hash}."
+                )
+        elif expected_hash is not None:
+            raise PersistenceError(
+                f"Lost update detected on {table}[{key}]: expected hash {expected_hash} but record does not exist."
+            )
         prefer = "resolution=merge-duplicates" if not spec.immutable else "resolution=ignore-duplicates"
         status, body = self._require().request(
             "POST", f"/rest/v1/{table}", params={"on_conflict": spec.pk},
@@ -116,13 +126,46 @@ class SupabasePersistenceBackend(PersistenceBackend):
         self._check(status, body)
         return INSERTED if existing is None else "UPDATED"
 
-    def list(self, table: str, **filters: Any) -> List[Dict[str, Any]]:
-        params = {"select": "payload", "order": f"{get_spec(table).pk}.asc"}
-        for k, v in filters.items():
-            params[k] = f"eq.{v}"
-        status, body = self._require().request("GET", f"/rest/v1/{table}", params=params)
-        self._check(status, body)
-        return [r["payload"] for r in body]
+    def list(self, table: str, limit: Optional[int] = None, page_size: int = 1000, **filters: Any) -> List[Dict[str, Any]]:
+        spec = get_spec(table)
+        results: List[Dict[str, Any]] = []
+        offset = 0
+        actual_page_size = min(page_size, limit) if limit is not None else page_size
+
+        while True:
+            params = {
+                "select": "payload",
+                "order": f"{spec.pk}.asc",
+                "limit": str(actual_page_size),
+                "offset": str(offset),
+            }
+            for k, v in filters.items():
+                params[k] = f"eq.{v}"
+
+            headers = {
+                "Range-Unit": "items",
+                "Range": f"{offset}-{offset + actual_page_size - 1}",
+            }
+            status, body = self._require().request("GET", f"/rest/v1/{table}", params=params, headers=headers)
+            self._check(status, body)
+
+            if not body or not isinstance(body, list):
+                break
+
+            for r in body:
+                results.append(r["payload"])
+
+            if limit is not None and len(results) >= limit:
+                results = results[:limit]
+                break
+
+            if len(body) < actual_page_size:
+                # Reached last page
+                break
+
+            offset += len(body)
+
+        return results
 
     def status(self) -> Dict[str, Any]:
         return self.config.status()

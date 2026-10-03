@@ -313,7 +313,7 @@ export function CommandCenterView({
                     ? "READY / RECORDING"
                     : "STANDBY",
                   rate: binanceVenue?.event_rate !== undefined ? `${binanceVenue.event_rate.toFixed(1)} ev/s` : "UNKNOWN",
-                  clockSkew: binanceVenue?.clock_skew_ms !== undefined ? `${binanceVenue.clock_skew_ms.toFixed(1)}ms` : "UNKNOWN",
+                  clockSkew: binanceVenue?.clock_skew_ms !== undefined && binanceVenue.clock_skew_ms !== null ? `${binanceVenue.clock_skew_ms.toFixed(1)}ms` : "UNKNOWN",
                   format: "Parquet",
                   validation: !binanceVenue ? "UNVERIFIED" : binanceVenue.connected ? "MANIFEST OK" : "UNVERIFIED",
                   badgeVariant: !binanceVenue ? ("slate" as const) : binanceVenue.connected ? ("emerald" as const) : ("amber" as const),
@@ -327,7 +327,7 @@ export function CommandCenterView({
                     ? "READY / RECORDING"
                     : "STANDBY",
                   rate: deribitVenue?.event_rate !== undefined ? `${deribitVenue.event_rate.toFixed(1)} ev/s` : "UNKNOWN",
-                  clockSkew: deribitVenue?.clock_skew_ms !== undefined ? `${deribitVenue.clock_skew_ms.toFixed(1)}ms` : "UNKNOWN",
+                  clockSkew: deribitVenue?.clock_skew_ms !== undefined && deribitVenue.clock_skew_ms !== null ? `${deribitVenue.clock_skew_ms.toFixed(1)}ms` : "UNKNOWN",
                   format: "Parquet",
                   validation: !deribitVenue ? "UNVERIFIED" : deribitVenue.connected ? "MANIFEST OK" : "UNVERIFIED",
                   badgeVariant: !deribitVenue ? ("slate" as const) : deribitVenue.connected ? ("emerald" as const) : ("amber" as const),
@@ -341,7 +341,7 @@ export function CommandCenterView({
                     ? "READY / POLLING"
                     : "STANDBY",
                   rate: polymarketVenue?.event_rate !== undefined ? `${polymarketVenue.event_rate.toFixed(1)} ev/s` : "UNKNOWN",
-                  clockSkew: polymarketVenue?.clock_skew_ms !== undefined ? `${polymarketVenue.clock_skew_ms.toFixed(1)}ms` : "UNKNOWN",
+                  clockSkew: polymarketVenue?.clock_skew_ms !== undefined && polymarketVenue.clock_skew_ms !== null ? `${polymarketVenue.clock_skew_ms.toFixed(1)}ms` : "UNKNOWN",
                   format: "Parquet",
                   validation: !polymarketVenue ? "UNVERIFIED" : polymarketVenue.connected ? "MANIFEST OK" : "UNVERIFIED",
                   badgeVariant: !polymarketVenue ? ("slate" as const) : polymarketVenue.connected ? ("emerald" as const) : ("amber" as const),

@@ -13,11 +13,16 @@ interface PaperTradingViewProps {
 export function PaperTradingView({ paperAccount, onRefresh }: PaperTradingViewProps) {
   const [activeTab, setActiveTab] = useState<"POSITIONS" | "ORDERS" | "FILLS">("POSITIONS");
 
-  const isAccountActive = paperAccount !== null && paperAccount !== undefined;
+  const isAccountActive = paperAccount !== null && paperAccount !== undefined && paperAccount.status !== "NOT_STARTED";
   const equity = paperAccount?.equity_usd;
   const cash = paperAccount?.cash_usd;
   const realizedPnl = paperAccount?.realized_pnl_usd;
   const unrealizedPnl = paperAccount?.unrealized_pnl_usd;
+
+  const hasEquity = equity !== undefined && equity !== null;
+  const hasCash = cash !== undefined && cash !== null;
+  const hasRealizedPnl = realizedPnl !== undefined && realizedPnl !== null;
+  const hasUnrealizedPnl = unrealizedPnl !== undefined && unrealizedPnl !== null;
 
   const positions = paperAccount?.positions ?? [];
   const orders = paperAccount?.orders ?? [];
@@ -50,24 +55,24 @@ export function PaperTradingView({ paperAccount, onRefresh }: PaperTradingViewPr
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard
           label="Account Equity"
-          value={equity !== undefined ? `$${equity.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "NOT INITIALIZED"}
-          subtitle={cash !== undefined ? `Cash: $${cash.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : "Paper account unallocated"}
+          value={hasEquity ? `$${equity.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "NOT INITIALIZED"}
+          subtitle={hasCash ? `Cash: $${cash.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : "Paper account unallocated"}
           badge={{ text: isAccountActive ? "SIMULATED" : "NOT STARTED", variant: isAccountActive ? "emerald" : "slate" }}
           icon={<DollarSign className="w-4 h-4" />}
         />
         <MetricCard
           label="Realized PnL"
-          value={realizedPnl !== undefined ? `$${realizedPnl >= 0 ? "+" : ""}${realizedPnl.toFixed(2)}` : "—"}
+          value={hasRealizedPnl ? `$${realizedPnl >= 0 ? "+" : ""}${realizedPnl.toFixed(2)}` : "—"}
           subtitle="Net of exchange fees"
           badge={{
-            text: !isAccountActive ? "NOT STARTED" : realizedPnl !== undefined && realizedPnl >= 0 ? "PROFIT" : "LOSS",
-            variant: !isAccountActive ? "slate" : realizedPnl !== undefined && realizedPnl >= 0 ? "emerald" : "rose",
+            text: !isAccountActive ? "NOT STARTED" : hasRealizedPnl && realizedPnl >= 0 ? "PROFIT" : "LOSS",
+            variant: !isAccountActive ? "slate" : hasRealizedPnl && realizedPnl >= 0 ? "emerald" : "rose",
           }}
-          trend={realizedPnl !== undefined ? { direction: realizedPnl >= 0 ? "up" : "down", value: `$${Math.abs(realizedPnl).toFixed(2)}` } : undefined}
+          trend={hasRealizedPnl ? { direction: realizedPnl >= 0 ? "up" : "down", value: `$${Math.abs(realizedPnl).toFixed(2)}` } : undefined}
         />
         <MetricCard
           label="Unrealized MTM PnL"
-          value={unrealizedPnl !== undefined ? `$${unrealizedPnl >= 0 ? "+" : ""}${unrealizedPnl.toFixed(2)}` : "—"}
+          value={hasUnrealizedPnl ? `$${unrealizedPnl >= 0 ? "+" : ""}${unrealizedPnl.toFixed(2)}` : "—"}
           subtitle="Marked to market via socket"
           badge={{ text: isAccountActive ? "LIVE MTM" : "NOT STARTED", variant: isAccountActive ? "cyan" : "slate" }}
         />
