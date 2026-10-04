@@ -1,3 +1,4 @@
+import argparse
 import asyncio
 import os
 import signal
@@ -19,6 +20,14 @@ logger = setup_logger("main_service")
 
 
 async def main() -> None:
+    parser = argparse.ArgumentParser(description="Market Data Recorder")
+    parser.add_argument(
+        "--new-run",
+        action="store_true",
+        help="Explicitly initiate a fresh runtime run after confirmed continuity gap",
+    )
+    args = parser.parse_args()
+
     manager = CollectorManager()
     loop = asyncio.get_running_loop()
 
@@ -43,24 +52,36 @@ async def main() -> None:
         git_sha = "UNKNOWN"
 
     fingerprint = compute_config_fingerprint()
-    manifest, was_resumed = RuntimeManifest.resume_or_create(
-        filepath=manifest_path,
-        pid=os.getpid(),
-        git_sha=git_sha,
-        config_fingerprint=fingerprint,
-    )
-    if was_resumed:
+
+    if args.new_run:
+        manifest = RuntimeManifest.start_operator_new_run(
+            filepath=manifest_path,
+            pid=os.getpid(),
+            git_sha=git_sha,
+            config_fingerprint=fingerprint,
+        )
         logger.info(
-            f"Resuming continuous acceptance run: {manifest.run_id} "
-            f"(Elapsed: {manifest.elapsed_seconds():.1f}s)"
+            f"Initialized explicit operator new run: {manifest.run_id} "
+            f"(PID: {os.getpid()}, previous_run_id={manifest.previous_run_id}, reason={manifest.continuity_reason})"
         )
     else:
-        logger.info(
-            f"Initialized new runtime manifest: {manifest.run_id} "
-            f"(PID: {os.getpid()}, SHA: {git_sha[:8]})"
+        manifest, was_resumed = RuntimeManifest.resume_or_create(
+            filepath=manifest_path,
+            pid=os.getpid(),
+            git_sha=git_sha,
+            config_fingerprint=fingerprint,
         )
-
-    manifest.save(manifest_path)
+        if was_resumed:
+            logger.info(
+                f"Resuming continuous acceptance run: {manifest.run_id} "
+                f"(Elapsed: {manifest.elapsed_seconds():.1f}s)"
+            )
+        else:
+            logger.info(
+                f"Initialized new runtime manifest: {manifest.run_id} "
+                f"(PID: {os.getpid()}, SHA: {git_sha[:8]})"
+            )
+        manifest.save(manifest_path)
 
     try:
         await manager.start()

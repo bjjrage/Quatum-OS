@@ -4,7 +4,7 @@ import json
 import os
 from pathlib import Path
 import time
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, List, Optional, Tuple, Union
 from pydantic import BaseModel, Field
 
 
@@ -377,4 +377,84 @@ class RuntimeManifest(BaseModel):
         new_manifest.continuity_state = AcceptanceContinuityState.NEW_RUN
         new_manifest.continuity_reason = "FRESH_INITIALIZATION"
         return new_manifest, False
+
+    @classmethod
+    def start_operator_new_run(
+        cls,
+        filepath: Union[str, Path] = Path("data/runtime/current_run.json"),
+        pid: int = 0,
+        git_sha: str = "UNKNOWN",
+        config_fingerprint: str = "",
+        venues: Optional[List[str]] = None,
+        history_dir: Union[str, Path] = Path("data/runtime/history"),
+    ) -> "RuntimeManifest":
+        """Explicit operator-authorized initiation of a clean recording run.
+        
+        Preserves previous run provenance by archiving existing manifest into history
+        with write-once/immutable semantics, then initializes a fresh run with
+        continuity_state=NEW_RUN and continuity_reason='OPERATOR_CONFIRMED_CONTINUITY_GAP'.
+        """
+        filepath = Path(filepath)
+        history_dir = Path(history_dir)
+        old_run_id: Optional[str] = None
+
+        if filepath.exists():
+            try:
+                with open(filepath, "r", encoding="utf-8") as f:
+                    old_data = json.load(f)
+                old_manifest = cls(**old_data)
+                old_run_id = old_manifest.run_id
+            except Exception as exc:
+                raise RecorderContinuityError(
+                    f"Cannot start operator new run: existing manifest at {filepath} is corrupted: {exc}"
+                ) from exc
+
+            # Immutable archival of old manifest
+            try:
+                history_dir.mkdir(parents=True, exist_ok=True)
+                archive_file = history_dir / f"{old_run_id}.json"
+                old_json_str = old_manifest.model_dump_json(indent=2)
+
+                if archive_file.exists():
+                    with open(archive_file, "r", encoding="utf-8") as af:
+                        existing_archive_json = af.read()
+                    try:
+                        existing_archive_data = json.loads(existing_archive_json)
+                        if cls(**existing_archive_data) != old_manifest:
+                            raise RecorderContinuityError(
+                                f"Archive collision: {archive_file} exists with differing historical evidence."
+                            )
+                    except json.JSONDecodeError as jde:
+                        raise RecorderContinuityError(
+                            f"Archive corruption: {archive_file} contains invalid JSON."
+                        ) from jde
+                else:
+                    tmp_archive = history_dir / f".tmp_{old_run_id}_{os.getpid()}"
+                    with open(tmp_archive, "w", encoding="utf-8") as tf:
+                        tf.write(old_json_str)
+                    os.replace(tmp_archive, archive_file)
+            except RecorderContinuityError:
+                raise
+            except Exception as exc:
+                raise RecorderContinuityError(
+                    f"Archival of previous manifest failed: {exc}. Fail-closed: refusing to start new run."
+                ) from exc
+
+        # Create new manifest
+        new_manifest = cls.create_new(
+            pid=pid,
+            git_sha=git_sha,
+            config_fingerprint=config_fingerprint,
+            venues=venues,
+        )
+        if old_run_id is not None:
+            new_manifest.previous_run_id = old_run_id
+            new_manifest.continuity_state = AcceptanceContinuityState.NEW_RUN
+            new_manifest.continuity_reason = "OPERATOR_CONFIRMED_CONTINUITY_GAP"
+        else:
+            new_manifest.continuity_state = AcceptanceContinuityState.NEW_RUN
+            new_manifest.continuity_reason = "FRESH_INITIALIZATION"
+
+        new_manifest.save(filepath)
+        return new_manifest
 
