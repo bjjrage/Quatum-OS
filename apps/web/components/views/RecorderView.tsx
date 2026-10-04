@@ -1,5 +1,5 @@
-import React from "react";
-import { Activity, Clock, Database, HardDrive, RefreshCw, Server, AlertCircle } from "lucide-react";
+import React, { useState } from "react";
+import { Activity, Clock, Database, HardDrive, RefreshCw, Server, AlertCircle, Play, Square } from "lucide-react";
 import { RecorderStatus, DataQuality } from "../../types";
 import { Card } from "../common/Card";
 import { Badge } from "../common/Badge";
@@ -12,6 +12,24 @@ interface RecorderViewProps {
 }
 
 export function RecorderView({ recorder, dataQuality, onRefresh }: RecorderViewProps) {
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const api = process.env.NEXT_PUBLIC_API_URL || "";
+  const control = async (action: "start" | "stop") => {
+    if (action === "stop" && !window.confirm("¿Apagar el recorder? Se guardan los datos pendientes y se corta la grabación.")) return;
+    setBusy(true);
+    setMsg(action === "start" ? "Iniciando..." : "Apagando (puede tardar unos segundos)...");
+    try {
+      const res = await fetch(`${api}/api/recorder/${action}`, { method: "POST" });
+      const data = await res.json();
+      setMsg(data.message || data.detail || "Listo.");
+    } catch {
+      setMsg("No pude comunicarme con el backend. ¿Está corriendo?");
+    } finally {
+      setBusy(false);
+      onRefresh?.();
+    }
+  };
   const hasRun = recorder !== null && recorder !== undefined && recorder.elapsed_seconds !== undefined;
   const elapsed = recorder?.elapsed_seconds;
   const elapsedHours = elapsed !== undefined ? Math.floor(elapsed / 3600) : 0;
@@ -46,6 +64,25 @@ export function RecorderView({ recorder, dataQuality, onRefresh }: RecorderViewP
           <Badge variant="cyan" size="sm">
             RUN ID: {recorder?.run_id ? recorder.run_id.slice(0, 8) : "STANDBY"}
           </Badge>
+          {recorder?.is_process_alive ? (
+            <button
+              disabled={busy}
+              onClick={() => control("stop")}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-rose-900/60 hover:bg-rose-800 text-xs font-mono-code text-rose-100 border border-rose-700 transition disabled:opacity-50"
+            >
+              <Square className="w-3.5 h-3.5" />
+              Apagar recorder
+            </button>
+          ) : (
+            <button
+              disabled={busy}
+              onClick={() => control("start")}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-emerald-900/60 hover:bg-emerald-800 text-xs font-mono-code text-emerald-100 border border-emerald-700 transition disabled:opacity-50"
+            >
+              <Play className="w-3.5 h-3.5" />
+              Iniciar recorder
+            </button>
+          )}
           {onRefresh && (
             <button
               onClick={onRefresh}
@@ -57,6 +94,10 @@ export function RecorderView({ recorder, dataQuality, onRefresh }: RecorderViewP
           )}
         </div>
       </div>
+
+      {msg && (
+        <div className="text-xs font-mono-code text-slate-300 bg-slate-900 border border-slate-700 rounded px-3 py-2">{msg}</div>
+      )}
 
       {/* TOP STATS */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

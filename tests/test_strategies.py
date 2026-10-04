@@ -411,7 +411,7 @@ def test_evidence_gated_lifecycle_transitions():
         stage=StrategyStage.VALIDATION,
         counterparty_thesis=thesis,
     )
-    registry.register(spec_validation)
+    registry.register(spec_validation, trusted_seed=True)
     with pytest.raises(InvalidStageTransitionError):
         registry.update_stage("STR-GATE-JUMP-3", StrategyStage.ACTIVE)
 
@@ -571,7 +571,7 @@ def test_registry_registration_governance_invariants():
         counterparty_thesis=None,
     )
     with pytest.raises(ValueError, match="without a complete CounterpartyThesis"):
-        registry.register(spec_val_no_thesis)
+        registry.register(spec_val_no_thesis, trusted_seed=True)
 
 
 def test_lifecycle_governance_fail_closed_transitions():
@@ -724,3 +724,14 @@ def test_lifecycle_governance_fail_closed_transitions():
     # 5. ARCHIVED -> RESEARCH MUST FAIL (terminal state)
     with pytest.raises(InvalidStageTransitionError, match="cannot transition from ARCHIVED to RESEARCH"):
         registry.update_stage("STR-LIFECYCLE-TEST", StrategyStage.RESEARCH)
+
+
+def test_register_past_research_requires_trusted_seed():
+    """Audit fix: no direct registration at VALIDATION/HOLDOUT/PAPER from untrusted callers."""
+    from src.strategies.registry import StrategyRegistry
+    registry = StrategyRegistry()
+    for stage in (StrategyStage.VALIDATION, StrategyStage.HOLDOUT, StrategyStage.PAPER):
+        spec = StrategySpec(strategy_id=f"STR-JUMP-{stage.value}", name="x", family="MOMENTUM",
+                            origin=StrategyOrigin.QUANT, stage=stage, counterparty_thesis=None)
+        with pytest.raises(ValueError, match="directly in stage"):
+            registry.register(spec)

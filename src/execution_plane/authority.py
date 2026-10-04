@@ -49,6 +49,9 @@ class ExecutionAuthorization:
     nonce: str = ""
     signature: str = ""
     _issuer: Any = None
+    # Order-economics binding (None = not bound, kept for CANCEL permits and legacy callers).
+    max_quantity: Optional[float] = None
+    limit_price: Optional[float] = None
 
     def __post_init__(self):
         if self._issuer is not _ISSUER:
@@ -85,11 +88,15 @@ class ExecutionAuthorizationVerifier:
         risk_decision_fingerprint: Optional[str],
         expires_at_ns: int,
         nonce: str,
+        max_quantity: Optional[float] = None,
+        limit_price: Optional[float] = None,
     ) -> str:
+        qty_s = "" if max_quantity is None else f"{max_quantity:.10g}"
+        px_s = "" if limit_price is None else f"{limit_price:.10g}"
         payload = (
             f"{kind}:{venue}:{client_order_id or ''}:{mode.value}:{authorized_live_capital_usd:.4f}:"
             f"{risk_approved}:{issued_ns}:{intent_id or ''}:{symbol or ''}:{side or ''}:"
-            f"{risk_decision_id or ''}:{risk_decision_fingerprint or ''}:{expires_at_ns}:{nonce}"
+            f"{risk_decision_id or ''}:{risk_decision_fingerprint or ''}:{expires_at_ns}:{nonce}:{qty_s}:{px_s}"
         )
         return hmac.new(self._secret_key, payload.encode("utf-8"), hashlib.sha256).hexdigest()
 
@@ -103,6 +110,8 @@ class ExecutionAuthorizationVerifier:
         expected_client_order_id: Optional[str] = None,
         expected_mode: Optional[ExecutionMode] = None,
         current_time_ns: Optional[int] = None,
+        expected_quantity: Optional[float] = None,
+        expected_limit_price: Optional[float] = None,
     ) -> None:
         """Verify authorization validity, cryptographic signature, scope binding, expiration, and replay."""
         # 1. Type verification: absolutely no duck typing
@@ -129,6 +138,8 @@ class ExecutionAuthorizationVerifier:
             risk_decision_fingerprint=auth.risk_decision_fingerprint,
             expires_at_ns=auth.expires_at_ns,
             nonce=auth.nonce,
+            max_quantity=auth.max_quantity,
+            limit_price=auth.limit_price,
         )
         if not hmac.compare_digest(auth.signature, expected_sig):
             raise PermissionError("Authorization rejected: invalid cryptographic signature (tampered or forged permit).")
@@ -154,6 +165,15 @@ class ExecutionAuthorizationVerifier:
             raise PermissionError(f"Authorization client_order_id mismatch: expected {expected_client_order_id}, got {auth.client_order_id}.")
         if expected_mode is not None and auth.mode != expected_mode:
             raise PermissionError(f"Authorization mode mismatch: expected {expected_mode}, got {auth.mode}.")
+
+        if auth.max_quantity is not None and expected_quantity is not None:
+            if expected_quantity > auth.max_quantity * (1 + 1e-9):
+                raise PermissionError(
+                    f"Authorization quantity mismatch: order qty {expected_quantity} exceeds authorized {auth.max_quantity}.")
+        if auth.limit_price is not None:
+            if expected_limit_price is None or abs(expected_limit_price - auth.limit_price) > 1e-9 * max(1.0, abs(auth.limit_price)):
+                raise PermissionError(
+                    f"Authorization price mismatch: order limit {expected_limit_price} != authorized {auth.limit_price}.")
 
         # 5. Expiration check
         now_ns = current_time_ns if current_time_ns is not None else time.time_ns()
@@ -199,6 +219,8 @@ class ExecutionAuthorizationSigner:
         authorized_live_capital_usd: float = 0.0,
         current_time_ns: Optional[int] = None,
         validity_window_ns: Optional[int] = None,
+        max_quantity: Optional[float] = None,
+        limit_price: Optional[float] = None,
     ) -> ExecutionAuthorization:
         """Mint a cryptographic, tamper-evident authorization token bound to an approved RiskDecision."""
         if risk_decision is None:
@@ -237,6 +259,8 @@ class ExecutionAuthorizationSigner:
             risk_decision_fingerprint=risk_fp,
             expires_at_ns=expires_at_ns,
             nonce=nonce,
+            max_quantity=max_quantity,
+            limit_price=limit_price,
         )
 
         return ExecutionAuthorization(
@@ -256,4 +280,6 @@ class ExecutionAuthorizationSigner:
             nonce=nonce,
             signature=sig,
             _issuer=_ISSUER,
+            max_quantity=max_quantity,
+            limit_price=limit_price,
         )

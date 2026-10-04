@@ -1,6 +1,6 @@
 """System and environment metadata endpoints."""
 from pathlib import Path
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, Request
 from apps.api.services.data_service import QuantOSDataService
 
 router = APIRouter(prefix="/api/system", tags=["System"])
@@ -58,3 +58,19 @@ def get_persistence_status():
         "own_capital_baseline_usd": OWN_CAPITAL_BASELINE_USD,
         "own_capital_state_kind": "HYPOTHETICAL",
     }
+
+
+@router.post("/git/save")
+def git_save(request: Request, message: str = "Quant OS: guardar versión", push: bool = True):
+    """Run tests; if they pass, commit everything and push to GitHub with the PC's own credentials. Local only."""
+    host = request.client.host if request.client else ""
+    if host not in ("127.0.0.1", "::1", "localhost", "testclient"):
+        raise HTTPException(status_code=403, detail="Only available from the local machine.")
+    from apps.api.services import git_save as gs
+    return gs.start(message=message[:500], push=push)
+
+
+@router.get("/git/save/status")
+def git_save_status():
+    from apps.api.services import git_save as gs
+    return gs.status()

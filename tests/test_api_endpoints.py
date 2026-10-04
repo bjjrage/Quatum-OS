@@ -30,7 +30,7 @@ def test_health_endpoint():
     res = client.get("/api/health")
     assert res.status_code == 200
     data = res.json()
-    assert data["status"] == "HEALTHY"
+    assert data["status"] in ("HEALTHY", "DEGRADED")  # no longer a constant: depends on recorder + disk
     assert "LOCKED" in data["live_capital_authorized"]
 
 

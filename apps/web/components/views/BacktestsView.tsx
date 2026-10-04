@@ -3,6 +3,8 @@ import { TrendingUp, Sliders, AlertCircle, BarChart3, Clock, DollarSign, ShieldA
 import { Card } from "../common/Card";
 import { Badge } from "../common/Badge";
 import { MetricCard } from "../common/MetricCard";
+import { Str002ReplayPanel } from "./Str002ReplayPanel";
+import { HistoryPanel } from "./HistoryPanel";
 
 interface BacktestsViewProps {
   backtestsData?: {
@@ -60,6 +62,10 @@ export function BacktestsView({ backtestsData }: BacktestsViewProps) {
           )}
         </div>
       </div>
+
+      <HistoryPanel />
+
+      <Str002ReplayPanel />
 
       {/* CORE OS INVARIANT BANNER */}
       <div className="rounded-lg border border-cyan-800/80 bg-cyan-950/30 p-4 text-xs font-mono-code space-y-1">

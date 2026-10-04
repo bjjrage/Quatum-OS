@@ -180,7 +180,7 @@ def test_partial_fill_and_depth_exhaustion():
 
 def test_limit_order_queue_and_fill():
     broker = PaperBroker(
-        initial_cash_usd=50_000.0,
+        initial_cash_usd=100_000.0,
         simulated_latency_ms=20.0,
         maker_fee_bps=1.0,  # 0.01%
         enforce_risk_permit=False,
@@ -222,6 +222,7 @@ def test_limit_order_queue_and_fill():
         best_ask=60_000.0,
         event_time_ns=t0 + 30_000_000,  # +30ms
         trade_volume=2.0,
+        trade_price=59_990.0,  # a print AT our limit price is the only thing that drains the queue
     )
     assert len(trades2) == 0
     assert order.queue_ahead_volume == 1.0
@@ -233,6 +234,7 @@ def test_limit_order_queue_and_fill():
         best_ask=60_000.0,
         event_time_ns=t0 + 40_000_000,
         trade_volume=1.5,
+        trade_price=59_990.0,
     )
     assert len(trades3) == 1
     assert order.status == PaperOrderStatus.FILLED
@@ -350,3 +352,51 @@ def test_paper_broker_accepts_valid_permit():
         permit=permit,
     )
     assert order.status == PaperOrderStatus.FILLED
+
+
+# ---------------------------------------------------------------------------
+# Audit regression tests (pre-paper): passive fills need real trades, cash is real, fees hit PnL
+# ---------------------------------------------------------------------------
+def test_passive_limit_does_not_fill_on_bbo_updates_alone():
+    broker = PaperBroker(simulated_latency_ms=0.0, enforce_risk_permit=False)
+    bbo = {"best_bid": 0.50, "best_ask": 0.52, "bid_size": 3.0, "ask_size": 3.0}
+    order = broker.submit_order("X", PaperOrderSide.BUY, PaperOrderType.LIMIT, 1.0,
+                                limit_price=0.50, current_bbo=bbo)
+    for t in range(1, 50):
+        broker.on_market_event("X", 0.50, 0.52, t, bid_size=3.0, ask_size=3.0)
+    assert order.status == PaperOrderStatus.SUBMITTED and order.filled_qty == 0.0
+
+
+def test_trade_above_limit_price_does_not_drain_buy_queue():
+    broker = PaperBroker(simulated_latency_ms=0.0, enforce_risk_permit=False)
+    bbo = {"best_bid": 0.50, "best_ask": 0.52, "bid_size": 3.0, "ask_size": 3.0}
+    order = broker.submit_order("X", PaperOrderSide.BUY, PaperOrderType.LIMIT, 1.0,
+                                limit_price=0.50, current_bbo=bbo)
+    broker.on_market_event("X", 0.50, 0.52, 1, trade_volume=100.0, trade_price=0.52)
+    assert order.queue_ahead_volume == 3.0 and order.filled_qty == 0.0
+
+
+def test_buy_is_truncated_by_available_cash():
+    broker = PaperBroker(initial_cash_usd=100.0, simulated_latency_ms=0.0, enforce_risk_permit=False)
+    bbo = {"best_bid": 99_999.0, "best_ask": 100_000.0, "bid_size": 5_000.0, "ask_size": 5_000.0}
+    broker.submit_order("BTC", PaperOrderSide.BUY, PaperOrderType.MARKET, 1_000.0, current_bbo=bbo)
+    assert broker.cash_usd >= -1e-9, "cash can never go negative"
+    assert broker.positions["BTC"].quantity < 0.01
+
+
+def test_buy_with_zero_cash_is_rejected():
+    broker = PaperBroker(initial_cash_usd=0.0, simulated_latency_ms=0.0, enforce_risk_permit=False)
+    bbo = {"best_bid": 100.0, "best_ask": 100.0, "bid_size": 10.0, "ask_size": 10.0}
+    order = broker.submit_order("Y", PaperOrderSide.BUY, PaperOrderType.MARKET, 1.0, current_bbo=bbo)
+    assert order.status == PaperOrderStatus.REJECTED and not broker.trades
+
+
+def test_realized_pnl_is_net_of_fees():
+    broker = PaperBroker(simulated_latency_ms=0.0, enforce_risk_permit=False,
+                         taker_fee_bps=100.0, base_slippage_bps=0.0)
+    bbo = {"best_bid": 100.0, "best_ask": 100.0, "bid_size": 10.0, "ask_size": 10.0}
+    broker.submit_order("Y", PaperOrderSide.BUY, PaperOrderType.MARKET, 1.0, current_bbo=bbo)
+    broker.submit_order("Y", PaperOrderSide.SELL, PaperOrderType.MARKET, 1.0, current_bbo=bbo)
+    pos = broker.positions["Y"]
+    assert abs(pos.realized_pnl_usd - (-2.0)) < 1e-9
+    assert abs((broker.cash_usd - broker.initial_cash_usd) - pos.realized_pnl_usd) < 1e-9

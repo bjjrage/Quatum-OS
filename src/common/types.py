@@ -228,5 +228,8 @@ SCHEMAS: Dict[str, pa.Schema] = {
         ("fee_schedule_raw_json", pa.string()),
         ("fee_model_version", pa.string()),
         ("status", pa.string()),
+        ("clob_token_ids_json", pa.string()),   # [YES_token, NO_token]: required to join books/trades to a question
+        ("outcomes_json", pa.string()),
+        ("description", pa.string()),            # resolution rules text (source, time, tie-breaks)
     ]),
 }

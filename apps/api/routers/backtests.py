@@ -1,8 +1,28 @@
 """Backtest explorer and validation replay endpoints."""
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, Request
 from apps.api.services.data_service import QuantOSDataService
 
 router = APIRouter(prefix="/api/backtests", tags=["Backtests"])
+
+
+def _local_only(request: Request) -> None:
+    host = request.client.host if request.client else ""
+    if host not in ("127.0.0.1", "::1", "localhost", "testclient"):
+        raise HTTPException(status_code=403, detail="Only available from the local machine.")
+
+
+@router.post("/str002/run")
+def run_str002_replay(request: Request, days: float = 7.0, source: str = "recorded"):
+    _local_only(request)
+    from apps.api.services import replay_runner
+    src = "history" if source == "history" else "recorded"
+    return replay_runner.start(days=max(0.1, min(days, 180.0)), source=src)
+
+
+@router.get("/str002/status")
+def str002_replay_status():
+    from apps.api.services import replay_runner
+    return replay_runner.status()
 
 
 @router.get("")

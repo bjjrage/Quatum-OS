@@ -84,6 +84,19 @@ class MultipleTestingContext(BaseModel):
     registry_integrity_status: RegistryIntegrityStatus = RegistryIntegrityStatus.HEALTHY
     raw_p_values: List[float] = Field(default_factory=list)
     candidate_raw_p_value: Optional[float] = None
+    # Per-period (NOT annualized) Sharpe of every recorded trial; DSR needs their cross-trial variance
+    trial_sharpes: List[float] = Field(default_factory=list)
+
+    @property
+    def trial_sharpe_variance(self) -> Optional[float]:
+        """Sample variance of per-period Sharpes across trials (None when fewer than 2 are recorded)."""
+        import math
+        vals = [float(x) for x in self.trial_sharpes if isinstance(x, (int, float)) and math.isfinite(x)]
+        if len(vals) < 2:
+            return None
+        m = sum(vals) / len(vals)
+        var = sum((v - m) ** 2 for v in vals) / (len(vals) - 1)
+        return var if var > 0.0 else None
 
     @property
     def is_complete(self) -> bool:
@@ -222,6 +235,12 @@ class ExperimentRegistry:
         trial_count = len(experiments)
         exp_ids = [e.experiment_id for e in experiments]
         p_vals = [e.raw_p_value for e in experiments if e.raw_p_value is not None]
+        import math as _m
+        sharpes = [
+            float(e.result_metrics["sharpe_per_period"]) for e in experiments
+            if isinstance(e.result_metrics.get("sharpe_per_period"), (int, float))
+            and _m.isfinite(e.result_metrics["sharpe_per_period"])
+        ]
 
         return MultipleTestingContext(
             strategy_id=strategy_id,
@@ -230,6 +249,7 @@ class ExperimentRegistry:
             registry_integrity_status=self.status,
             raw_p_values=p_vals,
             candidate_raw_p_value=candidate_raw_p_value,
+            trial_sharpes=sharpes,
         )
 
     def delete_experiment(self, experiment_id: str) -> None:

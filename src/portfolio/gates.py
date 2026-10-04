@@ -753,14 +753,19 @@ def deflated_sharpe_ratio(
     skewness: float = 0.0,
     kurtosis: float = 3.0,
     euler_mascheroni: float = 0.5772156649,
+    var_sharpe: float = 1.0,
 ) -> float:
-    """Bailey & López de Prado (2014) Deflated Sharpe Ratio."""
+    """Bailey & López de Prado (2014) Deflated Sharpe Ratio.
+
+    ``var_sharpe`` is the cross-trial variance of the (per-period) Sharpe estimates. The legacy default
+    of 1.0 is only coherent for annualized Sharpes; pass the empirical variance whenever it is available.
+    """
     if sample_length < 2:
         return 0.0
     if math.isnan(estimated_sharpe) or math.isinf(estimated_sharpe):
         return 0.0
     sr = estimated_sharpe
-    e_max = expected_max_sharpe(n_trials=n_trials, euler_mascheroni=euler_mascheroni)
+    e_max = expected_max_sharpe(n_trials=n_trials, var_sharpe=var_sharpe, euler_mascheroni=euler_mascheroni)
     var_sr = (1.0 - skewness * sr + ((kurtosis - 1.0) / 4.0) * (sr ** 2)) / float(sample_length - 1)
     if var_sr <= 0.0 or math.isnan(var_sr) or math.isinf(var_sr):
         var_sr = 1.0 / float(sample_length - 1)
@@ -793,6 +798,7 @@ class MultipleSelectionGate:
         sample_length: int,
         skewness: float = 0.0,
         kurtosis: float = 3.0,
+        var_sharpe: float = 1.0,
     ) -> float:
         return deflated_sharpe_ratio(
             estimated_sharpe=estimated_sharpe,
@@ -801,6 +807,7 @@ class MultipleSelectionGate:
             skewness=skewness,
             kurtosis=kurtosis,
             euler_mascheroni=self.euler_mascheroni,
+            var_sharpe=var_sharpe,
         )
 
     def evaluate_math(
@@ -817,6 +824,7 @@ class MultipleSelectionGate:
         experiment_ids: Optional[List[str]] = None,
         raw_p_value: Optional[float] = None,
         all_raw_p_values: Optional[List[float]] = None,
+        trial_sharpe_variance: Optional[float] = None,
     ) -> StrategyGateResult:
         """Low-level pure numerical evaluation of DSR and FDR for statistical testing."""
         gate_type = "MULTIPLE_SELECTION"
@@ -861,14 +869,17 @@ class MultipleSelectionGate:
         exp_ids = experiment_ids or []
 
         # DSR evaluation
+        _var = trial_sharpe_variance if (trial_sharpe_variance is not None and math.isfinite(trial_sharpe_variance)
+                                         and trial_sharpe_variance > 0.0) else 1.0
         dsr = self.deflated_sharpe_ratio(
             estimated_sharpe=sharpe_ratio,
             n_trials=effective_trials,
             sample_length=sample_length,
             skewness=skewness,
             kurtosis=kurtosis,
+            var_sharpe=_var,
         )
-        e_max = self.expected_max_sharpe(n_trials=effective_trials)
+        e_max = self.expected_max_sharpe(n_trials=effective_trials, var_sharpe=_var)
         dsr_pass = (dsr >= self.min_dsr)
 
         # FDR evaluation
@@ -1070,6 +1081,7 @@ class MultipleSelectionGate:
             experiment_ids=exp_ids,
             raw_p_value=candidate_p,
             all_raw_p_values=p_vals,
+            trial_sharpe_variance=multiple_testing_context.trial_sharpe_variance,
         )
 
 

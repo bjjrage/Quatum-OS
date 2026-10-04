@@ -88,8 +88,13 @@ async def main() -> None:
         logger.info("Batch 0 Market Data Foundation is now live and recording.")
         
         heartbeat_counter = 0
+        stop_file = Path("data/runtime/STOP_RECORDER")
         while not stop_event.is_set():
             await asyncio.sleep(1.0)
+            if stop_file.exists():  # graceful stop requested from the cockpit
+                logger.info("Stop requested from cockpit. Flushing and shutting down...")
+                stop_event.set()
+                break
             heartbeat_counter += 1
             if heartbeat_counter >= 30:
                 manifest.update_heartbeat()

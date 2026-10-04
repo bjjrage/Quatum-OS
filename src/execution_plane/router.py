@@ -103,6 +103,8 @@ class ExecutionRouter:
             risk_decision=decision,
             authorized_live_capital_usd=authorized,
             current_time_ns=self._now(),
+            max_quantity=i.quantity if kind == "SUBMIT" else None,
+            limit_price=i.limit_price if kind == "SUBMIT" else None,
         )
 
     # ------------------------------------------------------------ plumbing

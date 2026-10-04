@@ -87,7 +87,8 @@ class PaperPosition:
     symbol: str
     quantity: float = 0.0
     average_entry_price: float = 0.0
-    realized_pnl_usd: float = 0.0
+    realized_pnl_usd: float = 0.0  # NET of all fees (entry + exit)
+    fees_paid_usd: float = 0.0
 
 
 class PaperBroker:
@@ -165,6 +166,8 @@ class PaperBroker:
                 expected_side=side.value,
                 expected_mode=ExecutionMode.PAPER,
                 current_time_ns=current_time_ns,
+                expected_quantity=quantity,
+                expected_limit_price=limit_price if order_type == PaperOrderType.LIMIT else None,
             )
 
         if quantity <= 0.0:
@@ -222,6 +225,25 @@ class PaperBroker:
 
         return order
 
+    def _affordable_qty(self, side: PaperOrderSide, symbol: str, price: float, qty: float, fee_bps: float) -> float:
+        """Cap a fill by available cash (buying power). Buys and short-opening sells need collateral;
+        UNKNOWN != AFFORDABLE: a fill that cannot be paid for is truncated, never booked into negative cash."""
+        pos = self.positions.get(symbol)
+        held = pos.quantity if pos else 0.0
+        if side == PaperOrderSide.BUY:
+            # buying back a short consumes no new collateral beyond the cover cost; treat all buys as cash-funded
+            unit_cost = price * (1.0 + fee_bps / 10_000.0)
+            max_qty = max(0.0, self.cash_usd) / unit_cost if unit_cost > 0 else 0.0
+            return min(qty, max_qty)
+        # SELL: closing a long needs no cash; any quantity beyond the held long opens a short and needs collateral
+        closing = max(0.0, min(qty, held))
+        opening = qty - closing
+        if opening <= 0.0:
+            return qty
+        unit_cost = price * (1.0 + fee_bps / 10_000.0)
+        max_open = max(0.0, self.cash_usd) / unit_cost if unit_cost > 0 else 0.0
+        return closing + min(opening, max_open)
+
     def _fill_taker_order(
         self,
         order: PaperOrder,
@@ -258,6 +280,10 @@ class PaperBroker:
         unfilled = order.quantity - order.filled_qty
         fill_qty = min(unfilled, available_depth)
         if fill_qty <= 0.0:
+            return None
+        fill_qty = self._affordable_qty(order.side, order.symbol, base_price * 1.01, fill_qty, self.taker_fee_bps)
+        if fill_qty <= 1e-12:
+            order.status = PaperOrderStatus.REJECTED if order.filled_qty <= 0.0 else PaperOrderStatus.CANCELLED
             return None
 
         # Size-aware non-linear slippage
@@ -314,13 +340,18 @@ class PaperBroker:
         best_bid: float,
         best_ask: float,
         event_time_ns: int,
-        trade_volume: float = 1.0,
+        trade_volume: float = 0.0,
         bid_size: float = 10.0,
         ask_size: float = 10.0,
+        trade_price: Optional[float] = None,
     ) -> List[PaperTrade]:
         """
         Evaluate pending market orders and resting limit orders against incoming market updates.
         Only orders whose available_at_ns <= event_time_ns (latency elapsed) are evaluated.
+
+        Passive limit orders only advance in the queue / fill when there is evidence of an actual trade:
+        ``trade_price`` + ``trade_volume`` of a print at or through the limit price, or when the opposite
+        side of the book crosses the limit. A BBO update alone never fills a resting order.
         """
         executed_trades = []
 
@@ -349,17 +380,18 @@ class PaperBroker:
                 fill = False
                 exec_price = order.limit_price or 0.0
 
+                has_trade = trade_price is not None and trade_volume > 0.0
                 if order.side == PaperOrderSide.BUY:
                     if best_ask > 0 and best_ask <= exec_price:
                         fill = True
-                    elif best_bid <= exec_price:
+                    elif has_trade and trade_price <= exec_price:
                         order.queue_ahead_volume -= trade_volume
                         if order.queue_ahead_volume <= 0:
                             fill = True
                 elif order.side == PaperOrderSide.SELL:
                     if best_bid > 0 and best_bid >= exec_price:
                         fill = True
-                    elif best_ask >= exec_price:
+                    elif has_trade and trade_price >= exec_price:
                         order.queue_ahead_volume -= trade_volume
                         if order.queue_ahead_volume <= 0:
                             fill = True
@@ -369,6 +401,10 @@ class PaperBroker:
                     available_depth = ask_size if order.side == PaperOrderSide.BUY else bid_size
                     fill_qty = min(unfilled, available_depth)
                     if fill_qty <= 0.0:
+                        continue
+                    fill_qty = self._affordable_qty(order.side, order.symbol, exec_price, fill_qty, self.maker_fee_bps)
+                    if fill_qty <= 1e-12:
+                        order.status = PaperOrderStatus.REJECTED if order.filled_qty <= 0.0 else PaperOrderStatus.CANCELLED
                         continue
 
                     notional = fill_qty * exec_price
@@ -409,6 +445,8 @@ class PaperBroker:
     def _update_position(self, trade: PaperTrade) -> None:
         """Update cash, inventory, cost basis, and realized PnL."""
         pos = self.positions.setdefault(trade.symbol, PaperPosition(symbol=trade.symbol))
+        pos.fees_paid_usd += trade.fee
+        pos.realized_pnl_usd -= trade.fee  # realized PnL is NET of fees (entry and exit)
 
         if trade.side == PaperOrderSide.BUY:
             cash_outflow = (trade.price * trade.quantity) + trade.fee
@@ -450,6 +488,19 @@ class PaperBroker:
                 pos.quantity -= trade.quantity
                 if pos.quantity < 0:
                     pos.average_entry_price = trade.price
+
+    def settle_position(self, symbol: str, payout: float) -> float:
+        """Cash-settle a binary-contract position at its resolution payout (0 or 1). No fee. Returns PnL booked."""
+        pos = self.positions.get(symbol)
+        if pos is None or pos.quantity == 0.0:
+            return 0.0
+        qty = pos.quantity
+        pnl = (payout - pos.average_entry_price) * qty if qty > 0 else (pos.average_entry_price - payout) * abs(qty)
+        self.cash_usd += payout * qty
+        pos.realized_pnl_usd += pnl
+        pos.quantity = 0.0
+        pos.average_entry_price = 0.0
+        return pnl
 
     def cancel_order(self, order_id: str) -> bool:
         order = self.orders.get(order_id)

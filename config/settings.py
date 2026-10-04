@@ -16,6 +16,7 @@ class PolymarketConfig(BaseModel):
     )
     heartbeat_interval_sec: float = 10.0
     discovery_interval_sec: float = 900.0  # 15 minutes
+    book_snapshot_interval_sec: float = 60.0  # REST /books polling: WS only sends `book` once per subscription
     crypto_keywords: List[str] = Field(
         default_factory=lambda: ["Bitcoin", "BTC", "Ethereum", "ETH", "Solana", "SOL"]
     )
@@ -58,7 +59,7 @@ class BinanceFuturesConfig(BaseModel):
             # Tier 3: Mid Caps
             "SUIUSDT", "APTUSDT", "ARBUSDT", "OPUSDT", "TIAUSDT", "INJUSDT", "RENDERUSDT", "FETUSDT",
             # Tier 4: High-Vol Alts
-            "WIFUSDT", "PEPEUSDT", "SEIUSDT", "BLURUSDT", "JTOUSDT", "ORDIUSDT", "MEMEUSDT",
+            "WIFUSDT", "1000PEPEUSDT", "SEIUSDT", "BLURUSDT", "JTOUSDT", "ORDIUSDT", "MEMEUSDT",
         ]
     )
     oi_poller_interval_sec: float = 30.0

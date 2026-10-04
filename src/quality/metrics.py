@@ -2,7 +2,7 @@ import glob
 from pathlib import Path
 import re
 import time
-from typing import Dict, Any, List, Optional, Set
+from typing import Tuple, Dict, Any, List, Optional, Set
 import duckdb
 import psutil
 from pydantic import BaseModel, Field
@@ -188,15 +188,16 @@ class QualityMetricsCollector:
         if not parquet_files:
             return integrity, venue_feeds
 
-        # Group files by table name
-        table_files: Dict[str, List[str]] = {}
+        # Group files by (venue, table). The venue is the directory right above `table=...`:
+        # attributing a table's rows/symbols to every venue that merely owns a table of that name is wrong.
+        table_files: Dict[Tuple[str, str], List[str]] = {}
         for p in parquet_files:
             # path pattern: .../{venue}/table={table_name}/...
             parts = p.parts
-            for part in parts:
-                if part.startswith("table="):
-                    tbl = part.split("=")[1]
-                    table_files.setdefault(tbl, []).append(p.as_posix())
+            for idx, part in enumerate(parts):
+                if part.startswith("table=") and idx > 0:
+                    tbl = part.split("=", 1)[1]
+                    table_files.setdefault((parts[idx - 1], tbl), []).append(p.as_posix())
                     break
 
         con = duckdb.connect()
@@ -211,43 +212,36 @@ class QualityMetricsCollector:
         all_min: List[float] = []
         all_max: List[float] = []
 
-        for tbl, files in table_files.items():
+        for (venue_name, tbl), files in table_files.items():
             if not files:
                 continue
-            
-            # Format files for duckdb query
-            try:
-                # 1. Check venue and symbol distribution
-                query_dist = f"""
-                    SELECT 
-                        venue, 
-                        COUNT(*) as row_count,
-                        MAX(ts_received_utc_ns) as max_rx_ns
-                    FROM read_parquet({files})
-                    GROUP BY venue
-                """
-                dist_rows = con.execute(query_dist).fetchall()
-                for v, r_count, max_rx in dist_rows:
-                    if v in venue_feeds:
-                        venue_feeds[v].total_events += r_count
-                        venue_feeds[v].tables[tbl] = r_count
-                        if max_rx:
-                            max_rx_sec = max_rx / 1e9
-                            venue_feeds[v].last_event_received_at_utc = time.strftime(
-                                "%Y-%m-%dT%H:%M:%SZ", time.gmtime(max_rx_sec)
-                            )
 
-                # Distinct symbols if table has symbol column
-                columns = [c[0] for c in con.execute(f"DESCRIBE SELECT * FROM read_parquet({files}) LIMIT 1").fetchall()]
-                if "symbol" in columns:
-                    sym_query = f"SELECT DISTINCT symbol FROM read_parquet({files})"
-                    syms = [row[0] for row in con.execute(sym_query).fetchall() if row[0]]
-                    for v in venue_feeds:
-                        if tbl in venue_feeds[v].tables:
-                            existing = set(venue_feeds[v].unique_symbols)
-                            existing.update(syms)
-                            venue_feeds[v].unique_symbols = sorted(list(existing))
-                            venue_feeds[v].unique_symbols_count = len(venue_feeds[v].unique_symbols)
+            try:
+                # 1. Row counts / freshness for this exact (venue, table)
+                columns = [c[0] for c in con.execute(
+                    f"DESCRIBE SELECT * FROM read_parquet({files}, union_by_name=true) LIMIT 1").fetchall()]
+                ts_col = next((c for c in ("ts_received_utc_ns", "ts_polled_utc_ns") if c in columns), None)
+                max_expr = f"MAX({ts_col})" if ts_col else "NULL"
+                row_count, max_rx = con.execute(
+                    f"SELECT COUNT(*), {max_expr} FROM read_parquet({files}, union_by_name=true)"
+                ).fetchone()
+                if venue_name in venue_feeds:
+                    venue_feeds[venue_name].total_events += row_count
+                    venue_feeds[venue_name].tables[tbl] = row_count
+                    if max_rx:
+                        venue_feeds[venue_name].last_event_received_at_utc = time.strftime(
+                            "%Y-%m-%dT%H:%M:%SZ", time.gmtime(max_rx / 1e9)
+                        )
+
+
+                # Distinct symbols, attributed ONLY to this venue (deribit_metrics uses instrument_name)
+                sym_col = "symbol" if "symbol" in columns else ("instrument_name" if "instrument_name" in columns else None)
+                if sym_col and venue_name in venue_feeds:
+                    syms = [r[0] for r in con.execute(f"SELECT DISTINCT {sym_col} FROM read_parquet({files})").fetchall() if r[0]]
+                    existing = set(venue_feeds[venue_name].unique_symbols)
+                    existing.update(syms)
+                    venue_feeds[venue_name].unique_symbols = sorted(existing)
+                    venue_feeds[venue_name].unique_symbols_count = len(existing)
 
                 # 2. Check observed event age and timestamp integrity
                 if "observed_event_age_ns" in columns and "ts_exchange_ns" in columns:

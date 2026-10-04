@@ -27,6 +27,7 @@ from apps.api.routers import (
     attribution,
     audit,
     stream,
+    history,
 )
 
 app = FastAPI(
@@ -68,13 +69,35 @@ app.include_router(prop.router)
 app.include_router(attribution.router)
 app.include_router(audit.router)
 app.include_router(stream.router)
+app.include_router(history.router)
 
 
 @app.get("/health")
 @app.get("/api/health")
 def health_check():
+    """Real health: data dir writable, recorder fresh, no kill switch asserted. Never a constant."""
+    import time
+    from pathlib import Path
+    checks = {}
+    try:
+        d = Path("data"); d.mkdir(exist_ok=True)
+        probe = d / ".health_probe"; probe.write_text(str(time.time())); probe.unlink()
+        checks["data_dir_writable"] = True
+    except Exception:
+        checks["data_dir_writable"] = False
+    try:
+        from apps.api.services.data_service import QuantOSDataService
+        rec = QuantOSDataService.get_instance().get_recorder_status()
+        status = str(rec.get("status", "UNKNOWN"))
+        checks["recorder"] = status
+        recorder_ok = status.upper() in ("RUNNING", "HEALTHY", "ACTIVE", "OK", "RECORDING")
+    except Exception as exc:  # noqa: BLE001
+        checks["recorder"] = f"ERROR:{type(exc).__name__}"
+        recorder_ok = False
+    healthy = checks["data_dir_writable"] and recorder_ok
     return {
-        "status": "HEALTHY",
+        "status": "HEALTHY" if healthy else "DEGRADED",
+        "checks": checks,
         "system": "Trading / Quant OS Cockpit API",
         "version": "1.0.0",
         "live_capital_authorized": "$0 (LOCKED)",

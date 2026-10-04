@@ -52,7 +52,7 @@ class StrategyRegistry:
         self._holdout_manager = holdout_manager
         self._gate_store = gate_store
 
-    def register(self, spec: StrategySpec) -> None:
+    def register(self, spec: StrategySpec, *, trusted_seed: bool = False) -> None:
         """Register a new strategy specification.
 
         Args:
@@ -75,6 +75,14 @@ class StrategyRegistry:
             raise ValueError(
                 f"Cannot register strategy '{spec.strategy_id}' directly as {spec.stage.value}. "
                 "Authorized live capital is USD 0. Real capital allocation is permanently disabled."
+            )
+
+        # Invariant: a strategy cannot be registered past RESEARCH from outside the audited seed loader;
+        # advancing requires update_stage() with an evidence bundle.
+        if spec.stage not in (StrategyStage.IDEA, StrategyStage.RESEARCH) and not trusted_seed:
+            raise ValueError(
+                f"Cannot register strategy '{spec.strategy_id}' directly in stage {spec.stage.value}. "
+                "Register in IDEA/RESEARCH and promote through update_stage() with an evidence bundle."
             )
 
         # Invariant: registering past RESEARCH stage requires complete CounterpartyThesis
@@ -603,14 +611,14 @@ def get_seed_pump_fun_copy() -> StrategySpec:
 def create_default_registry() -> StrategyRegistry:
     """Factory creating a StrategyRegistry populated with baseline seed research programs."""
     registry = StrategyRegistry()
-    registry.register(get_seed_str_001())
-    registry.register(get_seed_str_002())
+    registry.register(get_seed_str_001(), trusted_seed=True)
+    registry.register(get_seed_str_002(), trusted_seed=True)
     return registry
 
 
 def create_extended_registry() -> StrategyRegistry:
     """Factory creating a StrategyRegistry populated with all standard seed research programs including v1.4 additions."""
     registry = create_default_registry()
-    registry.register(get_seed_str_003())
-    registry.register(get_seed_pump_fun_copy())
+    registry.register(get_seed_str_003(), trusted_seed=True)
+    registry.register(get_seed_pump_fun_copy(), trusted_seed=True)
     return registry

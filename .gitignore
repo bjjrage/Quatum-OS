@@ -43,3 +43,10 @@ out/
 
 # Control plane local DB
 data/control_plane/
+
+# Research / simulation outputs and vendor history (large, regenerable)
+data/historical/
+data/research/
+data/shadow/
+data/paper/
+*.tmp

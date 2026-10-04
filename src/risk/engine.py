@@ -200,11 +200,21 @@ class DeterministicRiskEngine:
         side_sign = 1.0 if side_str == "BUY" else -1.0
         delta_qty = side_sign * order.quantity
         curr_qty = self.positions.get(order.symbol, 0.0)
-        new_qty = curr_qty + delta_qty
 
-        # Check if this order strictly reduces current risk / position
-        is_risk_reducing = (curr_qty > 0 and delta_qty < 0 and new_qty >= 0) or \
-                            (curr_qty < 0 and delta_qty > 0 and new_qty <= 0)
+        # In-flight orders aggregation (pending orders count as already-open risk)
+        in_flight_symbol_delta = sum(
+            (1.0 if o.side.upper() == "BUY" else -1.0) * o.quantity
+            for o_id, o in self.in_flight_orders.items()
+            if o.symbol == order.symbol and o_id != order.order_id
+        )
+        effective_curr_qty = curr_qty + in_flight_symbol_delta
+        effective_new_qty = effective_curr_qty + delta_qty
+
+        # Risk-reducing is judged against the EFFECTIVE position (filled + in-flight), never the
+        # filled position alone: otherwise N sells that each "close" the same long all pass.
+        # An order that flips the position through zero is NOT risk-reducing.
+        is_risk_reducing = (effective_curr_qty > 0 and delta_qty < 0 and effective_new_qty >= 0) or \
+                            (effective_curr_qty < 0 and delta_qty > 0 and effective_new_qty <= 0)
 
         # Missing mark price validation for open positions (fail-closed if holding open positions without mark price)
         for s, q in self.positions.items():
@@ -226,15 +236,6 @@ class DeterministicRiskEngine:
                     violation_code=RiskViolationCode.MAX_DRAWDOWN_EXCEEDED,
                     reason=f"Current portfolio equity (${self.current_equity_usd:,.2f}) is non-positive or invalid.",
                 )
-
-        # In-flight orders aggregation
-        in_flight_symbol_delta = sum(
-            (1.0 if o.side.upper() == "BUY" else -1.0) * o.quantity
-            for o_id, o in self.in_flight_orders.items()
-            if o.symbol == order.symbol and o_id != order.order_id
-        )
-        effective_curr_qty = curr_qty + in_flight_symbol_delta
-        effective_new_qty = effective_curr_qty + delta_qty
 
         # 4. Burst Rate Limiter
         cutoff = eval_time - self.limits.rate_limit_window_seconds

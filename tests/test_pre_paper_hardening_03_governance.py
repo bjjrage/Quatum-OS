@@ -1487,7 +1487,7 @@ def test_paper_to_small_live_permanently_blocked_under_zero_capital():
         stage=StrategyStage.PAPER,
         counterparty_thesis=_make_thesis(),
     )
-    registry.register(spec)
+    registry.register(spec, trusted_seed=True)
     with pytest.raises(InvalidStageTransitionError, match=r"USD 0"):
         registry.update_stage("STR-001", StrategyStage.SMALL_LIVE)
 
