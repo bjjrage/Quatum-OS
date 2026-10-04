@@ -2,16 +2,47 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --bg-primary: #0a0b0d;
-  --bg-secondary: #0f1218;
-  --bg-card: #141720;
-  --bg-card-hover: #191e2a;
-  --border-subtle: #1f2533;
-  --border-accent: #2c3547;
-  --text-primary: #f0f3f8;
-  --text-secondary: #8e9bb0;
-  --text-muted: #546076;
+/* ==========================================================================
+   THEME DESIGN TOKENS (LIGHT & DARK)
+   ========================================================================== */
+
+/* LIGHT MODE DEFAULT */
+:root,
+html:not(.dark) {
+  --bg-primary: #f1f5f9;
+  --bg-secondary: #ffffff;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f8fafc;
+  --bg-well: #f8fafc;
+  --border-subtle: #e2e8f0;
+  --border-accent: #cbd5e1;
+  --text-primary: #0f172a;
+  --text-secondary: #334155;
+  --text-muted: #64748b;
+  --btn-bg: #f1f5f9;
+  --btn-border: #cbd5e1;
+  --btn-hover: #e2e8f0;
+  --btn-text: #0f172a;
+  color-scheme: light;
+}
+
+/* DARK MODE */
+html.dark {
+  --bg-primary: #07090e;
+  --bg-secondary: #0c1017;
+  --bg-card: #10141e;
+  --bg-card-hover: #161b28;
+  --bg-well: #151a27;
+  --border-subtle: #1a2233;
+  --border-accent: #26334d;
+  --text-primary: #f8fafc;
+  --text-secondary: #cbd5e1;
+  --text-muted: #8292ab;
+  --btn-bg: #151b27;
+  --btn-border: #263147;
+  --btn-hover: #1e2738;
+  --btn-text: #f1f5f9;
+  color-scheme: dark;
 }
 
 body {
@@ -20,6 +51,7 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 /* Custom terminal monospace font class */
@@ -27,22 +59,38 @@ body {
   font-family: "JetBrains Mono", "Fira Code", Menlo, Monaco, Consolas, "Courier New", monospace;
 }
 
-/* Custom scrollbars */
+/* ==========================================================================
+   THEME ADAPTIVE SCROLLBARS
+   ========================================================================== */
+
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 
-::-webkit-scrollbar-track {
+html:not(.dark) ::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+html:not(.dark) ::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+html:not(.dark) ::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+html.dark ::-webkit-scrollbar-track {
   background: #0a0b0d;
 }
 
-::-webkit-scrollbar-thumb {
+html.dark ::-webkit-scrollbar-thumb {
   background: #1f2533;
   border-radius: 3px;
 }
 
-::-webkit-scrollbar-thumb:hover {
+html.dark ::-webkit-scrollbar-thumb:hover {
   background: #2e384d;
 }
 
@@ -54,4 +102,239 @@ body {
 
 .animate-pulse-subtle {
   animation: pulse-subtle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* ==========================================================================
+   EXHAUSTIVE LIGHT THEME CONTRAST & RESIDUAL DARK PROTECTION
+   Prevents any dark theme remnants when light theme is active.
+   ========================================================================== */
+
+html:not(.dark) {
+  /* Canvas & backgrounds */
+  .bg-\[\#0a0b0d\],
+  .bg-\[\#070a0e\],
+  .bg-graphite-950 {
+    background-color: #f1f5f9 !important;
+  }
+
+  .bg-graphite-900,
+  .bg-graphite-850 {
+    background-color: #ffffff !important;
+    border-color: #cbd5e1 !important;
+  }
+
+  /* Card Surfaces: elevated clean white with distinct border from canvas */
+  .bg-\[\#11141c\]\/90,
+  .bg-\[\#11141c\],
+  .bg-\[\#0c0f16\],
+  .bg-\[\#0f131c\],
+  .bg-\[\#141720\],
+  .bg-\[\#10141f\] {
+    background-color: #ffffff !important;
+    border-color: #cbd5e1 !important;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05) !important;
+  }
+
+  /* Inner Wells / Nested Boxes / Subcards / Code Blocks */
+  .bg-\[\#0b0e14\],
+  .bg-\[\#0c0e14\],
+  .bg-\[\#121622\],
+  .bg-\[\#0f121a\],
+  .bg-\[\#121622\]\/50 {
+    background-color: #f8fafc !important;
+    border-color: #e2e8f0 !important;
+  }
+
+  /* Tables */
+  thead,
+  thead.bg-\[\#0b0e14\] {
+    background-color: #f1f5f9 !important;
+    color: #334155 !important;
+    border-color: #cbd5e1 !important;
+    font-weight: 600 !important;
+  }
+
+  tr {
+    border-color: #e2e8f0 !important;
+    color: #0f172a !important;
+  }
+
+  tr:hover {
+    background-color: #f1f5f9 !important;
+  }
+
+  /* Dark borders normalized to crisp light borders */
+  .border-slate-800,
+  .border-slate-700,
+  .border-graphite-700,
+  .border-\[\#1c2230\],
+  .border-\[\#1b212f\],
+  .border-\[\#1e2536\],
+  .border-\[\#1d2331\],
+  .border-\[\#1b2230\] {
+    border-color: #cbd5e1 !important;
+  }
+
+  .border-slate-800\/80,
+  .border-slate-800\/60,
+  .border-slate-800\/50,
+  .border-slate-700\/60,
+  .border-\[\#1c2230\]\/80 {
+    border-color: #e2e8f0 !important;
+  }
+
+  /* Text contrast: deep legible slate on light surfaces */
+  .text-slate-100,
+  .text-slate-200,
+  .text-\[\#f0f3f8\] {
+    color: #0f172a !important;
+  }
+
+  .text-slate-300 {
+    color: #1e293b !important;
+  }
+
+  .text-slate-400 {
+    color: #475569 !important;
+  }
+
+  .text-slate-500 {
+    color: #64748b !important;
+  }
+
+  /* Colored status banners / alert boxes in light mode */
+  .bg-rose-950\/40,
+  .bg-rose-950\/60,
+  .bg-rose-950\/80,
+  .bg-rose-950\/30,
+  .bg-rose-950\/20,
+  .bg-rose-900\/40,
+  .from-rose-950\/40,
+  .from-rose-950\/60,
+  .via-\[\#180d11\]\/50,
+  .via-\[\#180a0e\],
+  .to-rose-950\/20,
+  .to-rose-950\/30 {
+    background-color: #fff1f2 !important;
+    border-color: #fecdd3 !important;
+    color: #881337 !important;
+  }
+
+  .bg-amber-950\/20,
+  .bg-amber-950\/30,
+  .bg-amber-950\/40,
+  .bg-amber-950\/60,
+  .bg-amber-900\/40 {
+    background-color: #fffbeb !important;
+    border-color: #fde68a !important;
+    color: #78350f !important;
+  }
+
+  .bg-emerald-950\/20,
+  .bg-emerald-950\/30,
+  .bg-emerald-950\/40,
+  .bg-emerald-950\/50,
+  .bg-emerald-950\/60,
+  .bg-emerald-900\/40 {
+    background-color: #ecfdf5 !important;
+    border-color: #a7f3d0 !important;
+    color: #065f46 !important;
+  }
+
+  .bg-cyan-950\/20,
+  .bg-cyan-950\/30,
+  .bg-cyan-950\/40,
+  .bg-\[\#0e1624\],
+  .bg-\[\#0e1724\],
+  .bg-\[\#0d1624\] {
+    background-color: #f0f9ff !important;
+    border-color: #bae6fd !important;
+    color: #0369a1 !important;
+  }
+
+  .bg-purple-950\/20,
+  .bg-purple-950\/30,
+  .bg-purple-950\/40,
+  .bg-purple-900\/40 {
+    background-color: #faf5ff !important;
+    border-color: #e9d5ff !important;
+    color: #581c87 !important;
+  }
+
+  /* Colored text readability in light mode */
+  .text-rose-200,
+  .text-rose-300 {
+    color: #9f1239 !important;
+  }
+  .text-amber-200,
+  .text-amber-300,
+  .text-amber-400 {
+    color: #92400e !important;
+  }
+  .text-emerald-300,
+  .text-emerald-400 {
+    color: #065f46 !important;
+  }
+  .text-cyan-300,
+  .text-cyan-400,
+  .text-sky-300,
+  .text-sky-400 {
+    color: #0284c7 !important;
+  }
+
+  /* Interactive Buttons: distinct fill, border, and text so they never blend in */
+  button.bg-slate-900,
+  button.bg-graphite-800,
+  button.bg-slate-800 {
+    background-color: #f1f5f9 !important;
+    border: 1px solid #cbd5e1 !important;
+    color: #0f172a !important;
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05) !important;
+  }
+
+  button.bg-slate-900:hover,
+  button.bg-graphite-800:hover,
+  button.bg-slate-800:hover {
+    background-color: #e2e8f0 !important;
+    border-color: #94a3b8 !important;
+    color: #0f172a !important;
+  }
+
+  /* Active Filter / Tab Buttons */
+  button.bg-cyan-950,
+  button.bg-sky-950 {
+    background-color: #0284c7 !important;
+    border-color: #0284c7 !important;
+    color: #ffffff !important;
+    font-weight: 600 !important;
+    box-shadow: 0 1px 2px 0 rgba(2, 132, 199, 0.25) !important;
+  }
+
+  button.bg-rose-950\/80 {
+    background-color: #ffe4e6 !important;
+    border-color: #fda4af !important;
+    color: #9f1239 !important;
+    font-weight: 600 !important;
+  }
+
+  button.bg-rose-950\/80:hover {
+    background-color: #fecdd3 !important;
+  }
+
+  /* Form inputs, selects & textareas */
+  input, select, textarea {
+    background-color: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    color: #0f172a !important;
+  }
+
+  input::placeholder, textarea::placeholder {
+    color: #94a3b8 !important;
+  }
+
+  /* Progress bars */
+  .bg-slate-900.rounded-full {
+    background-color: #e2e8f0 !important;
+    border-color: #cbd5e1 !important;
+  }
 }

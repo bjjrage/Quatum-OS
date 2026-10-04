@@ -46,8 +46,8 @@ export function BacktestsView({ backtestsData }: BacktestsViewProps) {
                 onClick={() => setSelectedRunId(b.id)}
                 className={`px-3 py-1.5 rounded text-xs font-mono-code transition ${
                   selectedRunId === b.id
-                    ? "bg-cyan-950 text-cyan-300 border border-cyan-700"
-                    : "bg-slate-900 text-slate-400 border border-slate-800 hover:text-slate-200"
+                    ? "bg-sky-100 text-sky-900 border border-sky-400 font-bold shadow-xs dark:bg-cyan-950 dark:text-cyan-300 dark:border-cyan-700"
+                    : "bg-slate-100 text-slate-700 border border-slate-300 hover:bg-slate-200 hover:text-slate-900 dark:bg-slate-900 dark:text-slate-400 dark:border-slate-800 dark:hover:text-slate-200"
                 }`}
               >
                 {b.id}

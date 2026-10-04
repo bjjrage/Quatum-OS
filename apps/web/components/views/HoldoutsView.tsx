@@ -22,32 +22,32 @@ export function HoldoutsView({ holdoutsData }: HoldoutsViewProps) {
   return (
     <div className="space-y-6">
       {/* HEADER */}
-      <div className="pb-2 border-b border-slate-800">
-        <h2 className="text-lg font-bold text-slate-100 font-mono-code flex items-center gap-2">
-          <Lock className="w-5 h-5 text-rose-400" />
+      <div className="pb-2 border-b border-slate-200 dark:border-slate-800">
+        <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100 font-mono-code flex items-center gap-2">
+          <Lock className="w-5 h-5 text-rose-600 dark:text-rose-400" />
           Holdout Governance & Partition Manager
         </h2>
-        <p className="text-xs text-slate-400 mt-1">
+        <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 font-mono-code">
           Out-of-sample data partitions strictly reserved for final gate evaluation (isolation enforcement pending verification).
         </p>
       </div>
 
       {/* PROMINENT SEALED WARNING BANNER */}
-      <div className="rounded-lg border border-rose-800/80 bg-gradient-to-r from-rose-950/60 via-[#180a0e] to-rose-950/30 p-5 shadow-lg space-y-2">
+      <div className="rounded-lg border border-rose-300 dark:border-rose-800/80 bg-rose-50 dark:bg-gradient-to-r dark:from-rose-950/60 dark:via-[#180a0e] dark:to-rose-950/30 p-5 shadow-xs dark:shadow-lg space-y-2">
         <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-full bg-rose-900/50 border border-rose-600 text-rose-300 animate-pulse-subtle">
+          <div className="p-2.5 rounded-full bg-rose-100 dark:bg-rose-900/50 border border-rose-300 dark:border-rose-600 text-rose-800 dark:text-rose-300 animate-pulse-subtle">
             <AlertOctagon className="w-6 h-6" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-sm font-bold text-rose-100 tracking-wider uppercase font-mono-code">
+              <span className="text-sm font-bold text-rose-950 dark:text-rose-100 tracking-wider uppercase font-mono-code">
                 CRITICAL PROTOCOL: HOLDOUT INTEGRITY & GOVERNANCE
               </span>
               <Badge variant={isSealed ? "rose" : isKnown ? "amber" : "slate"} size="xs">
                 {status}
               </Badge>
             </div>
-            <p className="text-xs text-rose-200/90 mt-1 leading-relaxed font-mono-code">
+            <p className="text-xs text-rose-900/90 dark:text-rose-200/90 mt-1 leading-relaxed font-mono-code">
               Holdout partitions must remain strictly unobserved during model hyperparameter selection and exploratory data analysis.
               Opening a sealed holdout dataset irreversibly burns that partition and permanently invalidates further model iteration on that timeframe.
             </p>
@@ -99,8 +99,8 @@ export function HoldoutsView({ holdoutsData }: HoldoutsViewProps) {
         variant="terminal"
       >
         <div className="overflow-x-auto">
-          <table className="w-full text-xs font-mono-code text-left text-slate-300">
-            <thead className="bg-[#0b0e14] text-slate-400 uppercase text-[11px] border-b border-slate-800">
+          <table className="w-full text-xs font-mono-code text-left text-slate-700 dark:text-slate-300">
+            <thead className="bg-slate-100 dark:bg-[#0b0e14] text-slate-700 dark:text-slate-400 uppercase text-[11px] border-b border-slate-200 dark:border-slate-800">
               <tr>
                 <th className="py-2.5 px-3">Audit Event ID</th>
                 <th className="py-2.5 px-3">Timestamp (UTC)</th>
@@ -111,16 +111,16 @@ export function HoldoutsView({ holdoutsData }: HoldoutsViewProps) {
                 <th className="py-2.5 px-3 text-right">Vault Status</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800/80">
+            <tbody className="divide-y divide-slate-200 dark:divide-slate-800/80">
               {holdoutsData?.audits && holdoutsData.audits.length > 0 ? (
                 holdoutsData.audits.map((a: any, i: number) => (
-                  <tr key={i} className="hover:bg-[#121622]/50 transition">
-                    <td className="py-2.5 px-3 font-semibold text-cyan-400">{a.id}</td>
-                    <td className="py-2.5 px-3 text-slate-400">{a.timestamp}</td>
-                    <td className="py-2.5 px-3 text-slate-200">{a.operator}</td>
-                    <td className="py-2.5 px-3 text-slate-300">{a.partition}</td>
+                  <tr key={i} className="hover:bg-slate-50 dark:hover:bg-[#121622]/50 transition">
+                    <td className="py-2.5 px-3 font-semibold text-sky-600 dark:text-cyan-400">{a.id}</td>
+                    <td className="py-2.5 px-3 text-slate-600 dark:text-slate-400">{a.timestamp}</td>
+                    <td className="py-2.5 px-3 text-slate-800 dark:text-slate-200">{a.operator}</td>
+                    <td className="py-2.5 px-3 text-slate-700 dark:text-slate-300">{a.partition}</td>
                     <td className="py-2.5 px-3">{a.action}</td>
-                    <td className="py-2.5 px-3 text-slate-400">{a.purpose}</td>
+                    <td className="py-2.5 px-3 text-slate-600 dark:text-slate-400">{a.purpose}</td>
                     <td className="py-2.5 px-3 text-right">
                       <Badge variant="emerald" size="xs">LOGGED</Badge>
                     </td>
@@ -128,8 +128,8 @@ export function HoldoutsView({ holdoutsData }: HoldoutsViewProps) {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={7} className="py-8 text-center text-slate-400 font-mono-code">
-                    <CheckCircle2 className="w-6 h-6 text-emerald-400 mx-auto mb-2 opacity-80" />
+                  <td colSpan={7} className="py-8 text-center text-slate-500 dark:text-slate-400 font-mono-code">
+                    <CheckCircle2 className="w-6 h-6 text-emerald-600 dark:text-emerald-400 mx-auto mb-2 opacity-80" />
                     No holdout dataset openings recorded in local audit log.
                   </td>
                 </tr>

@@ -33,25 +33,25 @@ export function TradabilityView({ markets }: TradabilityViewProps) {
   return (
     <div className="space-y-6">
       {/* HEADER */}
-      <div className="pb-2 border-b border-slate-800">
-        <h2 className="text-lg font-bold text-slate-100 font-mono-code flex items-center gap-2">
-          <SlidersHorizontal className="w-5 h-5 text-cyan-400" />
+      <div className="pb-2 border-b border-slate-200 dark:border-slate-800">
+        <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100 font-mono-code flex items-center gap-2">
+          <SlidersHorizontal className="w-5 h-5 text-sky-600 dark:text-cyan-400" />
           Market Universe Tradability & Liquidity Tier Classification
         </h2>
-        <p className="text-xs text-slate-400 mt-1">
+        <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 font-mono-code">
           Automated pre-trade liquidity policy gating based on spread, depth, volume, and clock sync offset.
         </p>
       </div>
 
       {/* POLICY CALLOUT BANNER: TIER 5 VS UNTRADABLE */}
-      <div className="rounded-lg border border-cyan-800/60 bg-[#0e1724] p-4 text-xs font-mono-code space-y-1">
-        <div className="flex items-center gap-2 text-cyan-300 font-bold uppercase">
+      <div className="rounded-lg border border-sky-300 dark:border-cyan-800/60 bg-sky-50 dark:bg-[#0e1724] p-4 text-xs font-mono-code space-y-1 shadow-sm">
+        <div className="flex items-center gap-2 text-sky-900 dark:text-cyan-300 font-bold uppercase">
           <Info className="w-4 h-4" />
           Institutional Liquidity Tier Policy Invariant
         </div>
-        <p className="text-slate-300 leading-relaxed">
-          <strong className="text-purple-300 font-semibold">Tier 5 (Small Tradable):</strong> Symbol is <strong className="text-emerald-400">TRADABLE</strong> with strict constraints: maximum position cap of <strong className="text-slate-100">$5,000 USD</strong> and <strong className="text-slate-100">LIMIT ORDERS ONLY</strong> (passive posting only, market orders forbidden).
-          Tier 5 must never be conflated with <strong className="text-rose-400 font-semibold">Untradable</strong> assets which fail basic liquidity/spread gates.
+        <p className="text-slate-700 dark:text-slate-300 leading-relaxed font-mono-code">
+          <strong className="text-purple-800 dark:text-purple-300 font-semibold">Tier 5 (Small Tradable):</strong> Symbol is <strong className="text-emerald-700 dark:text-emerald-400 font-bold">TRADABLE</strong> with strict constraints: maximum position cap of <strong className="text-slate-900 dark:text-slate-100 font-bold">$5,000 USD</strong> and <strong className="text-slate-900 dark:text-slate-100 font-bold">LIMIT ORDERS ONLY</strong> (passive posting only, market orders forbidden).
+          Tier 5 must never be conflated with <strong className="text-rose-700 dark:text-rose-400 font-semibold">Untradable</strong> assets which fail basic liquidity/spread gates.
         </p>
       </div>
 
@@ -93,7 +93,7 @@ export function TradabilityView({ markets }: TradabilityViewProps) {
               placeholder="Search symbol or venue..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-3 py-1.5 rounded bg-[#0b0e14] border border-slate-800 text-xs font-mono-code text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+              className="w-full pl-9 pr-3 py-1.5 rounded bg-white dark:bg-[#0b0e14] border border-slate-300 dark:border-slate-800 text-xs font-mono-code text-slate-900 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-sky-500 dark:focus:border-cyan-500 shadow-xs"
             />
           </div>
 
@@ -104,8 +104,8 @@ export function TradabilityView({ markets }: TradabilityViewProps) {
                 onClick={() => setTierFilter(f)}
                 className={`px-3 py-1 rounded text-xs font-mono-code transition ${
                   tierFilter === f
-                    ? "bg-cyan-950 text-cyan-300 border border-cyan-700"
-                    : "bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800"
+                    ? "bg-sky-100 text-sky-900 border border-sky-400 font-bold shadow-xs dark:bg-cyan-950 dark:text-cyan-300 dark:border-cyan-700"
+                    : "bg-slate-100 text-slate-700 border border-slate-300 hover:bg-slate-200 hover:text-slate-900 dark:bg-slate-900 dark:text-slate-400 dark:hover:text-slate-200 dark:border-slate-800"
                 }`}
               >
                 {f}

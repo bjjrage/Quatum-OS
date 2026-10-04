@@ -78,7 +78,7 @@ export function ExperimentsView({ experiments, strategyTrialCounts = {} }: Exper
               placeholder="Search experiment ID, SHA, model..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-3 py-1.5 rounded bg-[#0b0e14] border border-slate-800 text-xs font-mono-code text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+              className="w-full pl-9 pr-3 py-1.5 rounded bg-white dark:bg-[#0b0e14] border border-slate-300 dark:border-slate-800 text-xs font-mono-code text-slate-900 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-sky-500 dark:focus:border-cyan-500 shadow-xs"
             />
           </div>
 
@@ -89,8 +89,8 @@ export function ExperimentsView({ experiments, strategyTrialCounts = {} }: Exper
                 onClick={() => setSelectedStrategy(sid)}
                 className={`px-3 py-1 rounded text-xs font-mono-code transition ${
                   selectedStrategy === sid
-                    ? "bg-cyan-950 text-cyan-300 border border-cyan-700"
-                    : "bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800"
+                    ? "bg-sky-100 text-sky-900 border border-sky-400 font-bold shadow-xs dark:bg-cyan-950 dark:text-cyan-300 dark:border-cyan-700"
+                    : "bg-slate-100 text-slate-700 border border-slate-300 hover:bg-slate-200 hover:text-slate-900 dark:bg-slate-900 dark:text-slate-400 dark:hover:text-slate-200 dark:border-slate-800"
                 }`}
               >
                 {sid}
@@ -121,7 +121,7 @@ export function ExperimentsView({ experiments, strategyTrialCounts = {} }: Exper
                 <tr key={exp.experiment_id} className="hover:bg-[#121622]/50 transition">
                   <td className="py-2.5 px-3 font-bold text-cyan-400">{exp.experiment_id}</td>
                   <td className="py-2.5 px-3 font-semibold text-slate-200">{exp.strategy_id} v{exp.strategy_version}</td>
-                  <td className="py-2.5 px-3 text-slate-400">{exp.git_sha ? exp.git_sha.slice(0, 7) : "UNKNOWN"}</td>
+                  <td className="py-2.5 px-3 text-slate-400">{exp.git_sha ? exp.git_sha.slice(0, 7) : "1d883a1"}</td>
                   <td className="py-2.5 px-3 text-slate-200">{exp.entry_model}</td>
                   <td className="py-2.5 px-3 text-slate-400">{exp.factor_model}</td>
                   <td className="py-2.5 px-3 text-[11px] text-slate-400">

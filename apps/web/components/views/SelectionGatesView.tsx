@@ -14,81 +14,84 @@ export function SelectionGatesView({ gates, provenanceInvariant }: SelectionGate
   // Default institutional gates if empty
   const gatePanels: GatePanel[] = gates && gates.length > 0 ? gates : [
     {
-      gate_id: "A",
-      gate_name: "Gate A: Latency Sensitivity",
-      gate_type: "LATENCY_SENSITIVITY",
+      gate_id: "GATE_A",
+      gate_name: "Statistical Significance & Multiple Testing Deflation",
+      gate_type: "STATISTICAL",
       thresholds: {
-        max_sharpe_drop_pct_at_5s: 0.50,
-        min_edge_half_life_s: 5.0,
-        latency_safety_margin_multiplier: 2.0,
+        min_deflated_sharpe: 1.0,
+        max_p_value: 0.05,
+        min_trade_count: 50,
       },
-      threshold_is_provisional: true,
-      evaluation_status: "PENDING",
-      description: "Replays backtest across simulated execution latencies (+1s, +5s, +30s). Rejects LATENCY_RACE strategies.",
-      metrics_evaluated: ["p50_latency_ms", "p95_latency_ms", "p99_latency_ms", "edge_half_life_s", "break_even_latency_s", "latency_safety_margin"],
+      threshold_is_provisional: false,
+      evaluation_status: "ACTIVE_EVALUATION",
+      description: "Applies Bailey-Lopez de Prado Deflated Sharpe Ratio (DSR) discounting nominal Sharpe for total number of evaluated model variations.",
+      metrics_evaluated: ["Nominal Sharpe", "Number of Trials", "Skewness", "Kurtosis", "DSR Score"],
     },
     {
-      gate_id: "B",
-      gate_name: "Gate B: Temporal Stability & Alpha Decay",
-      gate_type: "TEMPORAL_STABILITY",
+      gate_id: "GATE_B",
+      gate_name: "Latency Sensitivity & Alpha Decay Half-Life",
+      gate_type: "MICROSTRUCTURE",
       thresholds: {
-        min_decay_ratio: 0.50,
-        min_positive_rolling_pct: 0.75,
+        latency_p50_ms: 15.0,
+        latency_p95_ms: 30.0,
+        latency_p99_ms: 50.0,
+        min_alpha_half_life_ms: 500.0,
       },
-      threshold_is_provisional: true,
-      evaluation_status: "PENDING",
-      description: "Validates that returns do not concentrate in early training periods. Checks rolling 30-day positive consistency.",
-      metrics_evaluated: ["first_half_sharpe", "second_half_sharpe", "decay_ratio", "pct_positive_rolling"],
+      threshold_is_provisional: false,
+      evaluation_status: "ACTIVE_EVALUATION",
+      description: "Evaluates profitability decay when simulated order arrival is delayed by P50, P95, and P99 latency percentiles.",
+      metrics_evaluated: ["Alpha Half-Life (ms)", "P95 Latency Degradation", "Queue Priority Loss"],
     },
     {
-      gate_id: "C",
-      gate_name: "Gate C: Multiple Selection Correction",
-      gate_type: "MULTIPLE_SELECTION",
+      gate_id: "GATE_C",
+      gate_name: "Execution Realism & Adverse Selection",
+      gate_type: "EXECUTION",
       thresholds: {
-        min_dsr: 0.50,
-        max_adjusted_pvalue: 0.05,
+        base_slippage_bps: 2.5,
+        taker_fee_bps: 5.0,
+        adverse_selection_buffer_bps: 1.5,
       },
-      threshold_is_provisional: true,
-      evaluation_status: "PENDING",
-      description: "Bailey & López de Prado Deflated Sharpe Ratio (DSR) and Benjamini-Hochberg False Discovery Rate (FDR).",
-      metrics_evaluated: ["dsr", "expected_max_null_sharpe", "adjusted_p_value", "trial_count"],
+      threshold_is_provisional: false,
+      evaluation_status: "ACTIVE_EVALUATION",
+      description: "Enforces non-zero taker fees, orderbook depth exhaustion, and adverse selection on passive limit fills.",
+      metrics_evaluated: ["Net Profit Factor", "Slippage-to-Spread Ratio", "Post-Fill Drift"],
     },
     {
-      gate_id: "D",
-      gate_name: "Gate D: Correlation & Capacity",
-      gate_type: "CORRELATION_CAPACITY",
+      gate_id: "GATE_D",
+      gate_name: "Parameter Stability & Cross-Regime Robustness",
+      gate_type: "ROBUSTNESS",
       thresholds: {
-        max_normal_correlation: 0.60,
-        max_stress_correlation: 0.70,
-        max_capacity_volume_pct: 0.01,
+        max_parameter_sensitivity_curvature: 0.25,
+        min_regime_consistency_pct: 75.0,
+        max_drawdown_limit_pct: 10.0,
       },
-      threshold_is_provisional: true,
-      evaluation_status: "PENDING",
-      description: "Cross-strategy correlation under normal and stressed regimes, EventCluster overlap, and 1% 5m volume capacity.",
-      metrics_evaluated: ["max_normal_correlation", "max_stress_correlation", "proposed_allocation_usd", "capacity_ceiling_usd"],
+      threshold_is_provisional: false,
+      evaluation_status: "ACTIVE_EVALUATION",
+      description: "Tests local neighborhood parameter perturbations (+-10%, +-20%) to guarantee performance is not an overfitted knife-edge.",
+      metrics_evaluated: ["Neighborhood Sharpness", "Macro Regime Survival", "Drawdown Under Stress"],
     },
   ];
 
   return (
     <div className="space-y-6">
       {/* HEADER */}
-      <div className="pb-2 border-b border-slate-800">
-        <h2 className="text-lg font-bold text-slate-100 font-mono-code flex items-center gap-2">
-          <ShieldCheck className="w-5 h-5 text-cyan-400" />
+      <div className="pb-2 border-b border-slate-200 dark:border-slate-800">
+        <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100 font-mono-code flex items-center gap-2">
+          <ShieldCheck className="w-5 h-5 text-sky-600 dark:text-cyan-400" />
           Quant Strategy Selection Gates (A / B / C / D Architecture)
         </h2>
-        <p className="text-xs text-slate-400 mt-1">
+        <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 font-mono-code">
           Four invariant gatekeepers eliminating data-snooping bias, execution illusions, and latency decay before paper or live allocation.
         </p>
       </div>
 
       {/* PROVENANCE INVARIANT CALLOUT */}
-      <div className="rounded-lg border border-cyan-800/80 bg-[#0e1624] p-4 text-xs font-mono-code space-y-1">
-        <div className="flex items-center gap-2 text-cyan-300 font-bold uppercase">
+      <div className="rounded-lg border border-sky-300 dark:border-cyan-800/80 bg-sky-50 dark:bg-[#0e1624] p-4 text-xs font-mono-code space-y-1 shadow-sm">
+        <div className="flex items-center gap-2 text-sky-900 dark:text-cyan-300 font-bold uppercase">
           <ShieldCheck className="w-4 h-4" />
           Gate Evaluation Provenance Invariant
         </div>
-        <p className="text-slate-300 leading-relaxed">
+        <p className="text-slate-700 dark:text-slate-300 leading-relaxed font-mono-code">
           {provenanceInvariant ||
             "Gate rules and execution thresholds are mathematically identical across backtest evaluation, paper trading monitoring, and capital allocation. No strategy may bypass any gate through manual operator override."}
         </p>
