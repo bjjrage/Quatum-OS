@@ -17,6 +17,7 @@ import { SystemStatus, RecorderStatus, DataQuality, NavTabId } from "../../types
 import { MetricCard } from "../common/MetricCard";
 import { Card } from "../common/Card";
 import { Badge } from "../common/Badge";
+import { SaveVersionCard } from "./SaveVersionCard";
 
 interface CommandCenterViewProps {
   status: SystemStatus | null;
@@ -52,6 +53,7 @@ export function CommandCenterView({
 
   return (
     <div className="space-y-6">
+      <SaveVersionCard />
       {/* ZERO LIVE RISK BANNER */}
       <div className="rounded-lg border border-rose-900/60 bg-gradient-to-r from-rose-950/40 via-[#180d11]/50 to-rose-950/20 p-4 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
