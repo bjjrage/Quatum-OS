@@ -54,9 +54,11 @@ class ReplayConfig:
     tight_trail_pct: float = 0.0015
     min_hold_min: int = 2             # target/trailing exits not before this; the hard stop always applies
     bar_min: int = 1                  # candle size in minutes. With bar_min > 1, every *_min field counts BARS.
+    tp_fraction: float = 0.5          # half_trail: share of the position sold at tp_pct (the rest trails)
 
 
-EXIT_LABELS = {"fixed": "salida fija", "trail": "trailing", "btc_adaptive": "adaptativa BTC"}
+EXIT_LABELS = {"fixed": "salida fija", "trail": "trailing", "btc_adaptive": "adaptativa BTC",
+               "half_trail": "mitad al objetivo + resto con trailing"}
 
 VARIANTS: Dict[str, ReplayConfig] = {
     "A_actual": ReplayConfig(name="A_actual", z_enter=3.0, btc_block_sigma=1.0, signals=("delta", "higher_low")),
@@ -532,6 +534,9 @@ def simulate_exit(b: Bars, entry_t: int, cfg: ReplayConfig, btc_sig: Optional[Se
     hw, stop = entry, hard_stop
     target = entry * (1.0 + cfg.tp_pct) if cfg.exit_mode in ("fixed", "btc_adaptive") else None
     trailing = cfg.exit_mode == "trail"
+    half = cfg.exit_mode == "half_trail"
+    half_target = entry * (1.0 + cfg.tp_pct) if half else None
+    leg1 = None                                   # half_trail: price at which the first part was sold
     exit_px, exit_t, reason = None, None, "MAX_HOLD"
     btc_up_seen = False
     for u in range(entry_t + 1, min(n, entry_t + 1 + cfg.max_hold_min)):
@@ -547,6 +552,10 @@ def simulate_exit(b: Bars, entry_t: int, cfg: ReplayConfig, btc_sig: Optional[Se
         if target is not None and held >= cfg.min_hold_min and b.h[u] >= target:
             exit_px, exit_t, reason = max(target, b.o[u]) * (1.0 - slip), u, "TARGET"
             break
+        if half and leg1 is None and held >= cfg.min_hold_min and b.h[u] >= half_target:
+            leg1 = max(half_target, b.o[u]) * (1.0 - slip)   # sell the first part at the target
+            stop = max(stop, entry)                           # the rest can no longer lose: stop at break-even
+            trailing = True
         hw = max(hw, b.h[u])
         if cfg.exit_mode == "btc_adaptive" and btc_sig is not None:
             bs = btc_sig[u]                        # known at the close of bar u
@@ -561,6 +570,9 @@ def simulate_exit(b: Bars, entry_t: int, cfg: ReplayConfig, btc_sig: Optional[Se
     if exit_px is None:
         return None
     gross = exit_px / entry - 1.0
+    if leg1 is not None:                          # blend: tp_fraction sold at the target, the rest at the exit
+        gross = cfg.tp_fraction * (leg1 / entry - 1.0) + (1.0 - cfg.tp_fraction) * gross
+        reason = "MITAD+" + reason
     return {"entry": entry, "exit": float(exit_px), "hold_min": int(exit_t - entry_t) * cfg.bar_min,
             "gross_pct": gross * 100.0, "net_pct": (gross - cost) * 100.0, "exit_reason": reason,
             "stop_pct": cfg.init_stop_pct * 100.0,

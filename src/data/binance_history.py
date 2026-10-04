@@ -207,3 +207,72 @@ def inventory(root: Path) -> Dict[str, Dict[str, object]]:
             out[sym] = {"files": len(periods), "first": periods[0], "last": periods[-1],
                         "funding": (root / "funding" / f"symbol={sym}" / "funding.parquet").exists()}
     return out
+
+
+# --------------------------------------------------------------------------- velas de 1 hora vía REST (años en minutos)
+def hourly_path(root: Path, symbol: str) -> Path:
+    return Path(root) / "klines_1h" / f"symbol={symbol}" / f"{symbol}-1h.parquet"
+
+
+def parse_rest_klines(rows: list, symbol: str) -> Dict[str, list]:
+    cols: Dict[str, list] = {n: [] for n in KLINE_SCHEMA.names}
+    for r in rows:
+        cols["open_time_ms"].append(int(r[0])); cols["open"].append(float(r[1])); cols["high"].append(float(r[2]))
+        cols["low"].append(float(r[3])); cols["close"].append(float(r[4])); cols["volume"].append(float(r[5]))
+        cols["quote_volume"].append(float(r[7])); cols["count"].append(int(r[8]))
+        cols["taker_buy_volume"].append(float(r[9])); cols["symbol"].append(symbol)
+    return cols
+
+
+def download_hourly(client, root: Path, symbols: Sequence[str], days: int = 1460,
+                    now_ms: Optional[int] = None, on_progress: Optional[Callable[[Progress], None]] = None,
+                    sleep: Callable[[float], None] = lambda s: None) -> Progress:
+    """Velas de 1 hora de futuros USD-M por la API pública (1500 velas por pedido). Un archivo por cripto,
+    reescrito entero en cada corrida (atómico). Las cripto listadas después empiezan cuando empezaron."""
+    now_ms = now_ms or int(datetime.now(timezone.utc).timestamp() * 1000)
+    start = now_ms - days * 86_400_000
+    prog = Progress(total=len(symbols))
+    for sym in symbols:
+        prog.current = sym
+        try:
+            cols: Dict[str, list] = {n: [] for n in KLINE_SCHEMA.names}
+            t = start
+            for _ in range(400):                                       # tope de páginas
+                r = client.get(f"{FAPI}/fapi/v1/klines", params={"symbol": sym, "interval": "1h", "startTime": t,
+                                                                  "limit": 1500}, timeout=30.0)
+                if r.status_code == 400:                               # símbolo inexistente
+                    break
+                if r.status_code == 429 or r.status_code == 418:       # límite de pedidos: esperar y reintentar
+                    sleep(30.0)
+                    continue
+                r.raise_for_status()
+                batch = r.json()
+                if not batch:
+                    break
+                part = parse_rest_klines(batch, sym)
+                for k in cols:
+                    cols[k] += part[k]
+                last = int(batch[-1][0])
+                if len(batch) < 1500 or last <= t:
+                    break
+                t = last + 3_600_000
+                sleep(0.1)
+            if not cols["symbol"]:
+                prog.missing += 1
+            else:
+                closed = [i for i, ot in enumerate(cols["open_time_ms"]) if ot + 3_600_000 <= now_ms]  # solo velas cerradas
+                cols = {k: [v[i] for i in closed] for k, v in cols.items()}
+                out = hourly_path(root, sym)
+                out.parent.mkdir(parents=True, exist_ok=True)
+                tmp = out.with_suffix(".tmp")
+                pq.write_table(pa.table(cols, schema=KLINE_SCHEMA), tmp)
+                tmp.replace(out)
+                prog.downloaded += 1
+        except Exception as ex:
+            prog.failed += 1
+            if len(prog.errors) < 20:
+                prog.errors.append(f"{sym}: {type(ex).__name__}: {ex}")
+        prog.done += 1
+        if on_progress:
+            on_progress(prog)
+    return prog

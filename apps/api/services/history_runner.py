@@ -39,7 +39,8 @@ def _run(months: int) -> None:
     import httpx
     from config.settings import settings
     from src.data.binance_history import download_funding, download_klines
-    symbols = list(settings.binance.initial_calibration_sample_v0)
+    from src.research.pyr_like import analysis_symbols
+    symbols = analysis_symbols(settings.binance.initial_calibration_sample_v0)   # + cripto chicas parecidas a PYR
 
     def on_progress(p) -> None:
         with _lock:
@@ -74,4 +75,47 @@ def start(months: int = 12) -> Dict[str, Any]:
             return {"ok": False, "state": "RUNNING", "message": "Ya hay una descarga en curso."}
         _state.update(state="RUNNING", message="Arrancando la descarga...", progress=None)
     threading.Thread(target=_run, args=(months,), daemon=True).start()
+    return {"ok": True, "state": "RUNNING", "message": "Descarga iniciada."}
+
+
+def _run_hourly(days: int) -> None:
+    import httpx
+    from config.settings import settings
+    from src.data.binance_history import download_funding, download_hourly
+    from src.research.pyr_like import analysis_symbols
+    symbols = analysis_symbols(settings.binance.initial_calibration_sample_v0)
+
+    def on_progress(p) -> None:
+        with _lock:
+            _state["progress"] = asdict(p)
+            _state["message"] = f"Bajando velas de 1 hora: {p.current} ({p.done}/{p.total})"
+
+    try:
+        t0 = time.time()
+        with httpx.Client(headers={"User-Agent": "quant-os-history/1.0"}, follow_redirects=True) as client:
+            prog = download_hourly(client, HIST_ROOT, symbols, days=days, on_progress=on_progress, sleep=time.sleep)
+            with _lock:
+                _state["message"] = "Bajando historial de funding de varios años..."
+            try:
+                funding = download_funding(client, HIST_ROOT, symbols, months=max(1, days // 30 + 1))
+            except Exception as ex:
+                funding = {"error": f"{type(ex).__name__}: {ex}"}
+        msg = (f"Listo en {int(time.time() - t0)} s: {prog.downloaded} cripto con velas de 1 hora, "
+               f"{prog.missing} no existen, {prog.failed} fallaron.")
+        with _lock:
+            _state.update(state="DONE" if prog.failed == 0 else "DONE_WITH_ERRORS", message=msg,
+                          progress=asdict(prog), funding_rows=funding)
+    except Exception as ex:
+        with _lock:
+            _state.update(state="ERROR", message=f"{type(ex).__name__}: {ex}")
+        HIST_ROOT.mkdir(parents=True, exist_ok=True)
+        (HIST_ROOT / "download_error.log").write_text(traceback.format_exc(), encoding="utf-8")
+
+
+def start_hourly(days: int = 1460) -> Dict[str, Any]:
+    with _lock:
+        if _state["state"] == "RUNNING":
+            return {"ok": False, "state": "RUNNING", "message": "Ya hay una descarga en curso."}
+        _state.update(state="RUNNING", message="Arrancando la descarga de velas de 1 hora...", progress=None)
+    threading.Thread(target=_run_hourly, args=(days,), daemon=True).start()
     return {"ok": True, "state": "RUNNING", "message": "Descarga iniciada."}

@@ -25,6 +25,45 @@ def str002_replay_status():
     return replay_runner.status()
 
 
+@router.post("/pyr/run")
+def run_pyr_analysis(request: Request, train_days: float = 90.0, test_days: float = 60.0):
+    _local_only(request)
+    from apps.api.services import pyr_runner
+    return pyr_runner.start(train_days=max(20.0, min(train_days, 200.0)), test_days=max(20.0, min(test_days, 120.0)))
+
+
+@router.get("/pyr/status")
+def pyr_status():
+    from apps.api.services import pyr_runner
+    return pyr_runner.status()
+
+
+@router.post("/lab/run")
+def run_strategy_lab(request: Request, days: float = 365.0):
+    _local_only(request)
+    from apps.api.services import lab_runner
+    return lab_runner.start(days=max(60.0, min(days, 730.0)))
+
+
+@router.get("/lab/status")
+def strategy_lab_status():
+    from apps.api.services import lab_runner
+    return lab_runner.status()
+
+
+@router.post("/plab/run")
+def run_portfolio_lab(request: Request, which: str = "main"):
+    _local_only(request)
+    from apps.api.services import plab_runner
+    return plab_runner.start(which="taker" if which == "taker" else "main")
+
+
+@router.get("/plab/status")
+def portfolio_lab_status():
+    from apps.api.services import plab_runner
+    return plab_runner.status()
+
+
 @router.get("")
 def list_backtests():
     # Real Quant OS backtests are produced in research pipelines.
