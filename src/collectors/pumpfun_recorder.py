@@ -1,8 +1,7 @@
 """pump.fun recorder (Solana): escucha el programa de pump.fun en vivo y guarda cada compra/venta, token nuevo y
 graduación, decodificando los eventos que el programa escribe en sus logs ("Program data: <base64>").
 
-Fuente por defecto: RPC pública de Solana (gratis, sin créditos). Si config/pumpfun.json pide "helius" y existe
-config/helius_key.txt, usa Helius con un tope diario de MB (Helius cobra 2 créditos cada 0,1 MB).
+Fuente por defecto: RPC pública de Solana (gratis, sin créditos). Si config/pumpfun.json pide "helius" y existe HELIUS_API_KEY en el entorno/.env, usa Helius con un tope diario de MB (Helius cobra 2 créditos cada 0,1 MB).
 La clave nunca se escribe en logs.
 """
 from __future__ import annotations
@@ -156,7 +155,7 @@ def load_source_config(root: Path = ROOT) -> Dict[str, Any]:
 
 def resolve_url(cfg: Dict[str, Any], root: Path = ROOT) -> Tuple[str, str]:
     if cfg.get("source") == "helius":
-        from src.common.secrets import get_secret
+        from src.common.secret_loader import get_secret
         key = get_secret("HELIUS_API_KEY", root) or ""
         if key:
             return HELIUS_WSS.format(key=key), "helius"
@@ -190,7 +189,7 @@ class PumpfunRecorder:
             self._paper_tasks.append(asyncio.create_task(self._start_paper()))
         if cfg.get("x_enabled", True):
             from src.collectors.x_watcher import DEFAULT_MODEL, XWatcher
-            from src.common.secrets import get_secret
+            from src.common.secret_loader import get_secret
             xw = XWatcher(self.sink, self.activity, get_secret("XAI_API_KEY", self.root),
                           daily_usd=float(cfg.get("x_daily_usd", 1.0)), model=str(cfg.get("x_model") or DEFAULT_MODEL))
             xw.priority_source = lambda: self.paper.x_queue if self.paper is not None else ()

@@ -66,7 +66,7 @@ def spot_daily(request: Request, symbols: str, start: str, end: str):
 @router.get("/pumpfun_probe")
 async def pumpfun_probe(request: Request, seconds: float = 20.0, source: str = "public"):
     """Prueba de 20 s contra pump.fun en vivo: cuenta transacciones y eventos decodificados y muestra ejemplos.
-    No guarda nada. source=public (gratis) o helius (usa config/helius_key.txt)."""
+    No guarda nada. source=public (gratis) o helius (usa .env (HELIUS_API_KEY))."""
     host = request.client.host if request.client else ""
     if host not in ("127.0.0.1", "::1", "localhost", "testclient"):
         raise HTTPException(status_code=403, detail="Only available from the local machine.")
@@ -118,7 +118,7 @@ async def secrets_check(request: Request):
     if host not in ("127.0.0.1", "::1", "localhost", "testclient"):
         raise HTTPException(status_code=403, detail="Only available from the local machine.")
     import httpx
-    from src.common.secrets import describe, get_secret
+    from src.common.secret_loader import describe, get_secret
     xai = get_secret("XAI_API_KEY")
     out = {"XAI_API_KEY": describe(xai), "HELIUS_API_KEY": describe(get_secret("HELIUS_API_KEY"))}
     if xai:
@@ -141,7 +141,7 @@ async def x_probe(request: Request, mint: str, symbol: str = "", name: str = "")
         raise HTTPException(status_code=403, detail="Only available from the local machine.")
     import aiohttp, time
     from src.collectors.x_watcher import TokenActivity, XWatcher, XAI_URL
-    from src.common.secrets import get_secret
+    from src.common.secret_loader import get_secret
 
     class _Mem:
         def __init__(self):

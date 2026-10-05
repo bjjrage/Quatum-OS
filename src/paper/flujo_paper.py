@@ -362,7 +362,7 @@ async def run_paper(symbols: Sequence[str], sink=None, state_dir: Path = STATE_D
     books = load_books(Path(state_dir).parent)
     lider = None
     try:                                  # "líder explotó -> rezagadas + X" (src/paper/lider_paper.py)
-        from src.common.secrets import get_secret
+        from src.common.secret_loader import get_secret
         from src.paper import lider_paper as lp
         cfg = lp.load_config()
         lider = lp.LiderPaper(Path(state_dir).parent, api_key=get_secret("XAI_API_KEY"),
