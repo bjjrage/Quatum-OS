@@ -16,20 +16,32 @@ const VERDICT: Record<string, [string, string]> = {
 };
 
 const PROP_STYLE: Record<string, string> = {
-  PASA: "bg-emerald-950/50 text-emerald-300 border-emerald-800",
+  PASA: "bg-amber-950/40 text-amber-300 border-amber-800",
+  PASA_MODEL_ONLY: "bg-amber-950/40 text-amber-300 border-amber-800",
   AUN_NO: "bg-amber-950/40 text-amber-300 border-amber-800",
+  AUN_NO_MODEL_ONLY: "bg-amber-950/40 text-amber-300 border-amber-800",
   SIN_DATOS: "bg-slate-900 text-slate-500 border-slate-700",
+  SIN_DATOS_MODEL_ONLY: "bg-slate-900 text-slate-500 border-slate-700",
   FAIL_DAILY: "bg-rose-950/40 text-rose-300 border-rose-800",
+  FAIL_DAILY_MODEL_ONLY: "bg-rose-950/40 text-rose-300 border-rose-800",
   FAIL_MAX: "bg-rose-950/40 text-rose-300 border-rose-800",
+  FAIL_MAX_MODEL_ONLY: "bg-rose-950/40 text-rose-300 border-rose-800",
   FAIL_RULES: "bg-rose-950/40 text-rose-300 border-rose-800",
+  FAIL_RULES_MODEL_ONLY: "bg-rose-950/40 text-rose-300 border-rose-800",
 };
 const PROP_TEXT: Record<string, string> = {
-  PASA: "Pasa",
-  AUN_NO: "Todavía no",
+  PASA: "Objetivo proxy (legacy)",
+  PASA_MODEL_ONLY: "Objetivo del modelo",
+  AUN_NO: "Todavia no (legacy)",
+  AUN_NO_MODEL_ONLY: "Sin objetivo del modelo",
   SIN_DATOS: "Sin datos",
-  FAIL_DAILY: "No pasa: pérdida diaria",
-  FAIL_MAX: "No pasa: pérdida total",
-  FAIL_RULES: "No permitido",
+  SIN_DATOS_MODEL_ONLY: "Sin datos",
+  FAIL_DAILY: "Limite diario proxy (legacy)",
+  FAIL_DAILY_MODEL_ONLY: "Limite diario del modelo",
+  FAIL_MAX: "Limite total proxy (legacy)",
+  FAIL_MAX_MODEL_ONLY: "Limite total del modelo",
+  FAIL_RULES: "Regla proxy (legacy)",
+  FAIL_RULES_MODEL_ONLY: "Regla del modelo",
 };
 
 const TH = "px-3 py-2 font-normal text-slate-400 align-bottom";
@@ -263,9 +275,12 @@ export function Str002ReplayPanel() {
               </>
             )}
 
-            <div className="text-slate-100 font-semibold pt-3">3. ¿Habría pasado el examen de la prop firm?</div>
+            <div className="text-slate-100 font-semibold pt-3">3. Proyeccion del examen (solo modelo)</div>
+            <div className="p-2 rounded bg-amber-950/30 border border-amber-900/50 text-amber-200">
+              No es aprobacion ni rechazo de HyroTrader. Usa operaciones cerradas y no conoce el modo de drawdown de tu cuenta, la trayectoria intradia ni todas las reglas de la Challenge de dos fases.
+            </div>
             <div className="text-slate-500 -mt-2">
-              Arriesgando {num(result.risk_per_trade_pct, 2)}% de la cuenta por operación. Solo cuenta operaciones cerradas. Las reglas pueden cambiar: confirmalas antes de pagar.
+              Riesgo de {num(result.risk_per_trade_pct, 2)}% por operacion en este proxy historico; solo cuenta operaciones cerradas.
             </div>
             <ExamTable
               rows={[...Object.entries(result.variants || {}), ...Object.entries(result.exit_comparison || {}).map(([k, v]: any) => [`exit_${k}`, v] as [string, any])]}

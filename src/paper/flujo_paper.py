@@ -241,11 +241,11 @@ STRATEGIES: Dict[str, Tuple[str, int]] = {
     "baja_vol": ("Baja volatilidad: compra las tranquilas, vende las locas", 7),
     "combinada": ("Combinación: flujo 14 d + carry + baja volatilidad", 7),
     "btc_tendencia": ("BTC solo cuando está sobre su promedio de 50 días", 1),
-    "examen_2x": ("EXAMEN HyroTrader 1 fase a 2x (flujo 14 d)", 7),
+    "examen_2x": ("Ensayo paper interno: proxy legacy HyroTrader de 1 fase (no es la Challenge 2 fases)", 7),
 }
 
 # ---------------------------------------------------------------------------- examen de prop firm en paper
-# Reglas HyroTrader 1 fase (verificar antes de pagar): objetivo +10%; perder 4% en un día = quema;
+# Legacy paper-only proxy thresholds; not current two-phase HyroTrader rules or an official pass result.
 # perder 6% del capital inicial = quema; mínimo 5 días operados; ningún día puede ser >= 40% de la ganancia.
 # Se controla cada minuto con precios reales (más exigente que la simulación, que miraba solo el cierre).
 # Al pasar o quemar: cierra todo, guarda el intento y arranca uno nuevo el día siguiente a las 00:05 UTC.
@@ -317,7 +317,9 @@ def exam_view(b: "PaperBook", eq: Optional[float]) -> Optional[Dict[str, Any]]:
         return None
     r, c0 = EXAMS[name], float(b.s["capital_inicial"])
     out = {k: ex[k] for k in ("intento", "estado", "inicio", "fin", "motivo")}
-    out.update({"objetivo_usd": c0 * (1 + r["target"]), "piso_total_usd": c0 * (1 - r["max"]),
+    from src.research.hyro_rules import RULES_STATUS, RULE_VERSION
+    out.update({"rules_status": RULES_STATUS, "rules_version": RULE_VERSION,
+                "objetivo_usd": c0 * (1 + r["target"]), "piso_total_usd": c0 * (1 - r["max"]),
                 "limite_diario_usd": r["daily"] * min(ex["equity_inicio_dia"], c0),
                 "dias_operados": len(ex["dias_operados"]), "dias_minimos": r["min_days"],
                 "mejor_dia_usd": max(ex["pnl_por_dia"].values()) if ex["pnl_por_dia"] else 0.0,
@@ -359,6 +361,10 @@ async def run_paper(symbols: Sequence[str], sink=None, state_dir: Path = STATE_D
                     snapshot_every_s: int = 300) -> None:
     import asyncio
     import aiohttp
+    from src.common.runtime_health import RuntimeHealth
+    paper_health = RuntimeHealth("paper_runtime")
+    leader_health = RuntimeHealth("leader_paper")
+    paper_health.update("STARTING", started=True)
     books = load_books(Path(state_dir).parent)
     lider = None
     try:                                  # "líder explotó -> rezagadas + X" (src/paper/lider_paper.py)
@@ -367,7 +373,9 @@ async def run_paper(symbols: Sequence[str], sink=None, state_dir: Path = STATE_D
         cfg = lp.load_config()
         lider = lp.LiderPaper(Path(state_dir).parent, api_key=get_secret("XAI_API_KEY"),
                               daily_x_usd=float(cfg.get("lider_x_daily_usd", 1.0)))
+        leader_health.update("RUNNING", started=True, success=True)
     except Exception as e:
+        leader_health.update("ERROR", started=True, error=e)
         logger.warning(f"Líder paper apagado: {type(e).__name__}: {str(e)[:120]}")
     last_snap = 0.0
     timeout = aiohttp.ClientTimeout(total=20)
@@ -380,12 +388,14 @@ async def run_paper(symbols: Sequence[str], sink=None, state_dir: Path = STATE_D
                 return await r.json()
 
         logger.info(f"Paper corriendo con {len(books)} cuentas: " + ", ".join(books))
+        paper_health.update("RUNNING", success=True)
         while not (stop_file and stop_file.exists()):
             try:
                 now = time.time()
                 now_ms = int(now * 1000)
                 prices = {d["symbol"]: float(d["price"]) for d in await get("/fapi/v1/ticker/price")
                           if d.get("symbol") in symbols}
+                paper_health.update("RUNNING", success=True)
                 # funding: cuando avanza nextFundingTime, se liquida la tasa vista justo antes (en cada cuenta)
                 for d in await get("/fapi/v1/premiumIndex"):
                     sym = d.get("symbol")
@@ -471,11 +481,19 @@ async def run_paper(symbols: Sequence[str], sink=None, state_dir: Path = STATE_D
                             pass
                         await asyncio.sleep(0.1)
             except Exception as e:
+                paper_health.update("DEGRADED", error=e)
                 logger.warning(f"Paper: {type(e).__name__}: {str(e)[:150]}")
+            else:
+                paper_health.update("RUNNING")
+                if lider:
+                    leader_health.update("RUNNING")
             for _ in range(60):                       # esperar 1 min, pero atento al pedido de apagado
                 if stop_file and stop_file.exists():
                     break
                 await asyncio.sleep(1)
         for b in list(books.values()) + (list(lider.books.values()) if lider else []):
             b.save()
+        paper_health.update("STOPPED")
+        if lider:
+            leader_health.update("STOPPED")
         logger.info("Paper detenido.")

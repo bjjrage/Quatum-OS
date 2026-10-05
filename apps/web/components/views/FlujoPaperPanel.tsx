@@ -47,9 +47,9 @@ export function FlujoPaperPanel() {
             <tr key={c.cuenta} onClick={() => setCuenta(c.cuenta)}
               className={`border-t border-slate-800/60 cursor-pointer hover:bg-slate-900 ${c.cuenta === cuenta ? "bg-slate-900/80" : ""}`}>
               <td className="py-1 text-slate-100">{c.descripcion}{c.examen && (
-                <span className={`ml-2 px-1 rounded ${c.examen.estado === "PASO" ? "bg-emerald-900 text-emerald-300" :
+                <span className={`ml-2 px-1 rounded ${c.examen.estado === "PASO" ? "bg-amber-900 text-amber-300" :
                   c.examen.estado === "QUEMO" ? "bg-rose-900 text-rose-300" : "bg-cyan-900/60 text-cyan-300"}`}>
-                  intento {c.examen.intento}: {c.examen.estado === "EN_CURSO" ? "en curso" : c.examen.estado === "PASO" ? "PASÓ" : "QUEMÓ"}
+                  intento {c.examen.intento}: {c.examen.estado === "EN_CURSO" ? "proxy en curso" : c.examen.estado === "PASO" ? "OBJETIVO PROXY" : "LIMITE PROXY"}
                 </span>)}</td>
               <td className="text-slate-200">{usd(c.equity)}</td>
               <td className={tone(c.ganancia_pct)}>{pct(c.ganancia_pct)}</td>
@@ -99,16 +99,19 @@ export function FlujoPaperPanel() {
     const eqv = exRow.equity ?? c0;
     const fin = ex.estado !== "EN_CURSO";
     return (
-      <div className={`rounded border p-3 space-y-2 ${ex.estado === "PASO" ? "border-emerald-700" : ex.estado === "QUEMO" ? "border-rose-700" : "border-cyan-800"}`}>
+      <div className={`rounded border p-3 space-y-2 ${ex.estado === "PASO" ? "border-amber-700" : ex.estado === "QUEMO" ? "border-rose-700" : "border-cyan-800"}`}>
         <div className="text-slate-100 font-semibold">
-          Examen HyroTrader 1 fase a 2x — intento {ex.intento} · capital {usd(exRow.equity)}{" "}
-          {fin ? <span className={ex.estado === "PASO" ? "text-emerald-400" : "text-rose-400"}>
-            {ex.estado === "PASO" ? "PASÓ" : "QUEMÓ"} ({ex.motivo}). Arranca otro intento mañana 00:05 UTC.</span>
+          Ensayo interno: proxy legado de 1 fase (no Challenge oficial) — intento {ex.intento} · capital {usd(exRow.equity)}{" "}
+          {fin ? <span className={ex.estado === "PASO" ? "text-amber-400" : "text-rose-400"}>
+            {ex.estado === "PASO" ? "OBJETIVO PROXY" : "LIMITE PROXY"} ({ex.motivo}). Reinicia el proxy manana 00:05 UTC.</span>
             : <span className="text-slate-400">en curso desde {new Date(ex.inicio).toLocaleString()}</span>}
+        </div>
+        <div className="rounded border border-amber-800 bg-amber-950/30 p-2 text-amber-200">
+          Este es un ensayo paper con reglas proxy antiguas de una fase; no modela tu Challenge HyroTrader de dos fases y no indica aprobacion oficial. Estado de reglas: {ex.rules_status || "RULES_UNVERIFIED"}.
         </div>
         {!fin && (
           <div className="grid md:grid-cols-3 gap-4">
-            <Bar label="Avance al objetivo (+10%)" value={eqv - c0} max={ex.objetivo_usd - c0} color="bg-emerald-500"
+            <Bar label="Avance del proxy legacy (+10%)" value={eqv - c0} max={ex.objetivo_usd - c0} color="bg-emerald-500"
               text={`falta ${usd(ex.falta_para_pasar_usd, 0)}`} />
             <Bar label="Margen antes de quemar (−6% total)" value={ex.margen_total_usd} max={c0 - ex.piso_total_usd}
               color={ex.margen_total_usd < (c0 - ex.piso_total_usd) * 0.33 ? "bg-rose-500" : "bg-amber-500"}
@@ -121,7 +124,7 @@ export function FlujoPaperPanel() {
         <div className="text-slate-500">
           Días operados {ex.dias_operados}/{ex.dias_minimos} mínimo · mejor día {usd(ex.mejor_dia_usd, 0)} (no puede ser ≥ 40% de la ganancia)
           {ex.historial?.length > 0 && <> · intentos anteriores: {ex.historial.map((h: any) =>
-            `#${h.intento} ${h.estado === "PASO" ? "pasó" : "quemó"} en ${h.dias} d`).join(", ")}</>}
+            `#${h.intento} ${h.estado === "PASO" ? "objetivo proxy" : "limite proxy"} en ${h.dias} d`).join(", ")}</>}
         </div>
       </div>
     );

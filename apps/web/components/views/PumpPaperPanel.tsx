@@ -5,11 +5,14 @@ import { Users } from "lucide-react";
 export function PumpPaperPanel() {
   const api = process.env.NEXT_PUBLIC_API_URL || "";
   const [d, setD] = useState<any>(null);
+  const [health, setHealth] = useState<any>(null);
   const [err, setErr] = useState("");
   useEffect(() => {
     const poll = async () => {
       try {
         const r = await fetch(`${api}/api/research/pump_paper`);
+        const h = await fetch(`${api}/api/research/runtime_health`);
+        if (h.ok) setHealth((await h.json()).components?.pumpfun_paper || null);
         if (r.ok) { setD(await r.json()); setErr(""); } else setErr(`El backend respondió ${r.status}`);
       } catch { setErr("No me puedo comunicar con el backend."); }
     };
@@ -20,16 +23,19 @@ export function PumpPaperPanel() {
   const n = (x: any, dec = 2) => (x === null || x === undefined ? "—" : Number(x).toFixed(dec));
   const tone = (x: any) => (x === null || x === undefined ? "text-slate-400" : x >= 0 ? "text-emerald-400" : "text-rose-400");
   const cuentas: any[] = d?.cuentas || [];
+  const status = health?.status || "NEVER_STARTED";
+  const statusLabel: Record<string, string> = { NEVER_STARTED: "Proceso apagado", STARTING: "Proceso iniciando", RUNNING: cuentas.length ? "Proceso activo" : "Proceso activo sin eventos", DEGRADED: "Proceso degradado", ERROR: "Proceso con error", DISABLED: "Proceso deshabilitado", STOPPED: "Proceso apagado" };
   return (
     <div className="rounded-lg border border-fuchsia-900/60 bg-slate-950/40 p-4 text-xs font-mono-code space-y-3">
       <div className="flex flex-wrap items-center gap-3">
+        <span className={status === "RUNNING" ? "text-emerald-400" : status === "ERROR" || status === "DEGRADED" ? "text-rose-300" : "text-amber-300"}>{statusLabel[status] || status}</span>
         <Users className="w-4 h-4 text-fuchsia-400" />
         <span className="text-slate-100 font-semibold">pump.fun en vivo — grupos que acumulan + nichos calientes</span>
         <span className="text-slate-500">SOL de mentira · 10 SOL por cuenta · 5% del capital por entrada · al 2x vende la mitad, el resto con stop móvil · comisiones reales</span>
         {err && <span className="text-rose-300">{err}</span>}
       </div>
       {!cuentas.length ? (
-        <div className="text-slate-400">Arrancando (repasa lo grabado para encontrar grupos; tarda unos minutos)...</div>
+        <div className="text-slate-400">{status === "RUNNING" ? "Proceso activo sin eventos." : status === "STARTING" ? "Proceso iniciando." : status === "ERROR" || status === "DEGRADED" ? (health?.last_error_type || "Error") + ": " + (health?.last_error_message_sanitized || "ver estado local") : statusLabel[status] || status}</div>
       ) : (
         <>
           <div className="text-slate-400">
@@ -86,6 +92,11 @@ export function PumpPaperPanel() {
             </div>
           </div>
         </>
+      )}
+      {d?.fee_model && (
+        <div className="text-amber-300 border-t border-amber-900/40 pt-2">
+          Costos Pump.fun: {d.fee_model.status} · modelo {d.fee_model.version}. El paper usa 1,25% fijo por lado; las tarifas de PumpSwap graduado varían. <a className="underline" href={d.fee_model.source_url} target="_blank" rel="noreferrer">Fuente</a>.
+        </div>
       )}
     </div>
   );

@@ -121,6 +121,8 @@ def test_exam_passes_after_min_days_and_best_day_rule(tmp_path):
     assert len(b.s["examen"]["dias_operados"]) >= 5
     v = exam_view(b, None)
     assert v["estado"] == "PASO" and v["intento"] == 1
+    assert v["rules_status"] == "RULES_UNVERIFIED"
+    assert v["rules_version"] == "HYRO_TWO_STEP_2026-10-05"
 
 
 def test_exam_view_margins(tmp_path):
@@ -129,3 +131,4 @@ def test_exam_view_margins(tmp_path):
     v = exam_view(b, b.equity({"AAA": 99.0, "BBB": 100.0}))
     assert round(v["pnl_hoy_usd"]) == -100 and round(v["margen_hoy_usd"]) == 300
     assert round(v["margen_total_usd"]) == 500 and round(v["falta_para_pasar_usd"]) == 1100
+    assert v["rules_status"] == "RULES_UNVERIFIED"
