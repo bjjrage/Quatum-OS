@@ -196,16 +196,22 @@ class PumpfunRecorder:
             self._x_task = asyncio.create_task(xw.run())
 
     async def _start_paper(self) -> None:
+        from src.common.runtime_health import RuntimeHealth
+        health = RuntimeHealth("pumpfun_paper", self.root)
+        health.update("STARTING", started=True)
         try:
             from src.paper.pump_paper import PumpPaper
             paper = PumpPaper(activity=self.activity)
             n = await asyncio.to_thread(paper.warmup, self.root / "data" / "raw")
             logger.info(f"pump paper listo ({n} operaciones repasadas).")
             self.paper = paper
+            health.update("RUNNING", success=True)
             self._paper_tasks.append(asyncio.create_task(paper.run_ticks()))
         except asyncio.CancelledError:
+            health.update("STOPPED")
             pass
         except Exception as e:
+            health.update("ERROR", error=e)
             logger.warning(f"pump paper no arrancó: {type(e).__name__}: {str(e)[:200]}")
 
     async def stop(self) -> None:

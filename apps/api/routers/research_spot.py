@@ -8,6 +8,18 @@ router = APIRouter(prefix="/api/research", tags=["Research"])
 SPOT = "https://api.binance.com"
 
 
+@router.get("/runtime_health")
+def runtime_health(request: Request):
+    """Consolidated local-only health; reads status JSON and configuration, never starts services."""
+    host = request.client.host if request.client else ""
+    if host not in ("127.0.0.1", "::1", "localhost", "testclient"):
+        raise HTTPException(status_code=403, detail="Only available from the local machine.")
+    from src.common.runtime_health import runtime_health_snapshot
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[3]
+    return runtime_health_snapshot(root)
+
+
 def _ms(day: str) -> int:
     return int(datetime.strptime(day, "%Y-%m-%d").replace(tzinfo=timezone.utc).timestamp() * 1000)
 
@@ -282,7 +294,8 @@ async def paper_flujo_live(cuenta: str = "flujo_v1"):
 def pump_paper_status():
     """Cuentas de paper de pump.fun (grupos + nichos) leídas de data/paper/pump_*/state.json."""
     import json as _json
-    from src.paper.pump_paper import ACCOUNTS, PAPER_ROOT
+    from pathlib import Path
+    from src.paper.pump_paper import ACCOUNTS, PAPER_ROOT, PUMP_FEE_MODEL
     out = []
     extra: Dict[str, Any] = {}
     for name in ACCOUNTS:
@@ -304,7 +317,10 @@ def pump_paper_status():
                     "ultimas_cerradas": (s.get("cerradas") or [])[-8:][::-1], "actualizado": s.get("actualizado")})
         extra = {"grupos": s.get("grupos"), "billeteras_en_grupos": s.get("billeteras_en_grupos"),
                  "ultimas_senales": (s.get("ultimas_senales") or [])[::-1], "nichos_ahora": s.get("nichos_ahora") or []}
-    return {"cuentas": out, **extra}
+    from src.common.runtime_health import RuntimeHealth
+    root = Path(__file__).resolve().parents[3]
+    return {"cuentas": out, "runtime": RuntimeHealth("pumpfun_paper", root).read(),
+            "fee_model": PUMP_FEE_MODEL, **extra}
 
 
 @router.get("/lider_paper")
@@ -345,5 +361,8 @@ def lider_paper_status():
                         "abrio": e.get("abrio")})
     hoy = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     gasto = ev.get("gasto_x") or {}
-    return {"cuentas": cuentas, "eventos": eventos, "ultimo_chequeo": ev.get("ultimo_chequeo_dia"),
+    from pathlib import Path
+    from src.common.runtime_health import RuntimeHealth
+    runtime = RuntimeHealth("leader_paper", Path(__file__).resolve().parents[3]).read()
+    return {"runtime": runtime, "cuentas": cuentas, "eventos": eventos, "ultimo_chequeo": ev.get("ultimo_chequeo_dia"),
             "gasto_x_hoy": gasto.get(hoy, 0.0), "gasto_x_total": sum(gasto.values())}

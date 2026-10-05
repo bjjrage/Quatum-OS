@@ -22,6 +22,9 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 NaN = float("nan")
 BTC = "BTCUSDT"
 TAKER_FEE = 0.0004                     # 0,04% por lado en Binance futuros
+POLY_CRYPTO_TAKER_FEE_RATE = 0.07     # current official formula; historical market fee schedule is not captured
+POLY_FEE_MODEL_VERSION = "polymarket_crypto_taker_rate_2026-07"
+POLY_FEE_SOURCE_URL = "https://help.polymarket.com/en/articles/13364478-trading-fees"
 _N = NormalDist()
 
 
@@ -30,7 +33,13 @@ def _files(base: Path, venue: str, table: str) -> List[str]:
     return [p.as_posix() for p in Path(base).glob(f"{venue}/table={table}/**/*.parquet")]
 
 
-def binance_seconds(base: Path, symbols: Optional[Sequence[str]] = None) -> Tuple[int, Dict[str, Tuple[array, array]], int]:
+def _has_capture_source(files: Sequence[str]) -> bool:
+    import pyarrow.parquet as pq
+    return any("capture_source" in pq.read_schema(path).names for path in files)
+
+
+def binance_seconds(base: Path, symbols: Optional[Sequence[str]] = None,
+                    include_rest_fallback: bool = False) -> Tuple[int, Dict[str, Tuple[array, array]], int]:
     """Mejor compra/venta de Binance por segundo (último valor de cada segundo, hora del exchange), con relleno hacia
     adelante. Devuelve (segundo inicial, {símbolo: (bid, ask)}, desfase mediano recibido-exchange en ns)."""
     import duckdb
@@ -39,6 +48,8 @@ def binance_seconds(base: Path, symbols: Optional[Sequence[str]] = None) -> Tupl
         raise FileNotFoundError("El recorder no tiene bbo_ticks de Binance.")
     con = duckdb.connect()
     where = "bid_price > 0 AND ask_price > 0 AND ts_exchange_ns IS NOT NULL"
+    if not include_rest_fallback and _has_capture_source(f):
+        where += " AND COALESCE(capture_source, 'unknown') != 'rest_fallback'"
     if symbols:
         where += " AND symbol IN (" + ",".join(f"'{s}'" for s in symbols) + ")"
     off = con.execute(f"SELECT median(ts_received_utc_ns - ts_exchange_ns) FROM read_parquet({f!r}, union_by_name=true) "
@@ -63,34 +74,74 @@ def binance_seconds(base: Path, symbols: Optional[Sequence[str]] = None) -> Tupl
             i = sec - s0
             if 0 <= i < n:
                 out[sy][0][i], out[sy][1][i] = b, a
-    for sy, (b, a) in out.items():                 # relleno hacia adelante (máx 30 s sin cambios = dato válido)
-        lb = la = NaN
-        age = 10**9
-        for i in range(n):
-            if b[i] == b[i]:
-                lb, la, age = b[i], a[i], 0
-            else:
-                age += 1
-                if age <= 30:
-                    b[i], a[i] = lb, la
     return s0, out, int(off or 0)
+
+
+def bbo_source_counts(base: Path) -> Dict[str, Any]:
+    """Counts provenance including legacy rows whose added column is absent."""
+    import duckdb
+    files = _files(base, "binance_perp", "bbo_ticks")
+    counts = {"rows_websocket": 0, "rows_rest_fallback": 0, "rows_unknown": 0, "fallback_pct": 0.0}
+    if not files:
+        return counts
+    if not _has_capture_source(files):
+        counts["rows_unknown"] = int(duckdb.connect().execute(
+            f"SELECT count(*) FROM read_parquet({files!r}, union_by_name=true)"
+        ).fetchone()[0])
+        return counts
+    rows = duckdb.connect().execute(
+        f"SELECT COALESCE(capture_source, 'unknown'), count(*) FROM read_parquet({files!r}, union_by_name=true) GROUP BY 1"
+    ).fetchall()
+    for source, count in rows:
+        key = {"websocket": "rows_websocket", "rest_fallback": "rows_rest_fallback"}.get(source, "rows_unknown")
+        counts[key] += int(count)
+    total = sum(counts[k] for k in ("rows_websocket", "rows_rest_fallback", "rows_unknown"))
+    counts["fallback_pct"] = counts["rows_rest_fallback"] * 100.0 / total if total else 0.0
+    return counts
 
 
 def _mid(b: array, a: array, i: int) -> float:
     return 0.5 * (b[i] + a[i]) if 0 <= i < len(b) and b[i] == b[i] and a[i] == a[i] else NaN
 
 
-def _mid_near(b: array, a: array, i: int, max_s: int = 120) -> float:
-    """Precio válido más cercano: primero hacia atrás (lo último conocido), después hacia adelante."""
-    for k in range(0, max_s + 1):
-        m = _mid(b, a, i - k)
-        if m == m:
-            return m
-    for k in range(1, max_s + 1):
-        m = _mid(b, a, i + k)
-        if m == m:
-            return m
-    return NaN
+def quote_at_or_before(b: array, a: array, i: int, max_staleness_s: int) -> Optional[Tuple[float, float]]:
+    """Latest valid bid/ask at or before i. Future observations are never inspected."""
+    if max_staleness_s < 0:
+        raise ValueError("max_staleness_s must be >= 0")
+    for k in range(max_staleness_s + 1):
+        j = i - k
+        if 0 <= j < len(b) and b[j] == b[j] and a[j] == a[j] and 0 < b[j] <= a[j]:
+            return float(b[j]), float(a[j])
+    return None
+
+
+def mid_at_or_before(b: array, a: array, i: int, max_staleness_s: int = 30) -> float:
+    """Causal feature with an explicit staleness bound; NaN if no quote is valid."""
+    quote = quote_at_or_before(b, a, i, max_staleness_s)
+    return (quote[0] + quote[1]) / 2 if quote else NaN
+
+
+def mid_near_resolution(b: array, a: array, i: int, max_staleness_s: int = 30) -> float:
+    """Outcome mark: last observed mid before resolution. Never use this as a predictor."""
+    return mid_at_or_before(b, a, i, max_staleness_s)
+
+
+def polymarket_cost_components(outcome: float, bid_up: float, ask_up: float, side: str) -> Dict[str, float]:
+    """One-share illustrative economics. Outcome is resolution payout for the selected side (0 or 1)."""
+    mid_up = (bid_up + ask_up) / 2.0
+    if side == "up":
+        mid, execution = mid_up, ask_up
+    elif side == "down":
+        mid, execution = 1.0 - mid_up, 1.0 - bid_up
+    else:
+        raise ValueError("side must be 'up' or 'down'")
+    gross = float(outcome) - mid
+    spread_slippage = execution - mid
+    fee_estimate = POLY_CRYPTO_TAKER_FEE_RATE * execution * (1.0 - execution)
+    return {"gross_per_share": gross, "fees_per_share_estimate": fee_estimate,
+            "spread_slippage_per_share": spread_slippage,
+            "net_per_share_estimate": gross - fee_estimate - spread_slippage,
+            "execution_price": execution}
 
 
 def gap_report(q: Dict[str, Tuple[array, array]], s0: int, sym: str = BTC, min_gap: int = 31) -> Dict[str, Any]:
@@ -111,8 +162,8 @@ def gap_report(q: Dict[str, Tuple[array, array]], s0: int, sym: str = BTC, min_g
         mm = ((s0 + st) // 60) % 60
         by_min[mm] = by_min.get(mm, 0) + 1
     top = sorted(by_min.items(), key=lambda x: -x[1])[:5]
-    return {"huecos": len(gaps), "segundos_perdidos": sum(l for _, l in gaps) + len(gaps) * 30,
-            "hueco_mas_largo_seg": max((l for _, l in gaps), default=0) + 30,
+    return {"huecos": len(gaps), "segundos_perdidos": sum(l for _, l in gaps),
+            "hueco_mas_largo_seg": max((l for _, l in gaps), default=0),
             "minuto_de_la_hora_mas_frecuente": [{"minuto": m, "huecos": c} for m, c in top]}
 
 
@@ -122,14 +173,15 @@ def study_btc_lead(s0: int, q: Dict[str, Tuple[array, array]], win: int = 5, qua
                    delays: Sequence[int] = (1, 2, 5), holds: Sequence[int] = (10, 30, 60)) -> Dict[str, Any]:
     bb, ba = q[BTC]
     n = len(bb)
-    r = [abs(_mid(bb, ba, t) / _mid(bb, ba, t - win) - 1.0) for t in range(win, n)]
+    r = [abs(mid_at_or_before(bb, ba, t, 30) / mid_at_or_before(bb, ba, t - win, 30) - 1.0)
+         for t in range(win, n)]
     rv = sorted(x for x in r if x == x)
     if len(rv) < 1000:
         return {"status": "POCOS_DATOS"}
     thr = rv[int(len(rv) * quantile)]
     events, last = [], -10**9
     for t in range(win, n - 120):
-        m1, m0 = _mid(bb, ba, t), _mid(bb, ba, t - win)
+        m1, m0 = mid_at_or_before(bb, ba, t, 30), mid_at_or_before(bb, ba, t - win, 30)
         if m1 == m1 and m0 == m0 and abs(m1 / m0 - 1.0) >= thr and t - last >= gap:
             events.append((t, 1 if m1 > m0 else -1, m1 / m0 - 1.0))
             last = t
@@ -142,12 +194,12 @@ def study_btc_lead(s0: int, q: Dict[str, Tuple[array, array]], win: int = 5, qua
         ev = {(d, h): [] for d in delays for h in holds}
         for s in alts:
             b, a = q[s]
-            base = _mid(b, a, t - win)
-            fin = _mid(b, a, t + 60)
+            base = mid_at_or_before(b, a, t - win, 30)
+            fin = mid_near_resolution(b, a, t + 60, 30)
             if not (base == base and fin == fin):
                 continue
             for L in lags:
-                m = _mid(b, a, t + L)
+                m = mid_near_resolution(b, a, t + L, 30)
                 if m == m:
                     resp[L].append(sg * (m / base - 1.0))
             for d in delays:
@@ -155,12 +207,16 @@ def study_btc_lead(s0: int, q: Dict[str, Tuple[array, array]], win: int = 5, qua
                     i, j = t + d, t + d + h
                     if j >= n:
                         continue
+                    entry_quote = quote_at_or_before(b, a, i, 30)
+                    exit_quote = quote_at_or_before(b, a, j, 30)
+                    if not entry_quote or not exit_quote:
+                        continue
                     if sg > 0:
-                        ent, ex = a[i], b[j]                   # compra al precio de venta, vende al de compra
-                        g = ex / ent - 1.0 if ent == ent and ex == ex else NaN
+                        ent, ex = entry_quote[1], exit_quote[0]
+                        g = ex / ent - 1.0
                     else:
-                        ent, ex = b[i], a[j]
-                        g = ent / ex - 1.0 if ent == ent and ex == ex else NaN
+                        ent, ex = entry_quote[0], exit_quote[1]
+                        g = ent / ex - 1.0
                     if g == g:
                         net = g - 2 * TAKER_FEE
                         trades[(d, h)].append(net)
@@ -275,7 +331,7 @@ def _prefix(b: array, a: array) -> Tuple[List[float], List[float], List[int]]:
         ps, ps2, pc = [0.0] * (n + 1), [0.0] * (n + 1), [0] * (n + 1)
         prev = NaN
         for i in range(n):
-            m = _mid(b, a, i)
+            m = mid_at_or_before(b, a, i, 30)
             r = math.log(m / prev) if (m == m and prev == prev and prev > 0) else None
             ps[i + 1] = ps[i] + (r or 0.0)
             ps2[i + 1] = ps2[i] + (r * r if r is not None else 0.0)
@@ -288,7 +344,7 @@ def _prefix(b: array, a: array) -> Tuple[List[float], List[float], List[int]]:
 def model_prob(b: array, a: array, s0: int, start_s: int, t_s: int, end_s: int, vol_win: int = 1800) -> float:
     """P(sube) = Φ( ln(S_t / S_inicio) / (σ·√τ) ), σ = volatilidad de 1 s de los últimos 30 min (solo pasado)."""
     i0, it = start_s - s0, t_s - s0
-    S0, St = _mid_near(b, a, i0), _mid(b, a, it)
+    S0, St = mid_at_or_before(b, a, i0, 30), mid_at_or_before(b, a, it, 30)
     if not (S0 == S0 and St == St) or it - vol_win < 1 or it >= len(b):
         return NaN
     ps, ps2, pc = _prefix(b, a)
@@ -325,7 +381,8 @@ def study_poly(base: Path, s0: int, q: Dict[str, Tuple[array, array]], offset_ns
     diag["muestra"] = []
     for m in mk:
         b, a = q[m["asset"]]
-        S0, S1 = _mid_near(b, a, m["start_s"] - s0), _mid_near(b, a, m["end_s"] - s0)
+        S0 = mid_at_or_before(b, a, m["start_s"] - s0, 30)
+        S1 = mid_near_resolution(b, a, m["end_s"] - s0, 30)
         if len(diag["muestra"]) < 6:
             qt0 = quotes.get(m["up_token"], {})
             diag["muestra"].append({"q": m["question"], "asset": m["asset"], "min": m["minutes"],
@@ -371,21 +428,28 @@ def study_poly(base: Path, s0: int, q: Dict[str, Tuple[array, array]], offset_ns
                     continue
                 nb, na = nxt                                         # se ejecuta 5 s después, al precio de ese momento
                 if p - ask >= thr:
-                    res[thr].append({"pnl": up - na, "precio": na, "lado": "sube", "dif": p - ask, "min": m["minutes"]})
+                    costs = polymarket_cost_components(up, nb, na, "up")
+                    res[thr].append({**costs, "pnl_before_fees": up - na, "precio": na, "lado": "sube", "dif": p - ask, "min": m["minutes"]})
                     done.add(thr)
                 elif bid - p >= thr:
-                    res[thr].append({"pnl": (1.0 - up) - (1.0 - nb), "precio": 1.0 - nb, "lado": "baja",
-                                     "dif": bid - p, "min": m["minutes"]})
+                    costs = polymarket_cost_components(1.0 - up, nb, na, "down")
+                    res[thr].append({**costs, "pnl_before_fees": (1.0 - up) - (1.0 - nb), "precio": 1.0 - nb,
+                                     "lado": "baja", "dif": bid - p, "min": m["minutes"]})
                     done.add(thr)
     out_t = []
     for thr, v in res.items():
-        pn = [x["pnl"] for x in v]
+        pn = [x["pnl_before_fees"] for x in v]
         if not pn:
             out_t.append({"umbral_pts": thr * 100, "apuestas": 0})
             continue
         mu = sum(pn) / len(pn)
         sd = math.sqrt(sum((x - mu) ** 2 for x in pn) / (len(pn) - 1)) if len(pn) > 1 else NaN
-        out_t.append({"umbral_pts": thr * 100, "apuestas": len(pn), "ganancia_media_por_dolar": mu,
+        out_t.append({"umbral_pts": thr * 100, "apuestas": len(pn),
+                      "gross_per_share_mean": sum(x["gross_per_share"] for x in v) / len(v),
+                      "fees_per_share_estimate_mean": sum(x["fees_per_share_estimate"] for x in v) / len(v),
+                      "spread_slippage_per_share_mean": sum(x["spread_slippage_per_share"] for x in v) / len(v),
+                      "net_per_share_estimate_mean": sum(x["net_per_share_estimate"] for x in v) / len(v),
+                      "economics_status": "ECONOMICS_UNVERIFIED",
                       "aciertos": sum(1 for x in pn if x > 0) / len(pn),
                       "precio_medio_pagado": sum(x["precio"] for x in v) / len(v),
                       "t_stat": (mu / (sd / math.sqrt(len(pn)))) if sd and sd == sd else None,
@@ -396,7 +460,10 @@ def study_poly(base: Path, s0: int, q: Dict[str, Tuple[array, array]], offset_ns
     return {"status": "OK", "diagnostico": diag, "mercados_usados": used, "mercados_ambiguos": ambiguous, "por_duracion_min": by_minutes,
             "error_prediccion_polymarket": bp, "error_prediccion_modelo": bm, "comparaciones_punto_medio": len(brier_poly),
             "apuestas": out_t, "ejemplo_fee_raw": next((m["fee_raw"] for m in mk if m["fee_raw"]), ""),
-            "nota": ("Ganancia por dólar apostado ANTES de comisiones de Polymarket. Error de predicción = promedio de "
+            "fee_model_version": POLY_FEE_MODEL_VERSION, "fee_source_url": POLY_FEE_SOURCE_URL,
+            "economics_status": "ECONOMICS_UNVERIFIED",
+            "nota": ("Economics status is ECONOMICS_UNVERIFIED: gross, estimated current fees, spread/slippage, and estimated net are reported separately. "
+                     "Historical market fee schedules are not captured. Error de predicción = promedio de "
                      "(probabilidad - resultado)^2: más bajo es mejor.")}
 
 
@@ -412,5 +479,6 @@ def run_recorder_studies(base: Path, say=lambda m: None) -> Dict[str, Any]:
         b = {"status": "ERROR", "error": f"{type(ex).__name__}: {ex}"}
     iso = lambda s: datetime.fromtimestamp(s, tz=timezone.utc).isoformat()
     return {"desde": iso(s0), "hasta": iso(s0 + len(q[BTC][0]) - 1), "desfase_reloj_pc_seg": off / 1e9,
+            "binance_bbo_provenance": bbo_source_counts(base),
             "huecos_binance_btc": gap_report(q, s0),
             "simbolos_binance": len(q), "btc_vs_alts": a, "polymarket_vs_binance": b}

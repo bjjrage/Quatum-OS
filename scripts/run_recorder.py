@@ -13,6 +13,7 @@ if str(root_dir) not in sys.path:
 
 from src.collectors.manager import CollectorManager
 from src.common.logger import setup_logger
+from src.common.runtime_health import RuntimeHealth
 from src.quality.acceptance import RuntimeManifest
 from src.quality.fingerprint import compute_config_fingerprint
 
@@ -32,6 +33,8 @@ async def main() -> None:
     args = parser.parse_args()
 
     manager = CollectorManager()
+    health = RuntimeHealth("markets_recorder")
+    health.update("STARTING", started=True)
     loop = asyncio.get_running_loop()
 
     stop_event = asyncio.Event()
@@ -88,6 +91,7 @@ async def main() -> None:
 
     try:
         await manager.start()
+        health.update("RUNNING", success=True)
         logger.info("Batch 0 Market Data Foundation is now live and recording.")
         
         heartbeat_counter = 0
@@ -102,12 +106,17 @@ async def main() -> None:
             if heartbeat_counter >= 30:
                 manifest.update_heartbeat()
                 manifest.save(manifest_path)
+                health.update("RUNNING")
                 heartbeat_counter = 0
 
     except (KeyboardInterrupt, SystemExit):
         logger.info("Interrupt received, stopping...")
+    except Exception as exc:
+        health.update("ERROR", error=exc)
+        raise
     finally:
         await manager.stop()
+        health.update("STOPPED")
         logger.info("Service shut down cleanly.")
 
 
@@ -125,6 +134,8 @@ def supervise(argv) -> int:
     """Vigilante: corre dos procesos hijos (mercados y pump.fun) y levanta de nuevo el que se caiga (p. ej. el
     'Fatal Python error' de Windows). Un apagado pedido desde el cockpit (archivo STOP_RECORDER) NO se reinicia."""
     import time as _time
+    supervisor_health = RuntimeHealth("supervisor")
+    supervisor_health.update("STARTING", started=True)
     RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
     SUPERVISOR_PID.write_text(str(os.getpid()), encoding="utf-8")
     base = [a for a in argv if a not in ("--child", "--pumpfun", "--paper")]
@@ -137,20 +148,28 @@ def supervise(argv) -> int:
         if kind in ("pumpfun", "paper"):
             args = []
         procs[kind] = subprocess.Popen([sys.executable, me, *args, *kinds[kind]], cwd=str(root_dir))
+        component = {"mercados": "markets_recorder", "paper": "paper_runtime", "pumpfun": "pumpfun_recorder"}[kind]
+        RuntimeHealth(component).update("STARTING", started=True, pid=procs[kind].pid)
 
     try:
         for k in kinds:
             launch(k, True)
+        supervisor_health.update("RUNNING", success=True)
         while procs:
             _time.sleep(1.0)
+            supervisor_health.update("RUNNING")
             for kind, proc in list(procs.items()):
                 rc = proc.poll()
                 if rc is None:
+                    component = {"mercados": "markets_recorder", "paper": "paper_runtime", "pumpfun": "pumpfun_recorder"}[kind]
+                    RuntimeHealth(component).update("RUNNING", pid=proc.pid)
                     continue
                 del procs[kind]
                 now = _time.time()
                 restarts[kind] = [t for t in restarts[kind] if now - t < 3600]
                 stop = STOP_FILE.exists()
+                component = {"mercados": "markets_recorder", "paper": "paper_runtime", "pumpfun": "pumpfun_recorder"}[kind]
+                RuntimeHealth(component).update("STOPPED" if stop or rc == 0 else "ERROR", pid=None)
                 if kind == "mercados" and (rc == 0 or stop):          # el principal terminó a pedido: apagar todo
                     for other in procs.values():
                         try:
@@ -172,6 +191,7 @@ def supervise(argv) -> int:
             p.wait()
         return 0
     finally:
+        supervisor_health.update("STOPPED")
         try:
             SUPERVISOR_PID.unlink()
         except OSError:
@@ -185,6 +205,8 @@ async def paper_main() -> None:
     from src.paper.flujo_paper import run_paper
     from src.research.pyr_like import analysis_symbols
     log = setup_logger("paper_main")
+    health = RuntimeHealth("paper_runtime")
+    health.update("STARTING", started=True)
     sink = StorageSink(base_path=str(settings.storage.base_data_path),
                        flush_interval_sec=settings.storage.flush_interval_sec,
                        flush_row_threshold=settings.storage.flush_row_threshold,
@@ -195,9 +217,14 @@ async def paper_main() -> None:
     symbols = [s for s in analysis_symbols(settings.binance.initial_calibration_sample_v0) if s != "PYRUSDT"]
     log.info(f"Paper flujo comprador: {len(symbols)} cripto.")
     try:
+        health.update("RUNNING", success=True)
         await run_paper(symbols, sink=sink, stop_file=STOP_FILE)
+    except Exception as exc:
+        health.update("ERROR", error=exc)
+        raise
     finally:
         await sink.stop()
+        health.update("STOPPED")
 
 
 async def pumpfun_main() -> None:
@@ -206,6 +233,8 @@ async def pumpfun_main() -> None:
     from src.collectors.pumpfun_recorder import PumpfunRecorder
     from src.common.storage_sink import StorageSink
     log = setup_logger("pumpfun_main")
+    health = RuntimeHealth("pumpfun_recorder")
+    health.update("STARTING", started=True)
     sink = StorageSink(base_path=str(settings.storage.base_data_path),
                        flush_interval_sec=settings.storage.flush_interval_sec,
                        flush_row_threshold=settings.storage.flush_row_threshold,
@@ -215,13 +244,16 @@ async def pumpfun_main() -> None:
     await sink.start()
     rec = PumpfunRecorder(sink)
     await rec.start()
+    health.update("RUNNING", success=True)
     log.info("pump.fun recorder corriendo (proceso aparte).")
     try:
         while not STOP_FILE.exists():
             await asyncio.sleep(1.0)
+            health.update("RUNNING")
     finally:
         await rec.stop()
         await sink.stop()
+        health.update("STOPPED")
         log.info("pump.fun recorder apagado y datos guardados.")
 
 

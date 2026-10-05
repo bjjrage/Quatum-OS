@@ -34,6 +34,18 @@ def test_health_endpoint():
     assert "LOCKED" in data["live_capital_authorized"]
 
 
+def test_runtime_health_endpoint_is_consolidated_and_read_only():
+    res = client.get("/api/research/runtime_health")
+    assert res.status_code == 200
+    body = res.json()
+    assert body["read_only"] is True
+    assert set(("supervisor", "markets_recorder", "paper_runtime", "pumpfun_recorder",
+                "pumpfun_paper", "leader_paper", "x_watcher")) <= set(body["components"])
+    assert body["components"]["supervisor"]["status"] in {
+        "NEVER_STARTED", "STARTING", "RUNNING", "DEGRADED", "ERROR", "DISABLED", "STOPPED"
+    }
+
+
 def test_system_status_live_capital_locked():
     res = client.get("/api/system/status")
     assert res.status_code == 200
