@@ -37,6 +37,18 @@ app = FastAPI(
     description="Operational Quant Workstation API connecting UI to authoritative Quant OS Python engine.",
 )
 
+
+@app.on_event("startup")
+async def mark_api_started() -> None:
+    from src.common.runtime_health import RuntimeHealth
+    RuntimeHealth("api").update("RUNNING", started=True, success=True)
+
+
+@app.on_event("shutdown")
+async def mark_api_stopped() -> None:
+    from src.common.runtime_health import RuntimeHealth
+    RuntimeHealth("api").update("STOPPED")
+
 # Configure CORS for local development and institutional workstation deployment
 app.add_middleware(
     CORSMiddleware,

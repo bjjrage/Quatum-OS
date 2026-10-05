@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -87,10 +88,13 @@ class PaperBook:
                                   "funding_visto": {}, "creado": datetime.now(timezone.utc).isoformat()}
         if self.path.exists():
             try:
-                self.s.update(json.loads(self.path.read_text(encoding="utf-8")))
-            except Exception:
+                state = json.loads(self.path.read_text(encoding="utf-8"))
+                if not isinstance(state, dict):
+                    raise ValueError("state.json must contain a JSON object")
+                self.s.update(state)
+            except (OSError, UnicodeError, ValueError) as exc:
                 logger.error("state.json ilegible: NO se sobrescribe; revisar a mano.")
-                raise
+                raise UnreadableStateError(type(exc).__name__) from exc
 
     def save(self) -> None:
         self.dir.mkdir(parents=True, exist_ok=True)
@@ -352,8 +356,25 @@ def is_due(last_ms: int, now_ms: int, every_days: int) -> bool:
     return now_ms - last_ms >= every_days * 86400_000 - 3600_000 and t.hour == 0 and t.minute >= 5
 
 
-def load_books(root: Path = PAPER_ROOT) -> Dict[str, "PaperBook"]:
-    return {name: PaperBook(root / name, leverage=LEVERAGE.get(name, 1.0)) for name in STRATEGIES}
+class UnreadableStateError(ValueError):
+    """A persisted paper ledger exists but cannot be loaded without risking data loss."""
+
+    def __init__(self, error_type: str):
+        self.error_type = error_type
+        super().__init__(f"Paper state is unreadable ({error_type}); the file was left untouched.")
+
+
+def load_books(root: Path = PAPER_ROOT, *, errors: Optional[Dict[str, Dict[str, str]]] = None) -> Dict[str, "PaperBook"]:
+    """Load available ledgers and isolate unreadable accounts without replacing their state files."""
+    books: Dict[str, PaperBook] = {}
+    for name in STRATEGIES:
+        try:
+            books[name] = PaperBook(root / name, leverage=LEVERAGE.get(name, 1.0))
+        except UnreadableStateError as exc:
+            if errors is not None:
+                errors[name] = {"estado": "STATE_UNREADABLE", "error_type": exc.error_type}
+            logger.error("Paper account %s unavailable: state is unreadable; it will not be written.", name)
+    return books
 
 
 # --------------------------------------------------------------------------- bucle en vivo (proceso aparte)
@@ -365,13 +386,20 @@ async def run_paper(symbols: Sequence[str], sink=None, state_dir: Path = STATE_D
     paper_health = RuntimeHealth("paper_runtime")
     leader_health = RuntimeHealth("leader_paper")
     paper_health.update("STARTING", started=True)
-    books = load_books(Path(state_dir).parent)
+    unavailable_accounts: Dict[str, Dict[str, str]] = {}
+    books = load_books(Path(state_dir).parent, errors=unavailable_accounts)
+    paper_status = "DEGRADED" if unavailable_accounts else "RUNNING"
+    if unavailable_accounts:
+        paper_health.update("DEGRADED", started=True,
+                            error=RuntimeError("Unreadable paper state: " + ", ".join(unavailable_accounts)),
+                            unavailable_accounts=unavailable_accounts)
     lider = None
     try:                                  # "líder explotó -> rezagadas + X" (src/paper/lider_paper.py)
         from src.common.secret_loader import get_secret
         from src.paper import lider_paper as lp
         cfg = lp.load_config()
-        lider = lp.LiderPaper(Path(state_dir).parent, api_key=get_secret("XAI_API_KEY"),
+        api_key = None if os.environ.get("QUANT_OS_NO_PAID_X") == "1" else get_secret("XAI_API_KEY")
+        lider = lp.LiderPaper(Path(state_dir).parent, api_key=api_key,
                               daily_x_usd=float(cfg.get("lider_x_daily_usd", 1.0)))
         leader_health.update("RUNNING", started=True, success=True)
     except Exception as e:
@@ -388,14 +416,14 @@ async def run_paper(symbols: Sequence[str], sink=None, state_dir: Path = STATE_D
                 return await r.json()
 
         logger.info(f"Paper corriendo con {len(books)} cuentas: " + ", ".join(books))
-        paper_health.update("RUNNING", success=True)
+        paper_health.update(paper_status, success=True, unavailable_accounts=unavailable_accounts)
         while not (stop_file and stop_file.exists()):
             try:
                 now = time.time()
                 now_ms = int(now * 1000)
                 prices = {d["symbol"]: float(d["price"]) for d in await get("/fapi/v1/ticker/price")
                           if d.get("symbol") in symbols}
-                paper_health.update("RUNNING", success=True)
+                paper_health.update(paper_status, success=True, unavailable_accounts=unavailable_accounts)
                 # funding: cuando avanza nextFundingTime, se liquida la tasa vista justo antes (en cada cuenta)
                 for d in await get("/fapi/v1/premiumIndex"):
                     sym = d.get("symbol")
@@ -410,6 +438,8 @@ async def run_paper(symbols: Sequence[str], sink=None, state_dir: Path = STATE_D
                         seen[sym] = {"next": nxt, "rate": rate}
                 # exámenes: control de reglas cada minuto (antes de rebalancear)
                 for name, rules in EXAMS.items():
+                    if name not in books:
+                        continue
                     b = books[name]
                     syms_needed = set(b.s["posiciones"]) - set(prices)
                     if syms_needed:                               # alguna fuera del universo: pedir su precio
@@ -481,10 +511,10 @@ async def run_paper(symbols: Sequence[str], sink=None, state_dir: Path = STATE_D
                             pass
                         await asyncio.sleep(0.1)
             except Exception as e:
-                paper_health.update("DEGRADED", error=e)
+                paper_health.update("DEGRADED", error=e, unavailable_accounts=unavailable_accounts)
                 logger.warning(f"Paper: {type(e).__name__}: {str(e)[:150]}")
             else:
-                paper_health.update("RUNNING")
+                paper_health.update(paper_status, unavailable_accounts=unavailable_accounts)
                 if lider:
                     leader_health.update("RUNNING")
             for _ in range(60):                       # esperar 1 min, pero atento al pedido de apagado

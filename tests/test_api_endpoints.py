@@ -46,6 +46,33 @@ def test_runtime_health_endpoint_is_consolidated_and_read_only():
     }
 
 
+def test_unreadable_paper_flow_is_reported_without_rewriting_or_market_requests(tmp_path, monkeypatch):
+    from apps.api.routers import research_spot
+    from src.paper import flujo_paper
+
+    paper_root = tmp_path / "paper"
+    state_dir = paper_root / "flujo_v1"
+    state_dir.mkdir(parents=True)
+    state_file = state_dir / "state.json"
+    original = b"\0" * 256
+    state_file.write_bytes(original)
+    monkeypatch.setattr(flujo_paper, "STATE_DIR", state_dir)
+    monkeypatch.setattr(flujo_paper, "PAPER_ROOT", paper_root)
+
+    async def no_market_request(_symbols):
+        raise AssertionError("unreadable/empty paper accounts must not request market prices")
+
+    monkeypatch.setattr(research_spot, "_live_prices", no_market_request)
+    status = client.get("/api/research/paper_flujo")
+    live = client.get("/api/research/paper_flujo_live?cuenta=flujo_v1")
+    accounts = client.get("/api/research/paper_cuentas")
+
+    assert status.status_code == live.status_code == accounts.status_code == 200
+    assert status.json()["estado"] == live.json()["estado"] == "STATE_UNREADABLE"
+    assert accounts.json()["cuentas_no_disponibles"]["flujo_v1"]["estado"] == "STATE_UNREADABLE"
+    assert state_file.read_bytes() == original
+
+
 def test_system_status_live_capital_locked():
     res = client.get("/api/system/status")
     assert res.status_code == 200

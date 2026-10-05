@@ -6,6 +6,7 @@ export function FlujoPaperPanel() {
   const api = process.env.NEXT_PUBLIC_API_URL || "";
   const [d, setD] = useState<any>(null);
   const [all, setAll] = useState<any[]>([]);
+  const [unavailable, setUnavailable] = useState<Record<string, any>>({});
   const [cuenta, setCuenta] = useState<string>("flujo_v1");
   const [err, setErr] = useState<string>("");
   const timer = useRef<any>(null);
@@ -15,7 +16,11 @@ export function FlujoPaperPanel() {
       const [r, r2] = await Promise.all([fetch(`${api}/api/research/paper_flujo_live?cuenta=${c}`),
                                          fetch(`${api}/api/research/paper_cuentas`)]);
       if (r.ok) { setD(await r.json()); setErr(""); } else setErr(`El backend respondió ${r.status}`);
-      if (r2.ok) setAll((await r2.json()).cuentas || []);
+      if (r2.ok) {
+        const summary = await r2.json();
+        setAll(summary.cuentas || []);
+        setUnavailable(summary.cuentas_no_disponibles || {});
+      }
     } catch { setErr("No me puedo comunicar con el backend (¿se está reiniciando?)."); }
   };
   useEffect(() => {
@@ -66,6 +71,15 @@ export function FlujoPaperPanel() {
     <div className="rounded-lg border border-slate-800 bg-slate-950/40 p-4 text-xs font-mono-code text-slate-400 space-y-3">
       <Compare />
       <div>Esta cuenta todavía no arrancó (arranca sola con el recorder, en el primer minuto).</div>
+    </div>
+  );
+
+  if (d.estado === "STATE_UNREADABLE") return (
+    <div className="rounded-lg border border-rose-900/70 bg-slate-950/40 p-4 text-xs font-mono-code text-slate-400 space-y-3">
+      <Compare />
+      <div className="text-rose-300 font-semibold">Paper Flow no disponible: {d.mensaje || "el archivo de estado no se puede leer como JSON."}</div>
+      <div>Cuenta: {d.cuenta || cuenta} · causa: {d.error_type || "formato ilegible"}. El archivo original se conservó sin cambios; requiere recuperación manual antes de volver a operar esta cuenta.</div>
+      {Object.keys(unavailable).length > 0 && <div>Cuentas de paper no disponibles: {Object.keys(unavailable).join(", ")}.</div>}
     </div>
   );
 

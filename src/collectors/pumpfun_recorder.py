@@ -10,6 +10,7 @@ import asyncio
 import base64
 import hashlib
 import json
+import os
 import struct
 import time
 from pathlib import Path
@@ -188,12 +189,18 @@ class PumpfunRecorder:
         if cfg.get("paper_enabled", True):
             self._paper_tasks.append(asyncio.create_task(self._start_paper()))
         if cfg.get("x_enabled", True):
-            from src.collectors.x_watcher import DEFAULT_MODEL, XWatcher
-            from src.common.secret_loader import get_secret
-            xw = XWatcher(self.sink, self.activity, get_secret("XAI_API_KEY", self.root),
-                          daily_usd=float(cfg.get("x_daily_usd", 1.0)), model=str(cfg.get("x_model") or DEFAULT_MODEL))
-            xw.priority_source = lambda: self.paper.x_queue if self.paper is not None else ()
-            self._x_task = asyncio.create_task(xw.run())
+            if os.environ.get("QUANT_OS_NO_PAID_X") == "1":
+                from src.common.runtime_health import RuntimeHealth
+                RuntimeHealth("x_watcher", self.root).update(
+                    "DISABLED", enabled=False, disabled_reason="PAID_CALLS_DISABLED_BY_LAUNCHER")
+                logger.info("X watcher disabled by launcher; no paid requests will be made.")
+            else:
+                from src.collectors.x_watcher import DEFAULT_MODEL, XWatcher
+                from src.common.secret_loader import get_secret
+                xw = XWatcher(self.sink, self.activity, get_secret("XAI_API_KEY", self.root),
+                              daily_usd=float(cfg.get("x_daily_usd", 1.0)), model=str(cfg.get("x_model") or DEFAULT_MODEL))
+                xw.priority_source = lambda: self.paper.x_queue if self.paper is not None else ()
+                self._x_task = asyncio.create_task(xw.run())
 
     async def _start_paper(self) -> None:
         from src.common.runtime_health import RuntimeHealth

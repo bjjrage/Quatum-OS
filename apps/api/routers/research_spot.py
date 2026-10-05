@@ -199,10 +199,14 @@ async def x_probe(request: Request, mint: str, symbol: str = "", name: str = "")
 @router.get("/paper_flujo")
 def paper_flujo_status():
     """Estado del paper trading del flujo comprador V1 (lee data/paper/flujo_v1/state.json)."""
-    from src.paper.flujo_paper import STATE_DIR, PaperBook
+    from src.paper.flujo_paper import STATE_DIR, PaperBook, UnreadableStateError
     if not (STATE_DIR / "state.json").exists():
         return {"estado": "SIN_ARRANCAR"}
-    b = PaperBook(STATE_DIR)
+    try:
+        b = PaperBook(STATE_DIR)
+    except UnreadableStateError as exc:
+        return {"estado": "STATE_UNREADABLE", "cuenta": "flujo_v1", "error_type": exc.error_type,
+                "mensaje": "El estado existe pero no es legible. Se conservó el archivo original sin cambios."}
     last = b.s["rebalanceos"][-1] if b.s["rebalanceos"] else None
     pos = b.s["posiciones"]
     return {"estado": "CORRIENDO", "resumen": b.summary(), "ultimo_rebalanceo": {k: v for k, v in (last or {}).items()
@@ -226,10 +230,17 @@ async def _live_prices(symbols):
 @router.get("/paper_cuentas")
 async def paper_cuentas():
     """Comparación de todas las cuentas de paper, valuadas con precios de ahora."""
-    from src.paper.flujo_paper import PAPER_ROOT, STRATEGIES, PaperBook, exam_view
-    books = {n: PaperBook(PAPER_ROOT / n) for n in STRATEGIES if (PAPER_ROOT / n / "state.json").exists()}
+    from src.paper.flujo_paper import PAPER_ROOT, STRATEGIES, PaperBook, UnreadableStateError, exam_view
+    books, unavailable = {}, {}
+    for name in STRATEGIES:
+        if not (PAPER_ROOT / name / "state.json").exists():
+            continue
+        try:
+            books[name] = PaperBook(PAPER_ROOT / name)
+        except UnreadableStateError as exc:
+            unavailable[name] = {"estado": "STATE_UNREADABLE", "error_type": exc.error_type}
     syms = {s_ for b in books.values() for s_ in b.s["posiciones"]}
-    prices = await _live_prices(syms)
+    prices = await _live_prices(syms) if syms else {}
     out = []
     for n, b in books.items():
         ok = all(s_ in prices for s_ in b.s["posiciones"])
@@ -240,20 +251,24 @@ async def paper_cuentas():
                     "posiciones": len(b.s["posiciones"]), "rebalanceos": len(b.s["rebalanceos"]),
                     "costos_y_funding": b.s["costos_pagados"] + b.s["funding_pagado"], "desde": b.s["creado"],
                     "capital_inicial": c0, "examen": exam_view(b, eq)})
-    return {"cuentas": out}
+    return {"cuentas": out, "cuentas_no_disponibles": unavailable}
 
 
 @router.get("/paper_flujo_live")
 async def paper_flujo_live(cuenta: str = "flujo_v1"):
     """Posiciones de una cuenta de paper valuadas con precios de Binance en este momento."""
     from datetime import datetime, timedelta, timezone
-    from src.paper.flujo_paper import PAPER_ROOT, STRATEGIES, PaperBook, exam_view
+    from src.paper.flujo_paper import PAPER_ROOT, STRATEGIES, PaperBook, UnreadableStateError, exam_view
     if cuenta not in STRATEGIES:
         raise HTTPException(status_code=404, detail="Cuenta desconocida")
     REB_DAYS = STRATEGIES[cuenta][1]
     if not (PAPER_ROOT / cuenta / "state.json").exists():
         return {"estado": "SIN_ARRANCAR", "cuenta": cuenta}
-    b = PaperBook(PAPER_ROOT / cuenta)
+    try:
+        b = PaperBook(PAPER_ROOT / cuenta)
+    except UnreadableStateError as exc:
+        return {"estado": "STATE_UNREADABLE", "cuenta": cuenta, "error_type": exc.error_type,
+                "mensaje": "El estado existe pero no es legible. Se conservó el archivo original sin cambios."}
     pos = b.s["posiciones"]
     prices = await _live_prices(set(pos))
     ent = b.entry_prices()
@@ -317,9 +332,10 @@ def pump_paper_status():
                     "ultimas_cerradas": (s.get("cerradas") or [])[-8:][::-1], "actualizado": s.get("actualizado")})
         extra = {"grupos": s.get("grupos"), "billeteras_en_grupos": s.get("billeteras_en_grupos"),
                  "ultimas_senales": (s.get("ultimas_senales") or [])[::-1], "nichos_ahora": s.get("nichos_ahora") or []}
-    from src.common.runtime_health import RuntimeHealth
+    from src.common.runtime_health import runtime_health_snapshot
     root = Path(__file__).resolve().parents[3]
-    return {"cuentas": out, "runtime": RuntimeHealth("pumpfun_paper", root).read(),
+    runtime = runtime_health_snapshot(root)["components"]["pumpfun_paper"]
+    return {"cuentas": out, "runtime": runtime,
             "fee_model": PUMP_FEE_MODEL, **extra}
 
 
@@ -362,7 +378,7 @@ def lider_paper_status():
     hoy = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     gasto = ev.get("gasto_x") or {}
     from pathlib import Path
-    from src.common.runtime_health import RuntimeHealth
-    runtime = RuntimeHealth("leader_paper", Path(__file__).resolve().parents[3]).read()
+    from src.common.runtime_health import runtime_health_snapshot
+    runtime = runtime_health_snapshot(Path(__file__).resolve().parents[3])["components"]["leader_paper"]
     return {"runtime": runtime, "cuentas": cuentas, "eventos": eventos, "ultimo_chequeo": ev.get("ultimo_chequeo_dia"),
             "gasto_x_hoy": gasto.get(hoy, 0.0), "gasto_x_total": sum(gasto.values())}

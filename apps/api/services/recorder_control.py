@@ -116,12 +116,24 @@ def stop(grace_s: float = 30.0) -> Dict[str, Any]:
     pid = _pid()
     if not is_running():
         sup = _supervisor_pid()
-        if sup:                                  # caído y esperando reinicio: cortar el vigilante
+        if sup:                                  # el manifiesto puede estar ilegible aunque el vigilante siga vivo
+            RUNTIME.mkdir(parents=True, exist_ok=True)
+            STOP_FILE.write_text(str(time.time()), encoding="utf-8")
             try:
-                psutil.Process(sup).terminate()
+                supervisor = psutil.Process(sup)
+                deadline = time.time() + grace_s
+                while supervisor.is_running() and time.time() < deadline:
+                    time.sleep(0.5)
+                if not supervisor.is_running():
+                    STOP_FILE.unlink(missing_ok=True)
+                    return {"ok": True, "state": "STOPPED_CLEANLY",
+                            "message": "Supervisor y procesos del recorder apagados ordenadamente."}
+                supervisor.terminate()
             except psutil.Error:
                 pass
-            return {"ok": True, "state": "STOPPED", "message": "Recorder apagado (estaba reiniciándose)."}
+            STOP_FILE.unlink(missing_ok=True)
+            return {"ok": True, "state": "STOPPED_FORCED",
+                    "message": "El supervisor no respondió al apagado ordenado y fue terminado."}
         return {"ok": True, "state": "ALREADY_STOPPED", "message": "El recorder ya estaba apagado."}
     RUNTIME.mkdir(parents=True, exist_ok=True)
     STOP_FILE.write_text(str(time.time()), encoding="utf-8")

@@ -25,6 +25,11 @@ def test_supervisor_restart_rules():
     assert not rr.should_restart(1, False, 12)       # bucle de caídas -> no
 
 
+def test_integrity_failures_are_not_restarted():
+    rr = _load_run_recorder()
+    assert not rr.should_restart(1, False, 0, permanent_failure=True)
+
+
 def test_rest_fallback_rows_match_bbo_schema():
     data = [{"symbol": "BTCUSDT", "bidPrice": "60000.1", "bidQty": "2", "askPrice": "60000.2", "askQty": "1", "time": 1700000000000},
             {"symbol": "DOGEUSDT", "bidPrice": "0.1", "bidQty": "5", "askPrice": "0.1001", "askQty": "5", "time": 1700000000000},

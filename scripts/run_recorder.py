@@ -14,7 +14,7 @@ if str(root_dir) not in sys.path:
 from src.collectors.manager import CollectorManager
 from src.common.logger import setup_logger
 from src.common.runtime_health import RuntimeHealth
-from src.quality.acceptance import RuntimeManifest
+from src.quality.acceptance import RecorderContinuityError, RuntimeManifest
 from src.quality.fingerprint import compute_config_fingerprint
 
 logger = setup_logger("main_service")
@@ -71,12 +71,16 @@ async def main() -> None:
             f"(PID: {os.getpid()}, previous_run_id={manifest.previous_run_id}, reason={manifest.continuity_reason})"
         )
     else:
-        manifest, was_resumed = RuntimeManifest.resume_or_create(
-            filepath=manifest_path,
-            pid=os.getpid(),
-            git_sha=git_sha,
-            config_fingerprint=fingerprint,
-        )
+        try:
+            manifest, was_resumed = RuntimeManifest.resume_or_create(
+                filepath=manifest_path,
+                pid=os.getpid(),
+                git_sha=git_sha,
+                config_fingerprint=fingerprint,
+            )
+        except RecorderContinuityError as exc:
+            health.update("ERROR", error=exc, integrity_blocked=True)
+            raise
         if was_resumed:
             logger.info(
                 f"Resuming continuous acceptance run: {manifest.run_id} "
@@ -125,9 +129,10 @@ STOP_FILE = RUNTIME_DIR / "STOP_RECORDER"
 SUPERVISOR_PID = RUNTIME_DIR / "recorder_supervisor.pid"
 
 
-def should_restart(returncode: int, stop_requested: bool, recent_restarts: int, max_per_hour: int = 12) -> bool:
+def should_restart(returncode: int, stop_requested: bool, recent_restarts: int, max_per_hour: int = 12,
+                   permanent_failure: bool = False) -> bool:
     """Reiniciar solo si el recorder se cayó (código != 0), nadie pidió apagarlo y no está en un bucle de caídas."""
-    return returncode != 0 and not stop_requested and recent_restarts < max_per_hour
+    return returncode != 0 and not stop_requested and not permanent_failure and recent_restarts < max_per_hour
 
 
 def supervise(argv) -> int:
@@ -148,8 +153,6 @@ def supervise(argv) -> int:
         if kind in ("pumpfun", "paper"):
             args = []
         procs[kind] = subprocess.Popen([sys.executable, me, *args, *kinds[kind]], cwd=str(root_dir))
-        component = {"mercados": "markets_recorder", "paper": "paper_runtime", "pumpfun": "pumpfun_recorder"}[kind]
-        RuntimeHealth(component).update("STARTING", started=True, pid=procs[kind].pid)
 
     try:
         for k in kinds:
@@ -161,15 +164,16 @@ def supervise(argv) -> int:
             for kind, proc in list(procs.items()):
                 rc = proc.poll()
                 if rc is None:
-                    component = {"mercados": "markets_recorder", "paper": "paper_runtime", "pumpfun": "pumpfun_recorder"}[kind]
-                    RuntimeHealth(component).update("RUNNING", pid=proc.pid)
                     continue
                 del procs[kind]
                 now = _time.time()
                 restarts[kind] = [t for t in restarts[kind] if now - t < 3600]
                 stop = STOP_FILE.exists()
                 component = {"mercados": "markets_recorder", "paper": "paper_runtime", "pumpfun": "pumpfun_recorder"}[kind]
-                RuntimeHealth(component).update("STOPPED" if stop or rc == 0 else "ERROR", pid=None)
+                previous_health = RuntimeHealth(component).read()
+                permanent_failure = previous_health.get("integrity_blocked") is True
+                RuntimeHealth(component).update("STOPPED" if stop or rc == 0 else "ERROR", pid=None,
+                                               integrity_blocked=permanent_failure)
                 if kind == "mercados" and (rc == 0 or stop):          # el principal terminó a pedido: apagar todo
                     for other in procs.values():
                         try:
@@ -177,12 +181,15 @@ def supervise(argv) -> int:
                         except subprocess.TimeoutExpired:
                             other.terminate()
                     return rc
-                if should_restart(rc if rc != 0 else 1, stop, len(restarts[kind])):
+                if should_restart(rc if rc != 0 else 1, stop, len(restarts[kind]),
+                                  permanent_failure=permanent_failure):
                     restarts[kind].append(now)
                     print(f"[vigilante] '{kind}' se cayó (código {rc}). Reiniciando en 5 s...", flush=True)
                     _time.sleep(5.0)
                     if not STOP_FILE.exists():
                         launch(kind, False)
+                elif not stop and permanent_failure:
+                    print(f"[vigilante] '{kind}' blocked by integrity failure; manual review required, no restart.", flush=True)
                 elif not stop:
                     print(f"[vigilante] '{kind}' se cayó {len(restarts[kind])} veces en una hora: no se reinicia más.", flush=True)
         return 0

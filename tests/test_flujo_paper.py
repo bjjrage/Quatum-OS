@@ -1,4 +1,6 @@
-from src.paper.flujo_paper import PaperBook, book_metrics, taker_score, target_weights
+import pytest
+
+from src.paper.flujo_paper import PaperBook, UnreadableStateError, book_metrics, load_books, taker_score, target_weights
 
 
 def _k(day, vol, tb):
@@ -42,6 +44,23 @@ def test_paper_book_rebalance_costs_funding_and_persistence(tmp_path):
     b.save()
     b2 = PaperBook(tmp_path)                          # se reinicia y no pierde nada
     assert b2.s["posiciones"] == b.s["posiciones"] and abs(b2.s["cash"] - b.s["cash"]) < 1e-9
+
+
+def test_unreadable_paper_state_is_never_rewritten_and_other_books_load(tmp_path):
+    damaged = tmp_path / "flujo_v1" / "state.json"
+    damaged.parent.mkdir(parents=True)
+    original = b"\0" * 128
+    damaged.write_bytes(original)
+    errors = {}
+
+    books = load_books(tmp_path, errors=errors)
+
+    assert "flujo_v1" not in books
+    assert errors["flujo_v1"] == {"estado": "STATE_UNREADABLE", "error_type": "JSONDecodeError"}
+    assert damaged.read_bytes() == original
+    with pytest.raises(UnreadableStateError):
+        PaperBook(damaged.parent)
+    assert damaged.read_bytes() == original
 
 
 def test_entry_prices_tracked_and_backfilled(tmp_path):
