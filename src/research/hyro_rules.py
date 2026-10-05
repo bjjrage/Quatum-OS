@@ -35,7 +35,7 @@ TWO_STEP_RULES: Dict[str, Any] = {
     ],
     "profit_distribution_cap_pct_of_phase_target": 0.40,
     "valid_day_min_trade_notional_pct_initial": 0.05,
-    "valid_day_min_positive_pnl_pct_trade_notional_before_fees": 0.01,
+    "valid_day_min_abs_pnl_pct_trade_notional_before_fees": 0.01,
     "max_realized_loss_per_position_pct_initial": 0.03,
     "max_realized_loss_rule_review": "MANUAL",
     "platform_max_leverage": "UP_TO_100X_DEPENDS_ON_PLATFORM_AND_PAIR",
@@ -99,6 +99,6 @@ def qualifying_utc_trading_days(trades: Iterable[Dict[str, Any]], initial_balanc
                 continue
         except (KeyError, TypeError, ValueError):
             continue
-        if notional >= min_notional and pnl >= notional * 0.01:
+        if notional >= min_notional and abs(pnl) >= notional * 0.01:
             valid.add(close_dt.astimezone(timezone.utc).date().isoformat())
     return valid

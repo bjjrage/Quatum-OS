@@ -42,13 +42,14 @@ def test_valid_days_use_closed_trade_thresholds_and_utc_dates():
         {"notional_usd": 500, "realized_pnl_before_fees_usd": 5, "closed_at": "2026-10-01T23:30:00-04:00"},
         {"notional_usd": 500, "realized_pnl_before_fees_usd": -5, "closed_at": "2026-10-02T03:45:00Z"},
         {"notional_usd": 500, "realized_pnl_before_fees_usd": -10, "closed_at": "2026-10-06T12:00:00Z"},
+        {"notional_usd": 500, "realized_pnl_before_fees_usd": -5, "closed_at": "2026-10-07T12:00:00Z"},
         {"notional_usd": 499.99, "realized_pnl_before_fees_usd": 10, "closed_at": "2026-10-03T12:00:00Z"},
         {"notional_usd": 500, "realized_pnl_before_fees_usd": 4.99, "closed_at": "2026-10-04T12:00:00Z"},
         {"notional_usd": 500, "realized_pnl_before_fees_usd": 10, "closed_at": "2026-10-05T12:00:00"},
         {"notional_usd": 500, "realized_pnl_before_fees_usd": 10, "closed_at": "not-a-date"},
         {"notional_usd": 500, "realized_pnl_before_fees_usd": 10},
     ]
-    assert qualifying_utc_trading_days(trades, 10_000) == {"2026-10-02"}
+    assert qualifying_utc_trading_days(trades, 10_000) == {"2026-10-02", "2026-10-06", "2026-10-07"}
 
 
 def test_exam_outputs_remain_explicitly_model_only_until_account_rules_are_known():
