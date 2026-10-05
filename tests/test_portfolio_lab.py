@@ -73,3 +73,32 @@ def test_load_daily_from_hourly_files(tmp_path):
     dd = g.days[i]
     assert g.sig[BTC][i] == 100.0 + dd * 24 + 23 and g.px[BTC][i] == 100.0 + (dd + 1) * 24
     assert abs(g.taker[BTC][i] - 0.6) < 1e-12
+
+
+def _with_qvol(g, seed=3):
+    rnd = random.Random(seed)
+    for s in g.px:
+        base = rnd.uniform(1e6, 1e8)
+        g.qvol[s] = [base * rnd.uniform(0.5, 1.5) for _ in g.days]
+    return g
+
+
+def test_v2_runs_and_buffer_cuts_turnover():
+    from src.research.portfolio_lab import s_xs_buf, sc_taker, s_xs, taker_v2
+    g = _with_qvol(grid(n=700))
+    plain = backtest(g, s_xs(sc_taker(7), 8, True), 1)
+    buf = backtest(g, s_xs_buf(sc_taker(7), 8, True), 1)
+    assert sum(t for _, _, t in buf) < sum(t for _, _, t in plain)
+    res = run_portfolio_lab(g, taker_v2())
+    assert res["n_estrategias"] == 5 and all(r["entrenamiento"].get("dias", 0) > 100 for r in res["todas"])
+
+
+def test_voltarget_scales_and_caps():
+    from src.research.portfolio_lab import s_voltarget
+    g = _with_qvol(grid(n=300))
+    base = lambda gg, d: {BTC: 1.0}
+    w = s_voltarget(base, target_annual=0.15, cap=2.0)(g, 200)
+    # synthetic daily vol 3% -> ~57% annual -> scale ~0.26
+    assert 0.1 < w[BTC] < 0.5
+    w2 = s_voltarget(base, target_annual=10.0, cap=2.0)(g, 200)
+    assert w2[BTC] == 2.0

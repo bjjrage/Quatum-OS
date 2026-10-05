@@ -66,6 +66,9 @@ class PolymarketRecorder:
         self._ws_task: Optional[asyncio.Task] = None
         self._discovery_task: Optional[asyncio.Task] = None
         self._snapshot_task: Optional[asyncio.Task] = None
+        self._fast_task: Optional[asyncio.Task] = None
+        self._fast_tokens: Dict[str, float] = {}      # token -> fin del mercado (epoch s) de los mercados cortos
+        self._fast_seen_slugs: Set[str] = set()
 
     async def start(self) -> None:
         """Start discovery poller and WebSocket listener."""
@@ -79,6 +82,7 @@ class PolymarketRecorder:
         self._discovery_task = asyncio.create_task(self._discovery_loop())
         self._ws_task = asyncio.create_task(self._ws_listener_loop())
         self._snapshot_task = asyncio.create_task(self._snapshot_loop())
+        self._fast_task = asyncio.create_task(self._fast_updown_loop())
 
     async def stop(self) -> None:
         """Stop recorder cleanly."""
@@ -89,6 +93,8 @@ class PolymarketRecorder:
             self._ws_task.cancel()
         if getattr(self, "_snapshot_task", None):
             self._snapshot_task.cancel()
+        if getattr(self, "_fast_task", None):
+            self._fast_task.cancel()
         if self._session:
             await self._session.close()
         logger.info("Polymarket recorder stopped.")
@@ -139,58 +145,11 @@ class PolymarketRecorder:
             now_utc_ns = time.time_ns()
 
             for item in all_markets:
-                question = item.get("question", "")
-                if item.get("closed") is True or item.get("active") is False:
-                    continue
-                if not is_crypto_market_question(question):
-                    continue  # sports / politics / etc. are not recorded: they cannot be priced from Deribit
-                market_id = item.get("id", "")
-                condition_id = item.get("conditionId", "")
-                resolution_source = item.get("resolutionSource", "UMA/Binance")
-                end_date_iso = item.get("endDate", "")
+                await self._ingest_item(item, now_utc_ns, new_tokens)
 
-                # Versioned fee schedule extraction
-                fee_raw = json.dumps(item.get("feeSchedule") or item.get("fee") or {"fee_bps": 0})
-                fee_version = item.get("feeModelVersion", "PM_FEE_v2026_DEFAULT")
-                status = "needs_review" if not resolution_source or "uma" in resolution_source.lower() else "active"
-
-                # Parse clobTokenIds (JSON string or list)
-                clob_tokens = item.get("clobTokenIds")
-                if isinstance(clob_tokens, str):
-                    try:
-                        clob_tokens = json.loads(clob_tokens)
-                    except Exception:
-                        clob_tokens = []
-                elif not isinstance(clob_tokens, list):
-                    clob_tokens = []
-
-                for token_id in clob_tokens:
-                    if token_id:
-                        new_tokens.add(str(token_id))
-                        self.market_metadata_cache[str(token_id)] = {
-                            "market_id": market_id,
-                            "condition_id": condition_id,
-                            "question": question,
-                            "resolution_source": resolution_source,
-                            "end_date_iso": end_date_iso,
-                        }
-
-                # Record metadata history row
-                meta_row = {
-                    "ts_polled_utc_ns": now_utc_ns,
-                    "market_id": str(market_id),
-                    "condition_id": str(condition_id),
-                    "question": question,
-                    "resolution_source": resolution_source,
-                    "end_date_iso": end_date_iso,
-                    "fee_schedule_raw_json": fee_raw,
-                    "fee_model_version": fee_version,
-                    "status": status,
-                    "clob_token_ids_json": json.dumps([str(t) for t in clob_tokens]),
-                    "outcomes_json": json.dumps(item.get("outcomes")) if item.get("outcomes") is not None else "",
-                    "description": str(item.get("description", ""))[:4000],
-                }
-                await self.sink.append(Venue.POLYMARKET.value, "polymarket_metadata_history", meta_row)
+            now_s = time.time()
+            self._fast_tokens = {t: e for t, e in self._fast_tokens.items() if e > now_s - 900}
+            new_tokens |= set(self._fast_tokens)          # los mercados cortos los mantiene el buscador rápido
 
             if new_tokens:
                 removed = self.active_asset_ids - new_tokens
@@ -214,6 +173,128 @@ class PolymarketRecorder:
 
         except Exception as e:
             logger.error(f"Error discovering Polymarket markets: {e}", exc_info=True)
+
+
+    async def _ingest_item(self, item: Dict[str, Any], now_utc_ns: int, new_tokens: Set[str]) -> None:
+        """Procesa un mercado de Gamma: guarda su metadata y agrega sus tokens a `new_tokens`."""
+        question = item.get("question", "")
+        if item.get("closed") is True or item.get("active") is False:
+            return
+        if not is_crypto_market_question(question):
+            return  # sports / politics / etc. are not recorded: they cannot be priced from Deribit
+        market_id = item.get("id", "")
+        condition_id = item.get("conditionId", "")
+        resolution_source = item.get("resolutionSource", "UMA/Binance")
+        end_date_iso = item.get("endDate", "")
+
+        # Versioned fee schedule extraction
+        fee_raw = json.dumps(item.get("feeSchedule") or item.get("fee") or {"fee_bps": 0})
+        fee_version = item.get("feeModelVersion", "PM_FEE_v2026_DEFAULT")
+        status = "needs_review" if not resolution_source or "uma" in resolution_source.lower() else "active"
+
+        # Parse clobTokenIds (JSON string or list)
+        clob_tokens = item.get("clobTokenIds")
+        if isinstance(clob_tokens, str):
+            try:
+                clob_tokens = json.loads(clob_tokens)
+            except Exception:
+                clob_tokens = []
+        elif not isinstance(clob_tokens, list):
+            clob_tokens = []
+
+        for token_id in clob_tokens:
+            if token_id:
+                new_tokens.add(str(token_id))
+                self.market_metadata_cache[str(token_id)] = {
+                    "market_id": market_id,
+                    "condition_id": condition_id,
+                    "question": question,
+                    "resolution_source": resolution_source,
+                    "end_date_iso": end_date_iso,
+                }
+
+        # Record metadata history row
+        meta_row = {
+            "ts_polled_utc_ns": now_utc_ns,
+            "market_id": str(market_id),
+            "condition_id": str(condition_id),
+            "question": question,
+            "resolution_source": resolution_source,
+            "end_date_iso": end_date_iso,
+            "fee_schedule_raw_json": fee_raw,
+            "fee_model_version": fee_version,
+            "status": status,
+            "clob_token_ids_json": json.dumps([str(t) for t in clob_tokens]),
+            "outcomes_json": json.dumps(item.get("outcomes")) if item.get("outcomes") is not None else "",
+            "description": str(item.get("description", ""))[:4000],
+        }
+        await self.sink.append(Venue.POLYMARKET.value, "polymarket_metadata_history", meta_row)
+
+    async def _fast_updown_loop(self) -> None:
+        """Cada 60 s busca por nombre los mercados cortos "sube o baja" (5 y 15 min) de BTC/ETH/SOL: viven tan poco
+        que el listado general (cada 15 min, top 500) casi nunca los alcanza. Formato: {cripto}-updown-{5m|15m}-{inicio}."""
+        while self._running:
+            try:
+                await self._fast_updown_once()
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.warning(f"Fast up/down discovery failed: {e}")
+            try:
+                await asyncio.sleep(60.0)
+            except asyncio.CancelledError:
+                break
+
+    async def _fast_updown_once(self, now_s: Optional[float] = None) -> int:
+        if not self._session:
+            return 0
+        now_s = now_s if now_s is not None else time.time()
+        base_url = "https://gamma-api.polymarket.com/markets"
+        new_tokens: Set[str] = set()
+        now_utc_ns = time.time_ns()
+        for coin in ("btc", "eth", "sol"):
+            for label, step in (("5m", 300), ("15m", 900)):
+                t0 = int(now_s // step) * step
+                for k in (0, 1, 2):
+                    slug = f"{coin}-updown-{label}-{t0 + k * step}"
+                    if slug in self._fast_seen_slugs:
+                        continue
+                    try:
+                        async with self._session.get(base_url, params={"slug": slug}, timeout=10.0) as resp:
+                            if resp.status != 200:
+                                continue
+                            payload = await resp.json()
+                    except Exception:
+                        continue
+                    items = payload if isinstance(payload, list) else [payload] if isinstance(payload, dict) else []
+                    found: Set[str] = set()
+                    for item in items:
+                        if not isinstance(item, dict) or not item.get("clobTokenIds"):
+                            continue
+                        await self._ingest_item(item, now_utc_ns, found)
+                    if found:
+                        self._fast_seen_slugs.add(slug)
+                        end_s = float(t0 + (k + 1) * step)
+                        for tok in found:
+                            self._fast_tokens[tok] = end_s
+                        new_tokens |= found
+        if len(self._fast_seen_slugs) > 5000:
+            self._fast_seen_slugs = set(sorted(self._fast_seen_slugs)[-2000:])
+        if new_tokens:
+            self.active_asset_ids |= new_tokens
+            await self._subscribe_new(new_tokens)
+        return len(new_tokens)
+
+    async def _subscribe_new(self, tokens: Set[str]) -> None:
+        diff = set(tokens) - self._subscribed_asset_ids
+        if not diff or not self._ws or getattr(self._ws, "closed", False):
+            return
+        chunk_list = sorted(diff)
+        for i in range(0, len(chunk_list), 100):
+            chunk = chunk_list[i: i + 100]
+            await self._ws.send(json.dumps({"assets_ids": chunk, "operation": "subscribe"}))
+            self._subscribed_asset_ids.update(chunk)
+        logger.info(f"Subscribed {len(diff)} short up/down tokens to active WS.")
 
     async def _ws_listener_loop(self) -> None:
         """Main WebSocket connection and event dispatch loop with backoff."""

@@ -23,6 +23,10 @@ class BinanceRecorder:
         self._running = False
         self._public_ws_task: Optional[asyncio.Task] = None
         self._market_ws_task: Optional[asyncio.Task] = None
+        self._fallback_task: Optional[asyncio.Task] = None
+        self._public_up = False                 # True mientras la conexión de precios (bookTicker) está viva
+        self._public_down_since: Optional[float] = time.time()
+        self.fallback_rows = 0                  # filas escritas por el respaldo REST (diagnóstico)
 
     async def start(self) -> None:
         """Start both Public and Market WebSocket streams concurrently."""
@@ -30,6 +34,7 @@ class BinanceRecorder:
         logger.info(f"Starting Binance Recorder for {len(self.symbols)} contracts (sample v0)...")
         self._public_ws_task = asyncio.create_task(self._public_stream_loop())
         self._market_ws_task = asyncio.create_task(self._market_stream_loop())
+        self._fallback_task = asyncio.create_task(self._rest_fallback_loop())
 
     async def stop(self) -> None:
         """Stop recorder cleanly."""
@@ -38,6 +43,8 @@ class BinanceRecorder:
             self._public_ws_task.cancel()
         if self._market_ws_task:
             self._market_ws_task.cancel()
+        if self._fallback_task:
+            self._fallback_task.cancel()
         logger.info("Binance recorder stopped.")
 
     async def _public_stream_loop(self) -> None:
@@ -49,8 +56,10 @@ class BinanceRecorder:
                 async with websockets.connect(
                     self.config.public_ws_url,
                     ping_interval=20,
-                    ping_timeout=10,
+                    ping_timeout=60,          # aguanta cortes breves de red sin tirar la conexión
+                    open_timeout=20,
                     close_timeout=5.0,
+                    max_queue=4096,
                 ) as ws:
                     backoff = 1.0
                     logger.info("Connected to Binance PUBLIC stream.")
@@ -64,6 +73,10 @@ class BinanceRecorder:
                     sub_payload = {"method": "SUBSCRIBE", "params": params, "id": 101}
                     await ws.send(json.dumps(sub_payload))
                     logger.info(f"Subscribed to {len(params)} public streams (bookTicker, depth5).")
+                    if self._public_down_since is not None:
+                        logger.info(f"Binance PUBLIC back after {time.time() - self._public_down_since:.0f}s "
+                                    f"(respaldo REST escribió {self.fallback_rows} filas en total).")
+                    self._public_up, self._public_down_since = True, None
 
                     async for msg in ws:
                         if not self._running:
@@ -75,6 +88,9 @@ class BinanceRecorder:
             except asyncio.CancelledError:
                 break
             except Exception as e:
+                if self._public_up or self._public_down_since is None:
+                    self._public_down_since = time.time()
+                self._public_up = False
                 logger.warning(f"Binance PUBLIC WS disconnected: {e}. Reconnecting in {backoff:.1f}s...")
                 await asyncio.sleep(backoff)
                 backoff = min(30.0, backoff * 1.5)
@@ -88,8 +104,10 @@ class BinanceRecorder:
                 async with websockets.connect(
                     self.config.market_ws_url,
                     ping_interval=20,
-                    ping_timeout=10,
+                    ping_timeout=60,          # aguanta cortes breves de red sin tirar la conexión
+                    open_timeout=20,
                     close_timeout=5.0,
+                    max_queue=4096,
                 ) as ws:
                     backoff = 1.0
                     logger.info("Connected to Binance MARKET stream.")
@@ -117,6 +135,71 @@ class BinanceRecorder:
                 logger.warning(f"Binance MARKET WS disconnected: {e}. Reconnecting in {backoff:.1f}s...")
                 await asyncio.sleep(backoff)
                 backoff = min(30.0, backoff * 1.5)
+
+    async def _rest_fallback_loop(self, interval_s: float = 1.0, grace_s: float = 3.0) -> None:
+        """Mientras la conexión de precios está caída, pide la mejor compra/venta de todos los contratos por REST
+        (1 pedido/s, peso 5) y la guarda igual que el WebSocket. Así un corte no deja agujeros en bbo_ticks."""
+        import aiohttp
+        url = self.config.rest_base_url.rstrip("/") + "/fapi/v1/ticker/bookTicker"
+        wanted = {s.upper() for s in self.symbols}
+        active = False
+        async with aiohttp.ClientSession() as session:
+            while self._running:
+                try:
+                    await asyncio.sleep(interval_s)
+                    down_for = (time.time() - self._public_down_since) if self._public_down_since else 0.0
+                    if self._public_up or down_for < grace_s:
+                        if active:
+                            logger.info("Binance REST fallback OFF (WebSocket de precios recuperado).")
+                            active = False
+                        continue
+                    if not active:
+                        logger.warning("Binance REST fallback ON: WebSocket de precios caído, se piden precios por REST.")
+                        active = True
+                    async with session.get(url, timeout=aiohttp.ClientTimeout(total=5.0)) as resp:
+                        if resp.status != 200:
+                            continue
+                        data = await resp.json()
+                    ts_recv_utc, ts_recv_mono = time.time_ns(), time.monotonic_ns()
+                    rows = self.rest_book_rows(data, wanted, ts_recv_utc, ts_recv_mono)
+                    for row in rows:
+                        await self.sink.append(Venue.BINANCE_PERP.value, "bbo_ticks", row)
+                    self.fallback_rows += len(rows)
+                except asyncio.CancelledError:
+                    break
+                except Exception as e:
+                    logger.debug(f"Binance REST fallback request failed: {e}")
+
+    @staticmethod
+    def rest_book_rows(data: Any, wanted: set, ts_recv_utc: int, ts_recv_mono: int) -> List[Dict[str, Any]]:
+        rows: List[Dict[str, Any]] = []
+        for d in data if isinstance(data, list) else []:
+            sym = str(d.get("symbol", "")).upper()
+            if sym not in wanted:
+                continue
+            try:
+                bid_p, ask_p = float(d.get("bidPrice", 0.0)), float(d.get("askPrice", 0.0))
+                bid_s, ask_s = float(d.get("bidQty", 0.0)), float(d.get("askQty", 0.0))
+            except (TypeError, ValueError):
+                continue
+            if bid_p <= 0 or ask_p <= 0 or bid_p > ask_p:
+                continue
+            t_ms = d.get("time")
+            ts_exchange_ns = int(t_ms) * 1_000_000 if t_ms else None
+            rows.append({
+                "ts_exchange_ns": ts_exchange_ns,
+                "ts_received_utc_ns": ts_recv_utc,
+                "ts_received_mono_ns": ts_recv_mono,
+                "observed_event_age_ns": (ts_recv_utc - ts_exchange_ns) if ts_exchange_ns else None,
+                "venue": Venue.BINANCE_PERP.value,
+                "symbol": sym,
+                "bid_price": bid_p,
+                "bid_size": bid_s,
+                "ask_price": ask_p,
+                "ask_size": ask_s,
+                "spread": round(ask_p - bid_p, 6),
+            })
+        return rows
 
     async def _handle_public_message(self, raw_msg: str, ts_recv_utc: int, ts_recv_mono: int) -> None:
         """Handle bookTicker and depth5 messages from public stream."""

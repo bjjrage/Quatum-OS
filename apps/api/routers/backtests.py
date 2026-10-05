@@ -55,13 +55,52 @@ def strategy_lab_status():
 def run_portfolio_lab(request: Request, which: str = "main"):
     _local_only(request)
     from apps.api.services import plab_runner
-    return plab_runner.start(which="taker" if which == "taker" else "main")
+    return plab_runner.start(which=which if which in ("taker", "v2", "nichos") else "main")
 
 
 @router.get("/plab/status")
 def portfolio_lab_status():
     from apps.api.services import plab_runner
     return plab_runner.status()
+
+
+@router.post("/rec/run")
+def run_recorder_studies(request: Request):
+    _local_only(request)
+    from apps.api.services import recstudy_runner
+    return recstudy_runner.start()
+
+
+@router.get("/rec/status")
+def recorder_studies_status():
+    from apps.api.services import recstudy_runner
+    return recstudy_runner.status()
+
+
+@router.post("/pump/run")
+def run_pumpfun_intel(request: Request):
+    _local_only(request)
+    from apps.api.services import pumpintel_runner
+    return pumpintel_runner.start()
+
+
+@router.get("/pump/status")
+def pumpfun_intel_status():
+    from apps.api.services import pumpintel_runner
+    return pumpintel_runner.status()
+
+
+@router.post("/exam/run")
+def run_exam_sim(request: Request):
+    _local_only(request)
+    from apps.api.services import exam_runner
+    return exam_runner.start()
+
+
+@router.get("/exam/status")
+def exam_sim_status():
+    from apps.api.services import exam_runner
+    return exam_runner.status()
 
 
 @router.get("")

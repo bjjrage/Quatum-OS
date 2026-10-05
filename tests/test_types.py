@@ -62,11 +62,22 @@ def test_arrow_schemas_completeness() -> None:
         "futures_market_metrics",
         "forced_liquidations",
         "polymarket_metadata_history",
+        "pumpfun_trades",
+        "pumpfun_creates",
+        "pumpfun_completes",
+        "x_mentions",
+        "depth_snapshots",
     }
     assert set(SCHEMAS.keys()) == expected_tables
     for table_name, schema in SCHEMAS.items():
         if table_name == "polymarket_metadata_history":
             assert "ts_polled_utc_ns" in schema.names
+        elif table_name == "depth_snapshots":
+            assert "ts_utc_ns" in schema.names and "imbalance_05" in schema.names
+        elif table_name == "x_mentions":
+            assert "ts_query_utc_ns" in schema.names and "mint" in schema.names
+        elif table_name.startswith("pumpfun_"):
+            assert "ts_received_utc_ns" in schema.names and "slot" in schema.names
         else:
             assert "ts_received_utc_ns" in schema.names
             assert "ts_received_mono_ns" in schema.names

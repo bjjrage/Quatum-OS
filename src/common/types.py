@@ -21,6 +21,7 @@ class Venue(str, Enum):
     POLYMARKET = "polymarket"
     DERIBIT = "deribit"
     BINANCE_PERP = "binance_perp"
+    PUMPFUN = "pumpfun"
 
 
 class Side(str, Enum):
@@ -133,6 +134,79 @@ class PolymarketMetadataHistory(BaseModel):
 
 # PyArrow Table Schemas for parquet sinks
 SCHEMAS: Dict[str, pa.Schema] = {
+    # --- pump.fun (Solana), decodificado de los eventos del programa ---
+    "pumpfun_trades": pa.schema([
+        ("ts_received_utc_ns", pa.int64()),
+        ("slot", pa.int64()),
+        ("signature", pa.string()),
+        ("mint", pa.string()),
+        ("user", pa.string()),
+        ("is_buy", pa.bool_()),
+        ("sol_amount", pa.int64()),            # lamports (1 SOL = 1e9)
+        ("token_amount", pa.int64()),          # unidades mínimas (6 decimales)
+        ("ts_chain_s", pa.int64()),
+        ("virtual_sol_reserves", pa.int64()),
+        ("virtual_token_reserves", pa.int64()),
+        ("real_sol_reserves", pa.int64()),
+        ("real_token_reserves", pa.int64()),
+        ("creator", pa.string()),
+        ("fee", pa.int64()),
+        ("creator_fee", pa.int64()),
+    ]),
+    "pumpfun_creates": pa.schema([
+        ("ts_received_utc_ns", pa.int64()),
+        ("slot", pa.int64()),
+        ("signature", pa.string()),
+        ("mint", pa.string()),
+        ("name", pa.string()),
+        ("symbol", pa.string()),
+        ("uri", pa.string()),
+        ("bonding_curve", pa.string()),
+        ("user", pa.string()),
+        ("creator", pa.string()),
+        ("ts_chain_s", pa.int64()),
+    ]),
+    "depth_snapshots": pa.schema([
+        ("ts_utc_ns", pa.int64()),
+        ("symbol", pa.string()),
+        ("mid", pa.float64()),
+        ("spread_bps", pa.float64()),
+        ("bid_usd_05", pa.float64()),
+        ("ask_usd_05", pa.float64()),
+        ("imbalance_05", pa.float64()),
+        ("bid_usd_1", pa.float64()),
+        ("ask_usd_1", pa.float64()),
+        ("imbalance_1", pa.float64()),
+        ("open_interest", pa.float64()),
+    ]),
+    "x_mentions": pa.schema([
+        ("ts_query_utc_ns", pa.int64()),
+        ("mint", pa.string()),
+        ("symbol", pa.string()),
+        ("name", pa.string()),
+        ("token_age_s", pa.int64()),
+        ("unique_buyers_5m", pa.int64()),
+        ("net_buy_sol_5m", pa.float64()),
+        ("posts_found", pa.int64()),
+        ("earliest_post_utc", pa.string()),
+        ("accounts_json", pa.string()),
+        ("max_followers", pa.int64()),
+        ("total_followers", pa.int64()),
+        ("has_large_account", pa.bool_()),
+        ("coordinated_shilling", pa.bool_()),
+        ("summary", pa.string()),
+        ("cost_usd", pa.float64()),
+        ("model", pa.string()),
+    ]),
+    "pumpfun_completes": pa.schema([
+        ("ts_received_utc_ns", pa.int64()),
+        ("slot", pa.int64()),
+        ("signature", pa.string()),
+        ("mint", pa.string()),
+        ("user", pa.string()),
+        ("bonding_curve", pa.string()),
+        ("ts_chain_s", pa.int64()),
+    ]),
     "bbo_ticks": pa.schema([
         ("ts_exchange_ns", pa.int64()),
         ("ts_received_utc_ns", pa.int64()),

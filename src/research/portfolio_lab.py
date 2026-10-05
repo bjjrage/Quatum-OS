@@ -32,6 +32,7 @@ class Daily:
     px: Dict[str, List[float]] = field(default_factory=dict)     # cierre hora 00 del día siguiente (ejecución)
     taker: Dict[str, List[float]] = field(default_factory=dict)  # compra agresiva / volumen del día
     fund: Dict[str, List[float]] = field(default_factory=dict)   # funding cobrado a un largo en (ejec d, ejec d+1]
+    qvol: Dict[str, List[float]] = field(default_factory=dict)   # volumen del día en USDT
 
     @property
     def n(self) -> int:
@@ -46,9 +47,9 @@ def load_daily(hist_root: Path, min_days: int = 120) -> Daily:
     for d in sorted((root / "klines_1h").glob("symbol=*")):
         sym = d.name.split("=", 1)[1]
         f = [p.as_posix() for p in d.glob("*.parquet")]
-        rows = con.execute(f"SELECT open_time_ms // 3600000, close, volume, taker_buy_volume FROM read_parquet({f!r}) "
+        rows = con.execute(f"SELECT open_time_ms // 3600000, close, volume, taker_buy_volume, quote_volume FROM read_parquet({f!r}) "
                            f"ORDER BY 1").fetchall()
-        data[sym] = {int(h): (float(c), float(v), float(tb), 0.0) for h, c, v, tb in rows}
+        data[sym] = {int(h): (float(c), float(v), float(tb), float(qv or 0.0)) for h, c, v, tb, qv in rows}
     if BTC not in data:
         raise FileNotFoundError("Faltan las velas de 1 hora de BTCUSDT: bajalas primero.")
     hb = sorted(data[BTC])
@@ -56,7 +57,7 @@ def load_daily(hist_root: Path, min_days: int = 120) -> Daily:
     days = list(range(d0, d1 + 1))
     g = Daily(days=days)
     for sym, hm in data.items():
-        sig, px, tk = [NaN] * len(days), [NaN] * len(days), [NaN] * len(days)
+        sig, px, tk, qv = [NaN] * len(days), [NaN] * len(days), [NaN] * len(days), [NaN] * len(days)
         for i, dd in enumerate(days):
             a = hm.get(dd * 24 + 23)
             b = hm.get((dd + 1) * 24)
@@ -64,15 +65,17 @@ def load_daily(hist_root: Path, min_days: int = 120) -> Daily:
                 sig[i] = a[0]
             if b:
                 px[i] = b[0]
-            vol = tb = 0.0
+            vol = tb = q = 0.0
             for h in range(dd * 24, dd * 24 + 24):
                 x = hm.get(h)
                 if x:
                     vol += x[1]
                     tb += x[2]
+                    q += x[3]
             tk[i] = tb / vol if vol > 0 else NaN
+            qv[i] = q if vol > 0 else NaN
         if sum(1 for x in px if x == x) >= min_days:
-            g.sig[sym], g.px[sym], g.taker[sym] = sig, px, tk
+            g.sig[sym], g.px[sym], g.taker[sym], g.qvol[sym] = sig, px, tk, qv
     for sym in g.px:
         fr = [0.0] * len(days)
         fp = root / "funding" / f"symbol={sym}" / "funding.parquet"
@@ -225,7 +228,7 @@ def build_strategies() -> List[Tuple[str, str, Callable, int]]:
 
 
 # --------------------------------------------------------------------------- motor
-def backtest(g: Daily, weights_fn: Callable, reb: int = 1) -> List[Tuple[int, float, float]]:
+def backtest(g: Daily, weights_fn: Callable, reb: int = 1, cost: float = COST_PER_TURNOVER) -> List[Tuple[int, float, float]]:
     """Retornos diarios netos. Devuelve (índice de día, retorno neto, rotación)."""
     out: List[Tuple[int, float, float]] = []
     w: Dict[str, float] = {}
@@ -235,7 +238,7 @@ def backtest(g: Daily, weights_fn: Callable, reb: int = 1) -> List[Tuple[int, fl
         else:
             new = w
         turn = sum(abs(new.get(s, 0.0) - w.get(s, 0.0)) for s in set(new) | set(w))
-        pnl = -COST_PER_TURNOVER * turn
+        pnl = -cost * turn
         for s, wt in new.items():
             a, b = g.px[s][d], g.px[s][d + 1]
             if a == a and b == b and a > 0:
@@ -287,9 +290,10 @@ def run_portfolio_lab(g: Daily, strategies: Optional[list] = None, say=lambda m:
         a, b = part(rows)
         bench[name] = {"entrenamiento": stats(a, btc_map), "prueba_final": stats(b, btc_map)}
     res = []
-    for i, (fam, desc, fn, reb) in enumerate(strategies):
+    for i, spec in enumerate(strategies):
+        fam, desc, fn, reb = spec[:4]
         say(f"Probando estrategia {i + 1} de {N}: {desc[:70]}...")
-        rows = backtest(g, fn, reb)
+        rows = backtest(g, fn, reb, spec[4] if len(spec) > 4 else COST_PER_TURNOVER)
         a, b = part(rows)
         tr, ho = stats(a, btc_map), stats(b, btc_map)
         passed = bool(tr.get("t_stat", 0) >= zthr and ho.get("sharpe", 0) >= 0.75 and ho.get("retorno_diario_medio_pct", 0) > 0)
@@ -315,4 +319,261 @@ def taker_robustness() -> List[Tuple[str, str, Callable, int]]:
             for frac in (0.1, 0.2, 0.3):
                 out.append(("flujo_comprador_vecinos", f"compra agresiva {L} d, rebalanceo {reb} d, {int(frac * 100)}% por lado",
                             s_xs(sc_taker(L), L + 1, True, False, frac), reb))
+    return out
+
+
+# --------------------------------------------------------------------------- versión 2 del flujo comprador
+# Reglas fijadas ANTES de ver resultados (2026-10-04). Se prueban una sola vez.
+COST_MAKER = 0.0003            # 0,03% por unidad movida con órdenes límite (supuesto: no todas se llenan a ese precio)
+
+
+def sc_taker_z(L: int = 14, H: int = 90):
+    """Compra agresiva de los últimos L días comparada con la normal de ESA cripto (últimos H días, antes de L)."""
+    def f(g, s, d):
+        x = g.taker[s]
+        cur = [v for v in x[d - L + 1:d + 1] if v == v]
+        base = [v for v in x[d - L - H + 1:d - L + 1] if v == v]
+        if len(cur) < L * 0.8 or len(base) < H * 0.8:
+            return NaN
+        m = sum(base) / len(base)
+        sd = math.sqrt(sum((v - m) ** 2 for v in base) / (len(base) - 1))
+        return (sum(cur) / len(cur) - m) / sd if sd > 0 else NaN
+    return f
+
+
+def _liquid(g: Daily, d: int, syms: List[str], drop: float = 0.25, L: int = 30) -> List[str]:
+    """Saca el 25% con menos volumen en dólares (promedio de 30 días)."""
+    lv = []
+    for s in syms:
+        q = [v for v in g.qvol[s][d - L + 1:d + 1] if v == v] if g.qvol.get(s) else []
+        if len(q) >= L * 0.8:
+            lv.append((sum(q) / len(q), s))
+    lv.sort()
+    return [s for _, s in lv[int(len(lv) * drop):]]
+
+
+def s_xs_buf(score, need: int, long_high: bool, frac: float = 0.2, keep: float = 0.3, liquid: bool = False):
+    """Ranking con zona de tolerancia: una posición se mantiene mientras siga dentro del `keep` (30%) de su lado;
+    se completa con las mejores hasta tener `frac` (20%) por lado. Menos rotación = menos costo."""
+    state = {"L": [], "S": []}
+
+    def f(g: Daily, d: int) -> Dict[str, float]:
+        syms = _alive(g, d, need)
+        if liquid:
+            syms = _liquid(g, d, syms)
+        sc = sorted((v, s) for s in syms for v in [score(g, s, d)] if v == v)
+        if len(sc) < 10:
+            state["L"], state["S"] = [], []
+            return {}
+        if not long_high:
+            sc = [(-v, s) for v, s in sc][::-1]
+        n = len(sc)
+        k, kk = max(1, int(n * frac)), max(1, int(n * keep))
+        top = [s for _, s in sc[::-1]]                       # de más fuerte a más débil
+        bot = [s for _, s in sc]                             # de más débil a más fuerte
+        longs = [s for s in state["L"] if s in top[:kk]]
+        for s in top:
+            if len(longs) >= k:
+                break
+            if s not in longs:
+                longs.append(s)
+        shorts = [s for s in state["S"] if s in bot[:kk] and s not in longs]
+        for s in bot:
+            if len(shorts) >= k:
+                break
+            if s not in shorts and s not in longs:
+                shorts.append(s)
+        state["L"], state["S"] = longs, shorts
+        w = {s: 1.0 for s in longs}
+        for s in shorts:
+            w[s] = -1.0
+        return _norm(w)
+    return f
+
+
+def s_combo(parts: List[Callable]):
+    """Partes iguales de varias estrategias (cada una con exposición 1), re-normalizado a exposición 1."""
+    def f(g: Daily, d: int) -> Dict[str, float]:
+        w: Dict[str, float] = {}
+        for p in parts:
+            for s, v in p(g, d).items():
+                w[s] = w.get(s, 0.0) + v / len(parts)
+        return _norm(w)
+    return f
+
+
+def s_voltarget(base: Callable, target_annual: float = 0.15, cap: float = 2.0, L: int = 30):
+    """Escala la exposición para que el riesgo estimado (con los últimos 30 días, solo pasado) sea ~15% anual."""
+    tgt = target_annual / math.sqrt(365)
+
+    def f(g: Daily, d: int) -> Dict[str, float]:
+        w = base(g, d)
+        if not w:
+            return w
+        rs = []
+        for k in range(d - L + 1, d + 1):
+            tot = 0.0
+            for s, v in w.items():
+                a, b = g.px[s][k - 1], g.px[s][k]
+                if a == a and b == b and a > 0:
+                    tot += v * (b / a - 1.0)
+            rs.append(tot)
+        m = sum(rs) / len(rs)
+        sd = math.sqrt(sum((x - m) ** 2 for x in rs) / (len(rs) - 1))
+        scale = min(cap, tgt / sd) if sd > 0 else 1.0
+        return {s: v * scale for s, v in w.items()}
+    return f
+
+
+def taker_v2() -> list:
+    """V1 de referencia + 4 versiones fijadas de antemano."""
+    def taker_v2b():
+        return s_xs_buf(sc_taker_z(14, 90), 14 + 90 + 2, True, liquid=True)
+
+    def combo():
+        return s_combo([taker_v2b(),
+                        s_xs_buf(sc_funding(7), 9, False, liquid=True),
+                        s_xs_buf(sc_vol(28), 30, False, liquid=True)])
+    return [
+        ("flujo_v2", "V1 referencia: compra agresiva 14 d, semanal, 20% por lado, costo a mercado",
+         s_xs(sc_taker(14), 15, True), 7, COST_PER_TURNOVER),
+        ("flujo_v2", "V2a costos: igual con órdenes límite y zona de tolerancia (se mantiene dentro del 30%)",
+         s_xs_buf(sc_taker(14), 15, True), 7, COST_MAKER),
+        ("flujo_v2", "V2b señal: compra agresiva contra su propia normal de 90 d, sin el 25% menos líquido",
+         taker_v2b(), 7, COST_MAKER),
+        ("flujo_v2", "V2c combinación: V2b + carry de funding + baja volatilidad, partes iguales",
+         combo(), 7, COST_MAKER),
+        ("flujo_v2", "V2d riesgo: V2c con riesgo constante de 15% anual (apalancamiento máx 2x)",
+         s_voltarget(combo()), 7, COST_MAKER),
+    ]
+
+
+# --------------------------------------------------------------------------- nichos (rotación de sectores)
+# Hipótesis de Marcelo (2026-10-05): la cripto se mueve fuerte por nichos que rotan. Reglas fijadas ANTES de ver
+# resultados; se prueban una sola vez, con el mismo corte de entrenamiento / prueba final y la misma corrección.
+def _sector_members(g: Daily, d: int, need: int) -> Dict[str, List[str]]:
+    from src.research.niches import sector_of
+    out: Dict[str, List[str]] = {}
+    for s in _alive(g, d, need):
+        sec = sector_of(s)
+        if sec:
+            out.setdefault(sec, []).append(s)
+    return {k: v for k, v in out.items() if len(v) >= 2}
+
+
+def _sector_score(g: Daily, d: int, need: int, score: Callable[[Daily, str, int], float]) -> Dict[str, Tuple[float, List[str]]]:
+    out = {}
+    for sec, mem in _sector_members(g, d, need).items():
+        xs = [v for s in mem for v in [score(g, s, d)] if v == v]
+        if len(xs) >= 2:
+            out[sec] = (sum(xs) / len(xs), mem)
+    return out
+
+
+def s_sector_rot(score: Callable[[Daily, str, int], float], need: int, top: int = 2, long_only: bool = False,
+                 long_high: bool = True):
+    """Comprar los `top` nichos con puntaje más alto (pesos iguales dentro del nicho) y vender los `top` más bajos."""
+    def f(g: Daily, d: int) -> Dict[str, float]:
+        sc = _sector_score(g, d, need, score)
+        if len(sc) < 2 * top + 1:
+            return {}
+        order = sorted(sc, key=lambda k: sc[k][0], reverse=long_high)
+        w: Dict[str, float] = {}
+        for k in order[:top]:
+            for s in sc[k][1]:
+                w[s] = w.get(s, 0.0) + 1.0 / (top * len(sc[k][1]))
+        if not long_only:
+            for k in order[-top:]:
+                for s in sc[k][1]:
+                    w[s] = w.get(s, 0.0) - 1.0 / (top * len(sc[k][1]))
+        return _norm(w)
+    return f
+
+
+def s_laggards(L: int, top: int = 2, hedge: bool = True):
+    """Dentro de los `top` nichos que más subieron en L días, comprar la mitad que MENOS subió (las rezagadas que
+    suelen alcanzar). Con cobertura: vender en partes iguales todas las cripto vivas (neutral al mercado)."""
+    def f(g: Daily, d: int) -> Dict[str, float]:
+        sc = _sector_score(g, d, L + 2, sc_mom(L))
+        if len(sc) < 3:
+            return {}
+        w: Dict[str, float] = {}
+        for k in sorted(sc, key=lambda k: sc[k][0], reverse=True)[:top]:
+            mem = sorted((r, s) for s in sc[k][1] for r in [_r(g.sig[s], d, L)] if r == r)
+            lag = [s for _, s in mem[:max(1, len(mem) // 2)]]
+            for s in lag:
+                w[s] = w.get(s, 0.0) + 1.0 / (top * len(lag))
+        if hedge:
+            alive = _alive(g, d, 1)
+            for s in alive:
+                w[s] = w.get(s, 0.0) - 1.0 / len(alive)
+        return _norm(w)
+    return f
+
+
+def sc_vol_surge(S: int = 3, B: int = 30):
+    """Volumen en USDT de los últimos S días contra el promedio de los B anteriores (inicio de un nicho)."""
+    def f(g, s, d):
+        q = g.qvol[s]
+        a = [v for v in q[d - S + 1:d + 1] if v == v]
+        b = [v for v in q[d - S - B + 1:d - S + 1] if v == v]
+        if len(a) < S or len(b) < B * 0.8:
+            return NaN
+        base = sum(b) / len(b)
+        return (sum(a) / len(a)) / base if base > 0 else NaN
+    return f
+
+
+def s_sector_start(S: int = 3, top: int = 2):
+    """Inicio de nicho: los nichos con más aumento de volumen Y que suben en esos días; vender los de menos aumento."""
+    surge, mom = sc_vol_surge(S, 30), sc_mom(S)
+
+    def f(g: Daily, d: int) -> Dict[str, float]:
+        sv = _sector_score(g, d, S + 32, surge)
+        sm = _sector_score(g, d, S + 32, mom)
+        keys = [k for k in sv if k in sm]
+        if len(keys) < 2 * top + 1:
+            return {}
+        hot = [k for k in sorted(keys, key=lambda k: sv[k][0], reverse=True) if sm[k][0] > 0][:top]
+        cold = sorted(keys, key=lambda k: sv[k][0])[:top]
+        if not hot:
+            return {}
+        w: Dict[str, float] = {}
+        for k in hot:
+            for s in sv[k][1]:
+                w[s] = w.get(s, 0.0) + 1.0 / (len(hot) * len(sv[k][1]))
+        for k in cold:
+            if k in hot:
+                continue
+            for s in sv[k][1]:
+                w[s] = w.get(s, 0.0) - 1.0 / (len(cold) * len(sv[k][1]))
+        return _norm(w)
+    return f
+
+
+def niche_strategies() -> list:
+    flujo = s_xs(sc_taker(14), 15, True)
+    out = []
+    for L in (3, 7, 14, 28):
+        for reb in ((1, 7) if L <= 7 else (7,)):
+            out.append(("nichos_rotacion", f"comprar los 2 nichos que más subieron en {L} d y vender los 2 que menos, "
+                        f"rebalanceo cada {reb} d", s_sector_rot(sc_mom(L), L + 2), reb))
+        out.append(("nichos_rotacion", f"solo comprar los 2 nichos que más subieron en {L} d, rebalanceo semanal",
+                    s_sector_rot(sc_mom(L), L + 2, long_only=True), 7))
+    for L in (3, 7, 14):
+        out.append(("nichos_rezagadas", f"rezagadas de los 2 nichos más calientes ({L} d), cubierto con todo el mercado, "
+                    f"cada {min(L, 7)} d", s_laggards(L), min(L, 7)))
+        out.append(("nichos_rezagadas", f"rezagadas de los 2 nichos más calientes ({L} d), solo compras, cada {min(L, 7)} d",
+                    s_laggards(L, hedge=False), min(L, 7)))
+    for S in (3, 7):
+        out.append(("nichos_inicio", f"inicio de nicho: más aumento de volumen {S} d y subiendo vs menos aumento, "
+                    f"cada {S} d", s_sector_start(S), S))
+    for L in (7, 14):
+        out.append(("nichos_flujo", f"compra agresiva promedio del nicho ({L} d): 2 nichos más compradores vs 2 menos, "
+                    f"semanal", s_sector_rot(sc_taker(L), L + 1), 7))
+    out.append(("nichos_combinado", "flujo comprador V1 + rotación de nichos 7 d (mitad y mitad), semanal",
+                s_combo([flujo, s_sector_rot(sc_mom(7), 9)]), 7))
+    out.append(("nichos_combinado", "flujo comprador V1 + inicio de nicho 7 d (mitad y mitad), semanal",
+                s_combo([flujo, s_sector_start(7)]), 7))
+    out.append(("referencia", "flujo comprador V1 (referencia, misma corrida)", flujo, 7))
     return out

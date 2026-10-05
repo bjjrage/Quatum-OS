@@ -18,6 +18,21 @@ ROOT = Path(__file__).resolve().parents[3]
 RUNTIME = ROOT / "data" / "runtime"
 STOP_FILE = RUNTIME / "STOP_RECORDER"
 MANIFEST = RUNTIME / "current_run.json"
+SUPERVISOR_PID = RUNTIME / "recorder_supervisor.pid"
+
+
+def _supervisor_pid() -> int:
+    """PID del vigilante que reinicia el recorder si se cae (0 si no hay)."""
+    try:
+        pid = int(SUPERVISOR_PID.read_text(encoding="utf-8").strip())
+    except Exception:
+        return 0
+    try:
+        if pid > 0 and psutil.pid_exists(pid) and "python" in psutil.Process(pid).name().lower():
+            return pid
+    except psutil.Error:
+        pass
+    return 0
 
 
 def _pid() -> int:
@@ -56,6 +71,8 @@ def _start_outside_job(cmd) -> bool:
 def start(new_run: bool = False) -> Dict[str, Any]:
     if is_running():
         return {"ok": False, "state": "ALREADY_RUNNING", "pid": _pid(), "message": "El recorder ya está corriendo."}
+    if _supervisor_pid():
+        return {"ok": False, "state": "RESTARTING", "message": "El recorder se está reiniciando solo; esperá unos segundos."}
     RUNTIME.mkdir(parents=True, exist_ok=True)
     STOP_FILE.unlink(missing_ok=True)
     cmd = [sys.executable, str(ROOT / "scripts" / "run_recorder.py")]
@@ -98,15 +115,32 @@ def start(new_run: bool = False) -> Dict[str, Any]:
 def stop(grace_s: float = 30.0) -> Dict[str, Any]:
     pid = _pid()
     if not is_running():
+        sup = _supervisor_pid()
+        if sup:                                  # caído y esperando reinicio: cortar el vigilante
+            try:
+                psutil.Process(sup).terminate()
+            except psutil.Error:
+                pass
+            return {"ok": True, "state": "STOPPED", "message": "Recorder apagado (estaba reiniciándose)."}
         return {"ok": True, "state": "ALREADY_STOPPED", "message": "El recorder ya estaba apagado."}
     RUNTIME.mkdir(parents=True, exist_ok=True)
     STOP_FILE.write_text(str(time.time()), encoding="utf-8")
     deadline = time.time() + grace_s
     while time.time() < deadline:
         if not psutil.pid_exists(pid):
+            # esperar también al vigilante y al proceso de pump.fun antes de borrar el aviso de parada
+            sup_deadline = time.time() + 45
+            while _supervisor_pid() and time.time() < sup_deadline:
+                time.sleep(0.5)
             STOP_FILE.unlink(missing_ok=True)
             return {"ok": True, "state": "STOPPED_CLEANLY", "message": "Recorder apagado y datos guardados."}
         time.sleep(0.5)
+    sup = _supervisor_pid()                     # primero el vigilante, para que no lo vuelva a levantar
+    if sup:
+        try:
+            psutil.Process(sup).terminate()
+        except psutil.Error:
+            pass
     try:  # recorder did not honour the request (e.g. started by an older version): last resort
         psutil.Process(pid).terminate()
     except psutil.Error:

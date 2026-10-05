@@ -28,6 +28,7 @@ from apps.api.routers import (
     audit,
     stream,
     history,
+    research_spot,
 )
 
 app = FastAPI(
@@ -70,6 +71,7 @@ app.include_router(attribution.router)
 app.include_router(audit.router)
 app.include_router(stream.router)
 app.include_router(history.router)
+app.include_router(research_spot.router)
 
 
 @app.get("/health")

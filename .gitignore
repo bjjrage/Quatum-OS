@@ -50,3 +50,10 @@ data/research/
 data/shadow/
 data/paper/
 *.tmp
+
+# Exclude all local market data, credentials and runtime logs
+/data/
+/config/xai_key.txt
+*_key.txt
+logs/
+*.log.*

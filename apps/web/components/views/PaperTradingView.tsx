@@ -4,6 +4,9 @@ import { PaperAccount } from "../../types";
 import { Card } from "../common/Card";
 import { Badge } from "../common/Badge";
 import { MetricCard } from "../common/MetricCard";
+import { FlujoPaperPanel } from "./FlujoPaperPanel";
+import { PumpPaperPanel } from "./PumpPaperPanel";
+import { LiderPaperPanel } from "./LiderPaperPanel";
 
 interface PaperTradingViewProps {
   paperAccount: PaperAccount | null;
@@ -30,6 +33,9 @@ export function PaperTradingView({ paperAccount, onRefresh }: PaperTradingViewPr
 
   return (
     <div className="space-y-6">
+      <FlujoPaperPanel />
+      <LiderPaperPanel />
+      <PumpPaperPanel />
       {/* HEADER */}
       <div className="pb-2 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
