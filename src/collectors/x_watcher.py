@@ -8,10 +8,12 @@ en config/pumpfun.json -> "x_daily_usd" (por defecto 1). La clave se lee de .env
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import re
 import time
 from collections import deque
+from pathlib import Path
 from typing import Any, Deque, Dict, List, Optional, Tuple
 
 from src.common.logger import setup_logger
@@ -79,14 +81,29 @@ class TokenActivity:
         self.meta: Dict[str, Dict[str, Any]] = {}
         self.first_seen: Dict[str, float] = {}
         self.asked: set = set()
+        self.request_states: Dict[str, Dict[str, Any]] = {}
+
+    def set_request_state(self, mint: str, status: str, now: float, retry_after: float = 0.0) -> None:
+        state = self.request_states.setdefault(mint, {"attempts": 0})
+        if status == "IN_FLIGHT":
+            state["attempts"] = int(state.get("attempts", 0)) + 1
+        state.update({"status": status, "updated_at": now, "retry_after": retry_after})
+        if status in ("SUCCESS", "NO_DATA", "FAILED_FINAL", "NO_KEY"):
+            self.asked.add(mint)
+        elif status in ("PENDING", "FAILED_RETRYABLE"):
+            self.asked.discard(mint)
 
     def on_create(self, ev: Dict[str, Any], now: float) -> None:
         self.meta[ev["mint"]] = {"symbol": ev.get("symbol") or "", "name": ev.get("name") or ""}
         self.first_seen.setdefault(ev["mint"], now)
+        self.request_states.setdefault(ev["mint"], {"status": "PENDING", "attempts": 0, "updated_at": now,
+                                                      "retry_after": 0.0})
 
     def on_trade(self, ev: Dict[str, Any], now: float) -> None:
         m = ev["mint"]
         self.first_seen.setdefault(m, now)
+        self.request_states.setdefault(m, {"status": "PENDING", "attempts": 0, "updated_at": now,
+                                             "retry_after": 0.0})
         dq = self.trades.setdefault(m, deque())
         dq.append((now, ev["user"], ev["sol_amount"] / 1e9, bool(ev["is_buy"])))
         while dq and now - dq[0][0] > self.window_s:
@@ -103,7 +120,11 @@ class TokenActivity:
     def candidates(self, now: float, min_buyers: int = 50, min_net_sol: float = 10.0, max_age_s: int = 3600) -> List[str]:
         out = []
         for m in list(self.trades):
-            if m in self.asked or m not in self.meta:        # solo tokens que vimos nacer (nombre y edad reales)
+            req = self.request_states.get(m) or {}
+            terminal = req.get("status") in ("IN_FLIGHT", "SUCCESS", "NO_DATA", "FAILED_FINAL", "NO_KEY")
+            if m in self.asked or terminal or m not in self.meta:  # only observed tokens with known metadata
+                continue
+            if req.get("retry_after", 0.0) > now:
                 continue
             st = self.stats(m, now)
             if st["age_s"] <= max_age_s and st["unique_buyers_5m"] >= min_buyers and st["net_buy_sol_5m"] >= min_net_sol:
@@ -120,89 +141,171 @@ class TokenActivity:
 
 class XWatcher:
     def __init__(self, sink, activity: TokenActivity, api_key: Optional[str], daily_usd: float = 1.0,
-                 model: str = DEFAULT_MODEL, http=None):
+                 model: str = DEFAULT_MODEL, http=None, root: Optional[Path] = None):
+        from src.common.x_budget import XBudgetLedger
         self.sink, self.activity, self.key = sink, activity, api_key
         self.daily_usd, self.model, self.http = daily_usd, model, http
+        self.root = Path(root) if root is not None else Path(__file__).resolve().parents[2]
+        self.ledger = XBudgetLedger(self.root)
         self.spent_today, self._day = 0.0, time.strftime("%Y-%m-%d", time.gmtime())
         self.spent_hour, self._hour = 0.0, int(time.time() // 3600)
         self.queries = 0
-        self.priority_source = lambda: ()          # tokens con señal de GRUPO: se consultan primero
+        self.priority_source = lambda: ()
+        self.consumer = "pump_x_watcher"
 
     def _budget_ok(self) -> bool:
-        """Tope diario y además ritmo por hora (1/24 del día, con lo no usado de horas anteriores) para que dure."""
+        """Compatibility diagnostic; actual request authorization is atomic in the shared ledger."""
         day = time.strftime("%Y-%m-%d", time.gmtime())
         if day != self._day:
             self._day, self.spent_today = day, 0.0
         hour = int(time.time() // 3600)
         if hour != self._hour:
             self._hour, self.spent_hour = hour, 0.0
-        hours_left = 24 - time.gmtime().tm_hour
-        hourly = max(self.daily_usd - self.spent_today + self.spent_hour, 0.0) / max(hours_left, 1)
-        return self.spent_today < self.daily_usd and self.spent_hour < hourly
+        used = self.ledger.snapshot()["spent_usd"] + self.spent_today
+        return used + 1e-12 < min(float(self.daily_usd), self.ledger.limit_usd)
 
-    async def ask(self, mint: str, now: float) -> Optional[Dict[str, Any]]:
+    async def _save_observation(self, mint: str, now: float, status: str, cost: float = 0.0,
+                                answer: Optional[Dict[str, Any]] = None, query_hash: str = "",
+                                request_id: Optional[str] = None) -> Dict[str, Any]:
         meta = self.activity.meta.get(mint, {})
         st = self.activity.stats(mint, now)
-        body = {"model": self.model,
-                "input": [{"role": "user", "content": PROMPT.format(mint=mint, symbol=meta.get("symbol") or "?",
-                                                                    name=meta.get("name") or "?",
-                                                                    age_min=int(st["age_s"] // 60))}],
-                "tools": [{"type": "x_search"}],
-                "max_tool_calls": 1}                     # una sola búsqueda por token: el costo es casi todo búsqueda
-        headers = {"Authorization": f"Bearer {self.key}", "Content-Type": "application/json"}
-        async with self.http.post(XAI_URL, json=body, headers=headers, timeout=90) as r:
-            status = r.status
-            resp = await r.json(content_type=None) if status == 200 else {}
-        if status != 200:
-            logger.warning(f"xAI respondió {status} para {mint[:8]}…")
-            return None
-        ans = parse_json_answer(response_text(resp))
-        cost = estimate_cost(resp)
-        self.spent_today += cost
-        self.spent_hour += cost
-        self.queries += 1
+        ans = answer or {}
         accounts = ans.get("accounts") or []
         foll = [int(a.get("followers") or 0) for a in accounts if isinstance(a, dict)]
         row = {"ts_query_utc_ns": time.time_ns(), "mint": mint, "symbol": meta.get("symbol") or "",
                "name": meta.get("name") or "", "token_age_s": int(st["age_s"]),
                "unique_buyers_5m": int(st["unique_buyers_5m"]), "net_buy_sol_5m": float(st["net_buy_sol_5m"]),
-               "posts_found": int(ans.get("posts_found") or 0), "earliest_post_utc": str(ans.get("earliest_post_utc") or ""),
+               "posts_found": int(ans.get("posts_found") or 0) if status in ("X_POSITIVE", "X_NEGATIVE") else None,
+               "earliest_post_utc": str(ans.get("earliest_post_utc") or ""),
                "accounts_json": json.dumps(accounts)[:4000], "max_followers": max(foll) if foll else 0,
                "total_followers": sum(foll), "has_large_account": bool(foll and max(foll) >= 50_000),
                "coordinated_shilling": bool(ans.get("coordinated_shilling")),
-               "summary": str(ans.get("summary") or "")[:500], "cost_usd": cost, "model": self.model}
+               "summary": str(ans.get("summary") or "")[:500], "cost_usd": float(cost), "model": self.model,
+               "x_status": status, "consumer": self.consumer, "query_version": "x_search_v1",
+               "query_hash": query_hash, "request_id": request_id}
         await self.sink.append("pumpfun", "x_mentions", row)
         return row
 
-    async def run(self, interval_s: float = 30.0) -> None:
+    async def ask(self, mint: str, now: float) -> Dict[str, Any]:
+        from src.common.x_budget import DEFAULT_CALL_RESERVATION_USD
+        from src.common.x_budget import XBudgetLedger
+        from src.common.x_budget import QUERY_VERSION
+        meta = self.activity.meta.get(mint, {})
+        st = self.activity.stats(mint, now)
+        query = PROMPT.format(mint=mint, symbol=meta.get("symbol") or "?", name=meta.get("name") or "?",
+                              age_min=int(st["age_s"] // 60))
+        query_hash = hashlib.sha256(query.encode("utf-8")).hexdigest()
         if not self.key:
-            logger.info("Sin XAI_API_KEY en .env: el vigilante de X queda apagado.")
-            return
+            return await self._save_observation(mint, now, "NO_KEY", query_hash=query_hash)
+        call_id = self.ledger.reserve(self.consumer, query, self.model,
+                                      estimated_cost=max(DEFAULT_CALL_RESERVATION_USD, self.ledger.limit_usd))
+        if not call_id:
+            return await self._save_observation(mint, now, "BUDGET_EXHAUSTED", query_hash=query_hash)
+        body = {"model": self.model, "input": [{"role": "user", "content": query}],
+                "tools": [{"type": "x_search"}], "max_tool_calls": 1}
+        headers = {"Authorization": f"Bearer {self.key}", "Content-Type": "application/json"}
+        try:
+            async with self.http.post(XAI_URL, json=body, headers=headers, timeout=90) as r:
+                status_code = r.status
+                resp = await r.json(content_type=None) if status_code == 200 else {}
+                headers_out = getattr(r, "headers", {})
+                request_id = resp.get("id") or headers_out.get("x-request-id") if hasattr(headers_out, "get") else resp.get("id")
+        except asyncio.CancelledError:
+            self.ledger.finish(call_id, "API_ERROR", None)
+            raise
+        except Exception as exc:
+            self.ledger.finish(call_id, "API_ERROR", None)
+            logger.warning(f"Consulta a X fall?: {type(exc).__name__}")
+            return await self._save_observation(mint, now, "API_ERROR", DEFAULT_CALL_RESERVATION_USD,
+                                                query_hash=query_hash)
+        if status_code != 200:
+            self.ledger.finish(call_id, "API_ERROR", None, request_id=str(request_id or "") or None)
+            logger.warning(f"xAI respondi? {status_code} para {mint[:8]}?")
+            return await self._save_observation(mint, now, "API_ERROR", DEFAULT_CALL_RESERVATION_USD,
+                                                query_hash=query_hash,
+                                                request_id=request_id)
+        text = response_text(resp)
+        ans = parse_json_answer(text)
+        cost = estimate_cost(resp)
+        if not any(k in (resp.get("usage") or {}) for k in ("cost_in_usd_ticks", "input_tokens", "output_tokens")) and not (resp.get("usage") or {}).get("server_side_tool_usage_details"):
+            cost = DEFAULT_CALL_RESERVATION_USD
+        parsed = isinstance(ans.get("posts_found"), int) and not isinstance(ans.get("posts_found"), bool)
+        x_status = ("X_POSITIVE" if ans["posts_found"] > 0 else "X_NEGATIVE") if parsed else "NO_DATA"
+        self.ledger.finish(call_id, x_status, cost, posts_count=int(ans["posts_found"]) if parsed else None,
+                           narrative_link=bool(ans.get("narrative_link")) if parsed else None,
+                           request_id=str(request_id or "") or None)
+        self.spent_today += cost
+        self.spent_hour += cost
+        self.queries += 1
+        return await self._save_observation(mint, now, x_status, cost, ans,
+                                            query_hash,
+                                            str(request_id or "") or None)
+
+    async def run(self, interval_s: float = 30.0) -> None:
+        from src.common.runtime_health import RuntimeHealth
+        health = RuntimeHealth("x_watcher", self.root)
+        health.update("STARTING", started=True)
         import aiohttp
-        async with aiohttp.ClientSession() as session:
-            self.http = session
+        if self.key:
+            session_context = aiohttp.ClientSession()
+        else:
+            logger.info("Sin XAI_API_KEY: el vigilante de X queda deshabilitado; registra NO_KEY sin llamadas externas.")
+            session_context = None
+            health.update("DISABLED", enabled=False)
+        try:
+            if session_context:
+                self.http = await session_context.__aenter__()
             while True:
                 try:
                     await asyncio.sleep(interval_s)
                     now = time.time()
+                    if self.key:
+                        health.update("RUNNING")
                     self.activity.prune(now)
-                    if not self._budget_ok():
-                        continue
                     prio = [m for m in list(self.priority_source()) if m not in self.activity.asked
                             and m in self.activity.meta]
-                    for mint in (prio + self.activity.candidates(now))[:3]:   # máx 3 consultas por vuelta
-                        self.activity.asked.add(mint)
-                        if not self._budget_ok():
-                            break
+                    for mint in list(dict.fromkeys(prio + self.activity.candidates(now)))[:3]:
+                        state = self.activity.request_states.get(mint) or {}
+                        attempt = int(state.get("attempts", 0)) + 1
+                        self.activity.set_request_state(mint, "IN_FLIGHT", now)
                         try:
                             row = await self.ask(mint, now)
-                            if row:
-                                logger.info(f"X: {row['symbol']} posts={row['posts_found']} "
-                                            f"max_seguidores={row['max_followers']} costo=${row['cost_usd']:.3f} "
-                                            f"(hoy ${self.spent_today:.2f}/{self.daily_usd:.0f})")
-                        except Exception as e:
-                            logger.warning(f"Consulta a X falló: {type(e).__name__}")
+                            status = row["x_status"]
+                            if status in ("X_POSITIVE", "X_NEGATIVE"):
+                                self.activity.set_request_state(mint, "SUCCESS", now)
+                                health.update("RUNNING", success=True)
+                            elif status == "NO_DATA":
+                                self.activity.set_request_state(mint, "NO_DATA", now)
+                            elif status == "NO_KEY":
+                                self.activity.set_request_state(mint, "NO_KEY", now)
+                            elif status == "BUDGET_EXHAUSTED":
+                                tomorrow = (int(now // 86400) + 1) * 86400
+                                self.activity.set_request_state(mint, status, now, tomorrow)
+                            elif status == "API_ERROR":
+                                if attempt >= 3:
+                                    self.activity.set_request_state(mint, "FAILED_FINAL", now)
+                                else:
+                                    self.activity.set_request_state(mint, "FAILED_RETRYABLE", now,
+                                                                    now + (30.0, 120.0, 600.0)[attempt - 1])
+                            if status.startswith("X_"):
+                                logger.info(f"X: {row['symbol']} status={status} posts={row['posts_found']} "
+                                            f"costo=${row['cost_usd']:.3f}")
+                        except asyncio.CancelledError:
+                            self.activity.set_request_state(mint, "FAILED_RETRYABLE", now, now + 30.0)
+                            raise
+                        except Exception as exc:
+                            if attempt >= 3:
+                                self.activity.set_request_state(mint, "FAILED_FINAL", now)
+                            else:
+                                self.activity.set_request_state(mint, "FAILED_RETRYABLE", now,
+                                                                now + (30.0, 120.0, 600.0)[attempt - 1])
+                            logger.warning(f"Consulta a X fall?: {type(exc).__name__}")
                 except asyncio.CancelledError:
                     break
-                except Exception as e:
-                    logger.warning(f"Vigilante de X: {type(e).__name__}: {str(e)[:150]}")
+                except Exception as exc:
+                    health.update("DEGRADED", error=exc)
+                    logger.warning(f"Vigilante de X: {type(exc).__name__}: {str(exc)[:150]}")
+        finally:
+            if session_context:
+                await session_context.__aexit__(None, None, None)
+            health.update("STOPPED", enabled=bool(self.key))
