@@ -1,0 +1,31 @@
+name: Strategy Factory Sweep 01
+
+on:
+  push:
+    branches:
+      - feature/strategy-factory-sweep-01
+  workflow_dispatch:
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run strategy sweep
+        run: |
+          python scripts/strategy_factory_sweep.py --out artifacts/strategy_sweep_01
+
+      - name: Upload research artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: strategy-sweep-01
+          path: artifacts/strategy_sweep_01
+          retention-days: 30
