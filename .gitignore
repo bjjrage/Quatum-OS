@@ -57,3 +57,7 @@ data/paper/
 *_key.txt
 logs/
 *.log.*
+
+# Telegram login session (gives access to the account)
+*.session
+*.session-journal
