@@ -176,7 +176,7 @@ class PumpfunRecorder:
         from src.collectors.x_watcher import TokenActivity
         self.activity = TokenActivity()
         self._x_task: Optional[asyncio.Task] = None
-        self.paper = None                         # paper de grupos + nichos (src/paper/pump_paper.py)
+        self.paper = None                         # canonical WALLET_SKILL_V1 forward paper
         self._paper_tasks: List[asyncio.Task] = []
 
     async def start(self) -> None:
@@ -207,10 +207,10 @@ class PumpfunRecorder:
         health = RuntimeHealth("pumpfun_paper", self.root)
         health.update("STARTING", started=True)
         try:
-            from src.paper.pump_paper import PumpPaper
-            paper = PumpPaper(activity=self.activity)
+            from src.paper.pump_wallet_skill_v1 import WalletSkillPaper
+            paper = WalletSkillPaper(root=self.root / "data" / "paper")
             n = await asyncio.to_thread(paper.warmup, self.root / "data" / "raw")
-            logger.info(f"pump paper listo ({n} operaciones repasadas).")
+            logger.info(f"WALLET_SKILL_V1 paper listo ({n} operaciones repasadas).")
             self.paper = paper
             health.update("RUNNING", success=True)
             self._paper_tasks.append(asyncio.create_task(paper.run_ticks()))

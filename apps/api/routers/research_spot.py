@@ -307,13 +307,14 @@ async def paper_flujo_live(cuenta: str = "flujo_v1"):
 
 @router.get("/pump_paper")
 def pump_paper_status():
-    """Cuentas de paper de pump.fun (grupos + nichos) leídas de data/paper/pump_*/state.json."""
+    """Canonical WALLET_SKILL_V1 forward paper plus read-only archived experiments."""
     import json as _json
     from pathlib import Path
-    from src.paper.pump_paper import ACCOUNTS, PAPER_ROOT, PUMP_FEE_MODEL
-    out = []
-    extra: Dict[str, Any] = {}
-    for name in ACCOUNTS:
+    from src.paper.pump_paper import PUMP_FEE_MODEL
+    from src.paper.pump_wallet_skill_v1 import ACTIVE_ACCOUNTS, ARCHIVED_ACCOUNTS, PAPER_ROOT, RULES_VERSION
+
+    active = []
+    for name, desc in ACTIVE_ACCOUNTS.items():
         p = PAPER_ROOT / f"pump_{name}" / "state.json"
         if not p.exists():
             continue
@@ -321,22 +322,70 @@ def pump_paper_status():
             s = _json.loads(p.read_text(encoding="utf-8"))
         except Exception:
             continue
-        c0 = s.get("capital_inicial", 10.0)
-        eq = s.get("equity", s.get("cash", c0))
-        n = s.get("n_cerradas", 0)
-        out.append({"cuenta": name, "descripcion": s.get("descripcion", ""), "equity_sol": eq,
-                    "resultado_pct": (eq / c0 - 1) * 100 if c0 else None, "abiertas": len(s.get("posiciones", {})),
-                    "cerradas": n, "aciertos_pct": (s.get("ganadas", 0) / n * 100) if n else None,
-                    "resultado_cerradas_sol": s.get("resultado_sol", 0.0), "comisiones_sol": s.get("comisiones_sol", 0.0),
-                    "senales": s.get("senales", 0), "saltadas": s.get("saltadas", 0), "tomas_2x": s.get("tomas_2x", 0),
-                    "ultimas_cerradas": (s.get("cerradas") or [])[-8:][::-1], "actualizado": s.get("actualizado")})
-        extra = {"grupos": s.get("grupos"), "billeteras_en_grupos": s.get("billeteras_en_grupos"),
-                 "ultimas_senales": (s.get("ultimas_senales") or [])[::-1], "nichos_ahora": s.get("nichos_ahora") or []}
+        c0 = float(s.get("capital_inicial", 20.0))
+        eq = float(s.get("equity", s.get("cash", c0)))
+        n = int(s.get("n_cerradas", 0))
+        active.append({
+            "cuenta": name,
+            "descripcion": desc,
+            "strategy": s.get("strategy", RULES_VERSION),
+            "equity_sol": eq,
+            "resultado_pct": (eq / c0 - 1) * 100 if c0 else None,
+            "abiertas": len(s.get("posiciones", {})),
+            "cerradas": n,
+            "aciertos_pct": (s.get("ganadas", 0) / n * 100) if n else None,
+            "hit_2x": int(s.get("tomas_2x", 0)),
+            "resultado_cerradas_sol": s.get("resultado_sol", 0.0),
+            "comisiones_sol": s.get("comisiones_sol", 0.0),
+            "senales": s.get("senales", 0),
+            "saltadas": s.get("saltadas", 0),
+            "entry_sol": s.get("entry_sol", 0.5),
+            "capital_inicial": c0,
+            "good_wallets_current": s.get("good_wallets_current"),
+            "actualizado": s.get("actualizado"),
+            "ultimas_cerradas": (s.get("cerradas") or [])[-8:][::-1],
+        })
+
+    archived = []
+    for name, status in ARCHIVED_ACCOUNTS.items():
+        p = PAPER_ROOT / f"pump_{name}" / "state.json"
+        row = {"cuenta": name, "status": status, "read_only": True}
+        if p.exists():
+            try:
+                s = _json.loads(p.read_text(encoding="utf-8"))
+                c0 = float(s.get("capital_inicial", 10.0))
+                eq = float(s.get("equity", s.get("cash", c0)))
+                row.update({
+                    "descripcion": s.get("descripcion", ""),
+                    "resultado_pct": (eq / c0 - 1) * 100 if c0 else None,
+                    "cerradas": s.get("n_cerradas", 0),
+                    "senales": s.get("senales", 0),
+                    "actualizado": s.get("actualizado"),
+                })
+            except Exception:
+                row["state"] = "STATE_UNREADABLE"
+        archived.append(row)
+
+    skill = {}
+    sp = PAPER_ROOT / "pump_wallet_skill_v1" / "status.json"
+    if sp.exists():
+        try:
+            skill = _json.loads(sp.read_text(encoding="utf-8"))
+        except Exception:
+            skill = {"state": "STATE_UNREADABLE"}
+
     from src.common.runtime_health import runtime_health_snapshot
     root = Path(__file__).resolve().parents[3]
     runtime = runtime_health_snapshot(root)["components"]["pumpfun_paper"]
-    return {"cuentas": out, "runtime": runtime,
-            "fee_model": PUMP_FEE_MODEL, **extra}
+    return {
+        "strategy": RULES_VERSION,
+        "research_status": "PAPER_FORWARD_UNVALIDATED",
+        "cuentas": active,
+        "archivadas": archived,
+        "wallet_skill": skill,
+        "runtime": runtime,
+        "fee_model": PUMP_FEE_MODEL,
+    }
 
 
 @router.get("/lider_paper")
