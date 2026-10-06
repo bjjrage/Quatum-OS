@@ -70,10 +70,10 @@ def main() -> None:
         raise SystemExit("No hay posts con fecha en x_mentions")
     ev["n_accounts"] = ev.accounts_json.map(n_accounts)
     con.register("ev", ev[["mint", "post_s"]])
-    tr = con.execute(f"""SELECT DISTINCT t.mint, t.ts_chain_s AS s, t.slot, t."user" AS u, t.is_buy,
+    tr = con.execute(f"""SELECT DISTINCT t.mint, (CASE WHEN t.ts_chain_s IS NOT NULL AND ABS(t.ts_chain_s - t.ts_received_utc_ns / 1e9) <= 600 THEN t.ts_chain_s ELSE CAST(t.ts_received_utc_ns / 1e9 AS BIGINT) END) AS s, t.slot, t."user" AS u, t.is_buy,
             t.token_amount::DOUBLE AS tok, (t.virtual_sol_reserves::DOUBLE/1e9)/(t.virtual_token_reserves::DOUBLE/1e6) AS px
         FROM {ts} t JOIN ev ON t.mint = ev.mint
-        WHERE t.virtual_token_reserves > 0 AND t.ts_chain_s BETWEEN ev.post_s - {PRE_MIN * 60} AND ev.post_s + {POST_MAX_MIN * 60}
+        WHERE t.virtual_token_reserves > 0 AND (CASE WHEN t.ts_chain_s IS NOT NULL AND ABS(t.ts_chain_s - t.ts_received_utc_ns / 1e9) <= 600 THEN t.ts_chain_s ELSE CAST(t.ts_received_utc_ns / 1e9 AS BIGINT) END) BETWEEN ev.post_s - {PRE_MIN * 60} AND ev.post_s + {POST_MAX_MIN * 60}
         ORDER BY t.mint, s, t.slot""").df()
     first_s, last_s = (tr.s.min(), tr.s.max()) if len(tr) else (0, 0)
     f = args.fee / 100

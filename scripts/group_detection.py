@@ -150,14 +150,17 @@ def main() -> None:
         raise SystemExit("Faltan pumpfun_trades o pumpfun_creates")
     con = duckdb.connect()
     con.execute("PRAGMA temp_directory='.duckdb_tmp'")
-    con.execute(f"""CREATE TABLE t AS SELECT DISTINCT mint, ts_chain_s AS s, slot, "user" AS u, is_buy,
+    con.execute(f"""CREATE TABLE t AS SELECT DISTINCT mint, (CASE WHEN ts_chain_s IS NOT NULL AND ABS(ts_chain_s - ts_received_utc_ns / 1e9) <= 600 THEN ts_chain_s ELSE CAST(ts_received_utc_ns / 1e9 AS BIGINT) END) AS s, slot, "user" AS u, is_buy,
         sol_amount::DOUBLE AS sol, (virtual_sol_reserves::DOUBLE/1e9)/(virtual_token_reserves::DOUBLE/1e6) AS px
         FROM {trs} WHERE virtual_token_reserves > 0 AND virtual_sol_reserves > 0""")
-    con.execute(f"CREATE TABLE c AS SELECT mint, MIN(slot) AS cslot, MIN(ts_chain_s) AS cs FROM {crs} GROUP BY 1")
+    con.execute(f"CREATE TABLE c AS SELECT mint, MIN(slot) AS cslot, MIN((CASE WHEN ts_chain_s IS NOT NULL AND ABS(ts_chain_s - ts_received_utc_ns / 1e9) <= 600 THEN ts_chain_s ELSE CAST(ts_received_utc_ns / 1e9 AS BIGINT) END)) AS cs FROM {crs} GROUP BY 1")
     s0, s1 = con.execute("SELECT MIN(s), MAX(s) FROM t").fetchone()
     cut = (s0 + s1) / 2
     span_days = (cut - s0) / 86400
-    notes = [f"Datos: {(s1 - s0) / 3600:.1f} h. Detección en H1 ({span_days * 24:.1f} h), evaluación en H2."]
+    bad = con.execute(f"SELECT COUNT(*) FILTER (WHERE ts_chain_s IS NULL OR ABS(ts_chain_s - ts_received_utc_ns / 1e9) > 600), "
+                      f"COUNT(*) FROM {trs}").fetchone()
+    notes = [f"Datos: {(s1 - s0) / 3600:.1f} h. Detección en H1 ({span_days * 24:.1f} h), evaluación en H2.",
+             f"Filas con hora de cadena inválida (se usó la hora de recepción): {bad[0]:,} de {bad[1]:,}."]
 
     print("Regla vieja (GroupGraph de pump_paper)...", flush=True)
     old = old_rule(con, cut)
@@ -172,7 +175,7 @@ def main() -> None:
     born = dict(con.execute("SELECT mint, cs FROM c").fetchall())
     born_sorted = sorted((v, k) for k, v in born.items())
     born_ts = np.array([b for b, _ in born_sorted], dtype=float)
-    grads = dict(con.execute(f"SELECT mint, MIN(ts_chain_s) FROM {cps} GROUP BY 1").fetchall()) if cps else {}
+    grads = dict(con.execute(f"SELECT mint, MIN((CASE WHEN ts_chain_s IS NOT NULL AND ABS(ts_chain_s - ts_received_utc_ns / 1e9) <= 600 THEN ts_chain_s ELSE CAST(ts_received_utc_ns / 1e9 AS BIGINT) END)) FROM {cps} GROUP BY 1").fetchall()) if cps else {}
     xpost = {}
     if xs:
         xpost = dict(con.execute(f"""SELECT mint, MIN(epoch(TRY_CAST(earliest_post_utc AS TIMESTAMPTZ)))
