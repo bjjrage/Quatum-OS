@@ -59,9 +59,12 @@ def read_secret(name: str, root: Path = ROOT) -> Optional[str]:
         return os.environ[name]
     env = root / ".env"
     if env.exists():
-        for line in env.read_text(encoding="utf-8", errors="ignore").splitlines():
+        raw = env.read_bytes()
+        enc = "utf-16" if raw[:2] in (b"\xff\xfe", b"\xfe\xff") else "utf-8-sig"   # PowerShell guarda UTF-16
+        for line in raw.decode(enc, errors="ignore").splitlines():
             k, _, v = line.partition("=")
-            if k.strip() == name and v.strip():
+            k = k.strip().removeprefix("export ").strip()
+            if k == name and v.strip():
                 return v.strip().strip('"').strip("'")
     return None
 

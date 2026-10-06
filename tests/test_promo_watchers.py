@@ -78,3 +78,12 @@ async def test_dexscreener_records_new_boosts_and_profiles_once():
     tables = [t for _, t, _ in sink.rows]
     assert tables == ["token_boosts", "token_profiles", "token_boosts"]
     assert sink.rows[2][2]["total_amount"] == 30 and sink.rows[1][2]["chain_id"] == "bsc"
+
+
+def test_read_secret_handles_powershell_utf16_and_bom(tmp_path, monkeypatch):
+    from src.collectors.telegram_watcher import read_secret
+    monkeypatch.delenv("TELEGRAM_API_ID", raising=False)
+    (tmp_path / ".env").write_text("OTHER=1\nTELEGRAM_API_ID = 12345\n", encoding="utf-16")
+    assert read_secret("TELEGRAM_API_ID", tmp_path) == "12345"
+    (tmp_path / ".env").write_text("TELEGRAM_API_ID=777\n", encoding="utf-8-sig")
+    assert read_secret("TELEGRAM_API_ID", tmp_path) == "777"
