@@ -190,7 +190,9 @@ def main() -> None:
     (OUT / "latest.md").write_text(md, encoding="utf-8")
     print(f"Snapshot: {len(js) / 1024:.1f} KB en {OUT}")
     if a.push:
-        print(f"Subido a origin/snapshots: {push({'latest.json': js, 'latest.md': md})}")
+        # vercel.json: the Vercel project linked to this repo would otherwise try (and fail) to build every snapshot
+        files = {'latest.json': js, 'latest.md': md, 'vercel.json': '{"git": {"deploymentEnabled": false}}\n'}
+        print(f"Subido a origin/snapshots: {push(files)}")
 
 
 if __name__ == "__main__":
