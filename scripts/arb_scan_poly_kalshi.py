@@ -23,6 +23,9 @@ from poly_trades_edge import GAMMA, get
 CLOB_BOOK = "https://clob.polymarket.com/book"
 KALSHI = "https://api.elections.kalshi.com/trade-api/v2"
 COINS = {"btc": "KXBTC15M", "eth": "KXETH15M", "sol": "KXSOL15M"}
+LIMITLESS = "https://api.limitless.exchange/markets"
+LIM_COINS = {"btc", "eth"}          # Limitless 15 min up/down: same Chainlink 60 s TWAP as Polymarket
+LIM_SCALE = 1e6                     # Limitless orderbook sizes are in 1e-6 shares
 
 
 def poly_fee(q, rate=0.07, exp=1.0):
@@ -31,6 +34,26 @@ def poly_fee(q, rate=0.07, exp=1.0):
 
 def kalshi_fee(p):
     return 0.07 * p * (1 - p)
+
+
+def lim_fee(q, rate):
+    """Limitless fee is not documented in its API: assume the Polymarket formula at --lim-fee-rate (conservative)."""
+    return poly_fee(q, rate, 1.0)
+
+
+def lim_best(ob):
+    """(best ask Yes, size), (best bid Yes, size) from a Limitless orderbook."""
+    lv = lambda side: [(float(x["price"]), float(x["size"]) / LIM_SCALE) for x in (ob or {}).get(side) or []  # noqa: E731
+                       if float(x.get("size") or 0) > 0]
+    asks, bids = lv("asks"), lv("bids")
+    return (min(asks) if asks else (None, 0.0)), (max(bids) if bids else (None, 0.0))
+
+
+def pair2(qa, sa, fa, qb, sb, fb):
+    if qa is None or qb is None or not (0 < qa < 1 and 0 < qb < 1):
+        return None
+    cost = qa + qb + fa + fb
+    return {"a": qa, "b": qb, "cost": cost, "edge": 1 - cost, "size": min(sa, sb)}
 
 
 def best_ask(book):
@@ -56,6 +79,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--minutes", type=float, default=60)
     ap.add_argument("--every", type=float, default=2.0)
+    ap.add_argument("--limitless", action="store_true", help="add Limitless BTC/ETH 15 min to the comparison")
+    ap.add_argument("--lim-fee-rate", type=float, default=0.07)
     ap.add_argument("--out", type=Path, default=Path("data/research/arb_scan.jsonl"))
     a = ap.parse_args()
     a.out.parent.mkdir(parents=True, exist_ok=True)
@@ -90,6 +115,16 @@ def main():
                            "A_polyUp_kalshiNo": pair(qu, su, k_no_ask, ys, rate, exp),
                            "B_polyDown_kalshiYes": pair(qd, sd, k_yes_ask, ns, rate, exp),
                            "poly_up": qu, "poly_down": qd, "kalshi_yes_ask": k_yes_ask, "kalshi_no_ask": k_no_ask}
+                    if a.limitless and coin in LIM_COINS:
+                        (la, las), (lb, lbs) = lim_best(get(f"{LIMITLESS}/{coin}-up-or-down-15-min-{start}/orderbook", {}))
+                        l_no = 1 - lb if lb is not None else None
+                        lf = lambda q: lim_fee(q, a.lim_fee_rate)  # noqa: E731
+                        row.update({
+                            "lim_up": la, "lim_down": l_no,
+                            "C_polyUp_limDown": pair2(qu, su, poly_fee(qu or 0, rate, exp), l_no, lbs, lf(l_no or 0)),
+                            "D_polyDown_limUp": pair2(qd, sd, poly_fee(qd or 0, rate, exp), la, las, lf(la or 0)),
+                            "E_kalshiYes_limDown": pair2(k_yes_ask, ns, kalshi_fee(k_yes_ask or 0), l_no, lbs, lf(l_no or 0)),
+                            "F_kalshiNo_limUp": pair2(k_no_ask, ys, kalshi_fee(k_no_ask or 0), la, las, lf(la or 0))})
                     f.write(json.dumps(row) + "\n")
                 except Exception as e:
                     f.write(json.dumps({"ts": round(t0, 2), "coin": coin, "error": f"{type(e).__name__}: {e}"[:200]}) + "\n")
