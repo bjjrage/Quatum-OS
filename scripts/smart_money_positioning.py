@@ -132,6 +132,7 @@ def main():
     days = sorted({d for m, _ in data.values() for d in m})
     feats = defaultdict(dict)      # feats[name][(sym, d)] = value
     ret = {}                       # ret[(sym, d)] = close(d+1)/close(d) - 1
+    raw = {}
     for s, (m, c) in data.items():
         ds = sorted(d for d in m if d in c)
         for i, d in enumerate(ds):
@@ -148,6 +149,26 @@ def main():
             feats["crowd_level (contrario)"][(s, d)] = -(la - sum(math.log(m[x][2]) for x in win) / 30)
             feats["oi_vs_price"][(s, d)] = math.log(m[d][0] / m[d3][0]) - math.log(c[d] / c[d3])
             feats["taker"][(s, d)] = m[d][3] - sum(m[x][3] for x in win) / 30
+            r3 = math.log(c[d] / c[d3])
+            feats["reversal_3d (control)"][(s, d)] = -r3
+            d1 = ds[i - 1]
+            feats["reversal_1d (control)"][(s, d)] = -math.log(c[d] / c[d1])
+            raw[(s, d)] = (feats["smart_minus_retail"][(s, d)], r3)
+    # inverse of smart_minus_retail, and its part NOT explained by the 3-day return (cross-sectional regression per day)
+    per_day = defaultdict(list)
+    for (s_, d_), (v, r3) in raw.items():
+        per_day[d_].append((s_, v, r3))
+    for d_, lst in per_day.items():
+        n_ = len(lst)
+        if n_ < 10:
+            continue
+        mv = sum(v for _, v, _ in lst) / n_
+        mr = sum(r for _, _, r in lst) / n_
+        vr = sum((r - mr) ** 2 for _, _, r in lst) or 1e-12
+        b_ = sum((v - mv) * (r - mr) for _, v, r in lst) / vr
+        for s_, v, r in lst:
+            feats["INVERSO smart_minus_retail"][(s_, d_)] = -v
+            feats["INVERSO smart_minus_retail sin reversión"][(s_, d_)] = -((v - mv) - b_ * (r - mr))
     out = ["# Follow the money: posiciones de las cuentas grandes en futuros de Binance", "",
            f"{len(data)} monedas, {days[0]} a {days[-1]}. Largo 20% más alto / corto 20% más bajo de cada señal, "
            f"neutral al mercado, costo {COST:.2%} por lado sobre lo que se rota.", "",
