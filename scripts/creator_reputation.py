@@ -45,6 +45,8 @@ def main() -> None:
     ap.add_argument("-o", "--output", type=Path, default=Path("docs/creator_reputation.md"))
     ap.add_argument("--entry-s", type=float, default=60.0)
     ap.add_argument("--key", choices=["creator", "funder"], default="creator")
+    ap.add_argument("--min-buyers", type=int, default=0,
+                    help="only tokens with at least this many distinct buyers up to the entry trade (known before entering)")
     ap.add_argument("--max-funder-creators", type=int, default=100,
                     help="funders with more distinct creators than this are exchanges/services (hot wallets), not a "
                          "mother: their tokens fall back to the creator wallet")
@@ -82,6 +84,12 @@ def main() -> None:
     con.execute(f"""CREATE TABLE e AS SELECT c.mint, c.creator, c.born, t.ts AS t_in, t.px AS p_in
         FROM c ASOF JOIN t ON c.mint = t.mint AND (c.born + {args.entry_s}) <= t.ts
         WHERE t.ts <= c.born + 600 AND c.born + {VISIBLE_S} <= {t_end}""")
+    # traction known AT the entry trade (nothing after it): distinct buyers and SOL bought so far
+    con.execute(f"""CREATE TABLE tf AS SELECT DISTINCT signature, mint, ts_received_utc_ns/1e9 AS ts, "user" AS u, is_buy,
+        sol_amount::DOUBLE/1e9 AS sol FROM {trs} WHERE mint IN (SELECT mint FROM e)""")
+    con.execute("""CREATE TABLE act AS SELECT e.mint, COUNT(DISTINCT tf.u) FILTER (WHERE tf.is_buy) AS buyers,
+        COALESCE(SUM(tf.sol) FILTER (WHERE tf.is_buy), 0) AS buy_sol
+        FROM e JOIN tf ON tf.mint = e.mint AND tf.ts <= e.t_in GROUP BY e.mint""")
     con.execute(f"""CREATE TABLE o AS SELECT e.mint,
             MAX(t.px) / ANY_VALUE(e.p_in) AS max_mult,
             MIN(t.ts) FILTER (WHERE t.px >= 2 * e.p_in) AS t2x,
@@ -112,12 +120,20 @@ def main() -> None:
         f", o.tsl{int(sl * 100)}, o.psl{int(sl * 100)}" for sl in SLS)
     df = con.execute(f"""SELECT e.*, o.max_mult, o.t2x, o.t50, o.p15, o.p60{ocols}, h.n_prior, h.prior_grads, h.prior_2x,
             (g.gt IS NOT NULL AND g.gt <= e.born + 7200) AS grad
-        FROM e JOIN o USING (mint) JOIN hist h USING (mint) LEFT JOIN g USING (mint)""").df()
+        , COALESCE(a.buyers, 0) AS buyers, COALESCE(a.buy_sol, 0) AS buy_sol
+        FROM e JOIN o USING (mint) JOIN hist h USING (mint) LEFT JOIN g USING (mint) LEFT JOIN act a USING (mint)""").df()
     per_creator = con.execute("SELECT COUNT(*) AS n FROM c GROUP BY creator").df().n
     if df.empty:
         args.output.write_text("# Reputación del creador\n\nSin datos suficientes.", encoding="utf-8")
         print("Sin datos suficientes")
         return
+    n_all = len(df)
+    if args.min_buyers:
+        df = df[df.buyers >= args.min_buyers].reset_index(drop=True)
+        if df.empty:
+            args.output.write_text("# Reputación\n\nNingún token con tantos compradores.", encoding="utf-8")
+            print("Sin tokens con esa tracción")
+            return
     for h in (15, 60):
         df[f"net{h}"] = df[f"p{h}"] * (1 - FEE) / (df.p_in * (1 + FEE)) - 1
     df["win2x"] = df.t2x.notna() & (df.t50.isna() | (df.t2x < df.t50))
@@ -146,6 +162,8 @@ def main() -> None:
               f"({n_svc_tok:,} tokens): son exchanges o servicios, no una madre."] if args.key == "funder" else []),
            f"- Tokens con entrada simulada a los {args.entry_s:.0f} s: {len(df):,}. Creadores distintos: {len(per_creator):,}; "
            f"tokens por creador: mediana {per_creator.median():.0f}, p90 {per_creator.quantile(.9):.0f}, máximo {per_creator.max():,}.",
+           *([f"- Filtro de tracción: solo tokens con ≥ {args.min_buyers} compradores distintos hasta el trade de entrada "
+              f"({len(df):,} de {n_all:,})."] if args.min_buyers else []),
            f"- Historial visible = tokens del mismo creador nacidos ≥ {VISIBLE_S // 3600} h antes. Fee {FEE * 100:.2f}% por lado.",
            f"- Distribución: " + ", ".join(f"{k} {v:,}" for k, v in df.bucket.value_counts().items()), "", head, sep,
            line("todos", df)]
@@ -171,9 +189,26 @@ def main() -> None:
         return px * (1 - cost) / (d.p_in * (1 + cost)) - 1
 
     rule_cols = [f"TP +{int((tp - 1) * 100)}% / SL -{int((1 - sl) * 100)}%" for tp, sl in rules]
+    bins = [(0, 5), (5, 10), (10, 20), (20, 50), (50, 10**9)]
+    out += ["", "## Por tracción al momento de entrar (compradores distintos hasta ese trade; se conoce antes de comprar)", "",
+            "| compradores | tokens | 2x antes de -50% | llega a 3x | gradúa ≤2h | máx. mult. mediano | neto 60m medio | "
+            "TP +100% / SL -50% medio |", "|---|---|---|---|---|---|---|---|"]
+    for lo, hi in bins:
+        d = df[(df.buyers >= lo) & (df.buyers < hi)]
+        if len(d) < 30:
+            continue
+        r = rule_net(d, 2.0, 0.5)
+        out.append(f"| {lo}–{hi - 1 if hi < 10**9 else '+'} | {len(d):,} | {d.win2x.mean() * 100:.1f}% | "
+                   f"{(d.max_mult >= 3).mean() * 100:.1f}% | {d.grad.mean() * 100:.1f}% | {d.max_mult.median():.2f}x | "
+                   f"{d.net60.mean() * 100:+.1f}% | {r.mean() * 100:+.2f}% |")
     groups = [("todos", df), ("nuevo", df[df.bucket == "nuevo"]), ("serial_malo", df[df.bucket == "serial_malo"]),
               ("con_exitos", df[df.bucket == "con_exitos"]), ("volátil (≥5 previos, ≥12% con 2x)", df[df.volatil]),
-              ("todos menos serial_malo", df[df.bucket != "serial_malo"])]
+              ("todos menos serial_malo", df[df.bucket != "serial_malo"]),
+              ("todos con ≥10 compradores", df[df.buyers >= 10]), ("todos con ≥20 compradores", df[df.buyers >= 20]),
+              ("todos con ≥50 compradores", df[df.buyers >= 50]),
+              ("con_exitos y ≥20 compradores", df[(df.bucket == "con_exitos") & (df.buyers >= 20)]),
+              ("volátil y ≥20 compradores", df[df.volatil & (df.buyers >= 20)]),
+              ("sin serial_malo y ≥20 compradores", df[(df.bucket != "serial_malo") & (df.buyers >= 20)])]
     out += ["", f"## Reglas de salida simuladas (entrada al trade de {args.entry_s:.0f} s, stop/toma al primer trade que cruza, "
             f"si no sale a los {HOLD_S // 60} min; costo {cost * 100:.2f}% por lado)", "",
             "Cada celda: retorno neto medio por operación (n). Positivo en negrita.", "",
