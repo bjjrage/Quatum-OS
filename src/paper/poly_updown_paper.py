@@ -445,6 +445,8 @@ class PolyUpDownPaper:
 
     async def run(self) -> None:
         import aiohttp
+        from src.common.dns_patch import apply_dns_fallback
+        apply_dns_fallback()                  # igual que el recorder: algunos DNS locales no resuelven polymarket.com
         self._ws_send = None
         async with aiohttp.ClientSession() as http:
             tasks = [asyncio.create_task(self._binance_loop()), asyncio.create_task(self._poly_loop(http))]
