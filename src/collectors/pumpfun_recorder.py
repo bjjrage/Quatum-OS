@@ -176,6 +176,7 @@ class PumpfunRecorder:
         from src.collectors.x_watcher import TokenActivity
         self.activity = TokenActivity()
         self._x_task: Optional[asyncio.Task] = None
+        self._extra_tasks: List[asyncio.Task] = []      # DexScreener y Telegram
         self.paper = None                         # canonical WALLET_SKILL_V1 forward paper
         self._paper_tasks: List[asyncio.Task] = []
 
@@ -201,6 +202,13 @@ class PumpfunRecorder:
                               daily_usd=float(cfg.get("x_daily_usd", 1.0)), model=str(cfg.get("x_model") or DEFAULT_MODEL))
                 xw.priority_source = lambda: self.paper.x_queue if self.paper is not None else ()
                 self._x_task = asyncio.create_task(xw.run())
+        if cfg.get("dexscreener_enabled", True):
+            from src.collectors.dexscreener_watcher import DexScreenerWatcher
+            self._extra_tasks.append(asyncio.create_task(
+                DexScreenerWatcher(self.sink, interval_s=float(cfg.get("dexscreener_interval_s", 30))).run()))
+        if cfg.get("telegram_enabled", True):
+            from src.collectors.telegram_watcher import TelegramWatcher
+            self._extra_tasks.append(asyncio.create_task(TelegramWatcher(self.sink, self.root).run()))
 
     async def _start_paper(self) -> None:
         from src.common.runtime_health import RuntimeHealth
@@ -234,6 +242,8 @@ class PumpfunRecorder:
             self._task.cancel()
         if self._x_task:
             self._x_task.cancel()
+        for t in self._extra_tasks:
+            t.cancel()
         logger.info(f"pump.fun recorder stopped. Eventos: {self.events}")
 
     def _budget_ok(self, source: str, cfg: Dict[str, Any]) -> bool:

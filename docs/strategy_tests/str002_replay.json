@@ -1,0 +1,951 @@
+{
+ "span_days": 3.3152777777777778,
+ "n_alts": 23,
+ "variants": {
+  "A_actual": {
+   "config": {
+    "name": "A_actual",
+    "z_enter": 3.0,
+    "impulse_min": 5,
+    "fit_min": 240,
+    "refit_every": 15,
+    "btc_block_sigma": 1.0,
+    "signals": [
+     "delta",
+     "higher_low"
+    ],
+    "max_wait_min": 5,
+    "cooldown_min": 10,
+    "trail_pct": 0.004,
+    "init_stop_pct": 0.006,
+    "max_hold_min": 30,
+    "fee_bps": 4.0,
+    "slip_bps": 2.0,
+    "min_price_move_pct": 0.0,
+    "exit_mode": "trail",
+    "tp_pct": 0.006,
+    "btc_up_sigma": 1.0,
+    "btc_down_sigma": 1.0,
+    "tight_trail_pct": 0.0015,
+    "min_hold_min": 2,
+    "bar_min": 1,
+    "tp_fraction": 0.5
+   },
+   "summary": {
+    "n_trades": 9,
+    "trades_per_day": 2.714704650188521,
+    "win_rate": 0.2222222222222222,
+    "mean_net_pct": -0.1272244024845618,
+    "median_net_pct": -0.1969778204877736,
+    "sum_net_pct": -1.1450196223610563,
+    "mean_gross_pct": -0.04722440248456176,
+    "avg_win_pct": 0.5025886977215976,
+    "avg_loss_pct": -0.30717100254346447,
+    "profit_factor": 0.46748153174803825,
+    "max_drawdown_pct_points": 1.8068254090465083,
+    "naive_t_stat": -1.01325462997087,
+    "exit_reasons": {
+     "MAX_HOLD": 3,
+     "TRAIL_STOP": 6
+    },
+    "signals": {
+     "higher_low": 3,
+     "delta": 6
+    },
+    "top_symbols": [
+     [
+      "BNBUSDT",
+      2,
+      -0.7938310031086536
+     ],
+     [
+      "DOGEUSDT",
+      1,
+      0.4225750916227922
+     ],
+     [
+      "ADAUSDT",
+      1,
+      -0.4821911383318755
+     ],
+     [
+      "LINKUSDT",
+      1,
+      -0.33382544711820555
+     ],
+     [
+      "ARBUSDT",
+      1,
+      -0.15254050573312075
+     ],
+     [
+      "OPUSDT",
+      1,
+      -0.19083110302462228
+     ],
+     [
+      "TIAUSDT",
+      1,
+      0.5826023038204031
+     ],
+     [
+      "FETUSDT",
+      1,
+      -0.1969778204877736
+     ]
+    ],
+    "share_hold_under_2min": 0.0,
+    "warning": "Fewer than 30 trades: too few to conclude anything."
+   },
+   "prop_check": {
+    "HyroTrader_1F": {
+     "label": "HyroTrader 1 fase",
+     "status": "AUN_NO",
+     "phase": 1,
+     "progress_pct": -1.430945695202468,
+     "target_pct": 10.0,
+     "worst_day_pct": -1.8213246254662807,
+     "reason": "No rompió límites, pero todavía no llegó al objetivo con estos datos."
+    },
+    "HyroTrader_2F": {
+     "label": "HyroTrader 2 fases",
+     "status": "AUN_NO",
+     "phase": 1,
+     "progress_pct": -1.430945695202468,
+     "target_pct": 10.0,
+     "worst_day_pct": -1.8213246254662807,
+     "reason": "No rompió límites, pero todavía no llegó al objetivo con estos datos."
+    },
+    "Mubite_2F": {
+     "label": "Mubite 2 fases",
+     "status": "AUN_NO",
+     "phase": 1,
+     "progress_pct": -1.430945695202468,
+     "target_pct": 10.0,
+     "worst_day_pct": -1.8213246254662807,
+     "reason": "No rompió límites, pero todavía no llegó al objetivo con estos datos."
+    }
+   }
+  },
+  "B_marcelo": {
+   "config": {
+    "name": "B_marcelo",
+    "z_enter": 2.0,
+    "impulse_min": 5,
+    "fit_min": 240,
+    "refit_every": 15,
+    "btc_block_sigma": 3.0,
+    "signals": [
+     "green",
+     "delta"
+    ],
+    "max_wait_min": 5,
+    "cooldown_min": 10,
+    "trail_pct": 0.004,
+    "init_stop_pct": 0.006,
+    "max_hold_min": 30,
+    "fee_bps": 4.0,
+    "slip_bps": 2.0,
+    "min_price_move_pct": 0.0,
+    "exit_mode": "trail",
+    "tp_pct": 0.006,
+    "btc_up_sigma": 1.0,
+    "btc_down_sigma": 1.0,
+    "tight_trail_pct": 0.0015,
+    "min_hold_min": 2,
+    "bar_min": 1,
+    "tp_fraction": 0.5
+   },
+   "summary": {
+    "n_trades": 63,
+    "trades_per_day": 19.00293255131965,
+    "win_rate": 0.2857142857142857,
+    "mean_net_pct": -0.11568927499264338,
+    "median_net_pct": -0.1664237294528891,
+    "sum_net_pct": -7.288424324536533,
+    "mean_gross_pct": -0.03568927499264342,
+    "avg_win_pct": 0.28181436412486094,
+    "avg_loss_pct": -0.2746907306396451,
+    "profit_factor": 0.4103733146999576,
+    "max_drawdown_pct_points": 8.130802825874511,
+    "naive_t_stat": -2.993093742715009,
+    "exit_reasons": {
+     "DATA_GAP": 9,
+     "MAX_HOLD": 10,
+     "TRAIL_STOP": 44
+    },
+    "signals": {
+     "green": 50,
+     "delta": 13
+    },
+    "top_symbols": [
+     [
+      "INJUSDT",
+      6,
+      -1.0165809130687296
+     ],
+     [
+      "OPUSDT",
+      5,
+      -0.6900183016220193
+     ],
+     [
+      "ORDIUSDT",
+      5,
+      0.07736141415880567
+     ],
+     [
+      "XRPUSDT",
+      4,
+      -0.4840219245307883
+     ],
+     [
+      "NEARUSDT",
+      4,
+      0.6178493175456137
+     ],
+     [
+      "APTUSDT",
+      4,
+      -1.674617987118345
+     ],
+     [
+      "ARBUSDT",
+      4,
+      -1.4543120791290851
+     ],
+     [
+      "SOLUSDT",
+      3,
+      -0.4099281625637483
+     ]
+    ],
+    "share_hold_under_2min": 0.0
+   },
+   "prop_check": {
+    "HyroTrader_1F": {
+     "label": "HyroTrader 1 fase",
+     "status": "FAIL_MAX",
+     "phase": 1,
+     "reason": "Superó la pérdida total de 6%.",
+     "worst_day_pct": -3.2115724275754487
+    },
+    "HyroTrader_2F": {
+     "label": "HyroTrader 2 fases",
+     "status": "FAIL_DAILY",
+     "phase": 1,
+     "reason": "Superó la pérdida diaria de 5%.",
+     "worst_day_pct": -5.141276844365816
+    },
+    "Mubite_2F": {
+     "label": "Mubite 2 fases",
+     "status": "FAIL_MAX",
+     "phase": 1,
+     "reason": "Superó la pérdida total de 8%.",
+     "worst_day_pct": -4.8522800223374745
+    }
+   }
+  },
+  "C_intermedia": {
+   "config": {
+    "name": "C_intermedia",
+    "z_enter": 2.5,
+    "impulse_min": 5,
+    "fit_min": 240,
+    "refit_every": 15,
+    "btc_block_sigma": 2.0,
+    "signals": [
+     "delta",
+     "higher_low"
+    ],
+    "max_wait_min": 5,
+    "cooldown_min": 10,
+    "trail_pct": 0.004,
+    "init_stop_pct": 0.006,
+    "max_hold_min": 30,
+    "fee_bps": 4.0,
+    "slip_bps": 2.0,
+    "min_price_move_pct": 0.0,
+    "exit_mode": "trail",
+    "tp_pct": 0.006,
+    "btc_up_sigma": 1.0,
+    "btc_down_sigma": 1.0,
+    "tight_trail_pct": 0.0015,
+    "min_hold_min": 2,
+    "bar_min": 1,
+    "tp_fraction": 0.5
+   },
+   "summary": {
+    "n_trades": 20,
+    "trades_per_day": 6.032677000418936,
+    "win_rate": 0.1,
+    "mean_net_pct": -0.2152780394148673,
+    "median_net_pct": -0.26890688478199193,
+    "sum_net_pct": -4.305560788297346,
+    "mean_gross_pct": -0.13527803941486727,
+    "avg_win_pct": 0.5989691240191131,
+    "avg_loss_pct": -0.30574994646308723,
+    "profit_factor": 0.21766847602391098,
+    "max_drawdown_pct_points": 4.637861197262286,
+    "naive_t_stat": -3.0998925684455396,
+    "exit_reasons": {
+     "DATA_GAP": 1,
+     "MAX_HOLD": 4,
+     "TRAIL_STOP": 15
+    },
+    "signals": {
+     "higher_low": 4,
+     "delta": 16
+    },
+    "top_symbols": [
+     [
+      "ARBUSDT",
+      3,
+      -0.8664250093855561
+     ],
+     [
+      "BNBUSDT",
+      2,
+      -0.7938310031086536
+     ],
+     [
+      "DOGEUSDT",
+      2,
+      0.3129523854586359
+     ],
+     [
+      "OPUSDT",
+      2,
+      -0.33435182213729747
+     ],
+     [
+      "SOLUSDT",
+      1,
+      -0.3290258953646296
+     ],
+     [
+      "ADAUSDT",
+      1,
+      -0.4821911383318755
+     ],
+     [
+      "AVAXUSDT",
+      1,
+      -0.26699201336204176
+     ],
+     [
+      "LINKUSDT",
+      1,
+      -0.49991999999999587
+     ]
+    ],
+    "share_hold_under_2min": 0.0,
+    "warning": "Fewer than 30 trades: too few to conclude anything."
+   },
+   "prop_check": {
+    "HyroTrader_1F": {
+     "label": "HyroTrader 1 fase",
+     "status": "FAIL_DAILY",
+     "phase": 1,
+     "reason": "Superó la pérdida diaria de 4%.",
+     "worst_day_pct": -4.102830898447585
+    },
+    "HyroTrader_2F": {
+     "label": "HyroTrader 2 fases",
+     "status": "AUN_NO",
+     "phase": 1,
+     "progress_pct": -5.260130802370222,
+     "target_pct": 10.0,
+     "worst_day_pct": -4.283082801757454,
+     "reason": "No rompió límites, pero todavía no llegó al objetivo con estos datos."
+    },
+    "Mubite_2F": {
+     "label": "Mubite 2 fases",
+     "status": "AUN_NO",
+     "phase": 1,
+     "progress_pct": -5.260130802370222,
+     "target_pct": 10.0,
+     "worst_day_pct": -4.283082801757454,
+     "reason": "No rompió límites, pero todavía no llegó al objetivo con estos datos."
+    }
+   }
+  },
+  "D_marcelo_5m": {
+   "config": {
+    "name": "D_marcelo_5m",
+    "z_enter": 2.0,
+    "impulse_min": 1,
+    "fit_min": 48,
+    "refit_every": 3,
+    "btc_block_sigma": 3.0,
+    "signals": [
+     "green",
+     "delta"
+    ],
+    "max_wait_min": 3,
+    "cooldown_min": 2,
+    "trail_pct": 0.004,
+    "init_stop_pct": 0.006,
+    "max_hold_min": 6,
+    "fee_bps": 4.0,
+    "slip_bps": 2.0,
+    "min_price_move_pct": 0.0,
+    "exit_mode": "trail",
+    "tp_pct": 0.006,
+    "btc_up_sigma": 1.0,
+    "btc_down_sigma": 1.0,
+    "tight_trail_pct": 0.0015,
+    "min_hold_min": 1,
+    "bar_min": 5,
+    "tp_fraction": 0.5
+   },
+   "summary": {
+    "n_trades": 28,
+    "trades_per_day": 8.44574780058651,
+    "win_rate": 0.32142857142857145,
+    "mean_net_pct": -0.062396302890572554,
+    "median_net_pct": -0.11671032044410548,
+    "sum_net_pct": -1.7470964809360314,
+    "mean_gross_pct": 0.01760369710942749,
+    "avg_win_pct": 0.4567841667707034,
+    "avg_loss_pct": -0.3083238937827559,
+    "profit_factor": 0.7017667192869467,
+    "max_drawdown_pct_points": 4.156028958808029,
+    "naive_t_stat": -0.7054385852173528,
+    "exit_reasons": {
+     "DATA_GAP": 6,
+     "MAX_HOLD": 7,
+     "TRAIL_STOP": 15
+    },
+    "signals": {
+     "green": 20,
+     "delta": 8
+    },
+    "top_symbols": [
+     [
+      "OPUSDT",
+      3,
+      0.5183426645623057
+     ],
+     [
+      "TIAUSDT",
+      3,
+      0.9299110406895308
+     ],
+     [
+      "INJUSDT",
+      3,
+      -0.36438470749935875
+     ],
+     [
+      "ORDIUSDT",
+      3,
+      -0.8262965102196194
+     ],
+     [
+      "SOLUSDT",
+      2,
+      -0.3069084373768692
+     ],
+     [
+      "AVAXUSDT",
+      2,
+      -0.6015319320955402
+     ],
+     [
+      "ARBUSDT",
+      2,
+      -0.5439743070812252
+     ],
+     [
+      "BNBUSDT",
+      1,
+      -0.2924951812954579
+     ]
+    ],
+    "share_hold_under_2min": 0.0,
+    "warning": "Fewer than 30 trades: too few to conclude anything."
+   },
+   "prop_check": {
+    "HyroTrader_1F": {
+     "label": "HyroTrader 1 fase",
+     "status": "FAIL_DAILY",
+     "phase": 1,
+     "reason": "Superó la pérdida diaria de 4%.",
+     "worst_day_pct": -4.209692867220549
+    },
+    "HyroTrader_2F": {
+     "label": "HyroTrader 2 fases",
+     "status": "AUN_NO",
+     "phase": 1,
+     "progress_pct": -2.2060636101051356,
+     "target_pct": 10.0,
+     "worst_day_pct": -4.329066732477093,
+     "reason": "No rompió límites, pero todavía no llegó al objetivo con estos datos."
+    },
+    "Mubite_2F": {
+     "label": "Mubite 2 fases",
+     "status": "AUN_NO",
+     "phase": 1,
+     "progress_pct": -2.2060636101051356,
+     "target_pct": 10.0,
+     "worst_day_pct": -4.329066732477093,
+     "reason": "No rompió límites, pero todavía no llegó al objetivo con estos datos."
+    }
+   }
+  }
+ },
+ "exit_comparison": {
+  "fixed": {
+   "label": "salida fija",
+   "config": {
+    "name": "B_marcelo__fixed",
+    "z_enter": 2.0,
+    "impulse_min": 5,
+    "fit_min": 240,
+    "refit_every": 15,
+    "btc_block_sigma": 3.0,
+    "signals": [
+     "green",
+     "delta"
+    ],
+    "max_wait_min": 5,
+    "cooldown_min": 10,
+    "trail_pct": 0.004,
+    "init_stop_pct": 0.006,
+    "max_hold_min": 30,
+    "fee_bps": 4.0,
+    "slip_bps": 2.0,
+    "min_price_move_pct": 0.0,
+    "exit_mode": "fixed",
+    "tp_pct": 0.006,
+    "btc_up_sigma": 1.0,
+    "btc_down_sigma": 1.0,
+    "tight_trail_pct": 0.0015,
+    "min_hold_min": 2,
+    "bar_min": 1,
+    "tp_fraction": 0.5
+   },
+   "summary": {
+    "n_trades": 63,
+    "trades_per_day": 19.00293255131965,
+    "win_rate": 0.42857142857142855,
+    "mean_net_pct": -0.0948412849522396,
+    "median_net_pct": -0.1125837152290842,
+    "sum_net_pct": -5.975000951991095,
+    "mean_gross_pct": -0.014841284952239587,
+    "avg_win_pct": 0.3428322532623504,
+    "avg_loss_pct": -0.423096438613182,
+    "profit_factor": 0.6077200526422768,
+    "max_drawdown_pct_points": 7.6149841998785295,
+    "naive_t_stat": -1.6871658331252701,
+    "exit_reasons": {
+     "HARD_STOP": 15,
+     "DATA_GAP": 15,
+     "TARGET": 14,
+     "MAX_HOLD": 19
+    },
+    "signals": {
+     "green": 50,
+     "delta": 13
+    },
+    "top_symbols": [
+     [
+      "INJUSDT",
+      6,
+      -0.35985104294642156
+     ],
+     [
+      "OPUSDT",
+      5,
+      0.6871762847709075
+     ],
+     [
+      "XRPUSDT",
+      4,
+      -0.47141121354990123
+     ],
+     [
+      "NEARUSDT",
+      4,
+      0.9579605399900861
+     ],
+     [
+      "APTUSDT",
+      4,
+      -2.510286892113347
+     ],
+     [
+      "ARBUSDT",
+      4,
+      -1.969793216599982
+     ],
+     [
+      "ORDIUSDT",
+      4,
+      -0.6130707973560764
+     ],
+     [
+      "SOLUSDT",
+      3,
+      -0.4099281625637483
+     ]
+    ],
+    "share_hold_under_2min": 0.0
+   },
+   "prop_check": {
+    "HyroTrader_1F": {
+     "label": "HyroTrader 1 fase",
+     "status": "FAIL_MAX",
+     "phase": 1,
+     "reason": "Superó la pérdida total de 6%.",
+     "worst_day_pct": -3.709588310884926
+    },
+    "HyroTrader_2F": {
+     "label": "HyroTrader 2 fases",
+     "status": "FAIL_DAILY",
+     "phase": 1,
+     "reason": "Superó la pérdida diaria de 5%.",
+     "worst_day_pct": -5.451029811770935
+    },
+    "Mubite_2F": {
+     "label": "Mubite 2 fases",
+     "status": "FAIL_DAILY",
+     "phase": 1,
+     "reason": "Superó la pérdida diaria de 5%.",
+     "worst_day_pct": -5.451029811770935
+    }
+   }
+  },
+  "trail": {
+   "label": "trailing",
+   "config": {
+    "name": "B_marcelo__trail",
+    "z_enter": 2.0,
+    "impulse_min": 5,
+    "fit_min": 240,
+    "refit_every": 15,
+    "btc_block_sigma": 3.0,
+    "signals": [
+     "green",
+     "delta"
+    ],
+    "max_wait_min": 5,
+    "cooldown_min": 10,
+    "trail_pct": 0.004,
+    "init_stop_pct": 0.006,
+    "max_hold_min": 30,
+    "fee_bps": 4.0,
+    "slip_bps": 2.0,
+    "min_price_move_pct": 0.0,
+    "exit_mode": "trail",
+    "tp_pct": 0.006,
+    "btc_up_sigma": 1.0,
+    "btc_down_sigma": 1.0,
+    "tight_trail_pct": 0.0015,
+    "min_hold_min": 2,
+    "bar_min": 1,
+    "tp_fraction": 0.5
+   },
+   "summary": {
+    "n_trades": 63,
+    "trades_per_day": 19.00293255131965,
+    "win_rate": 0.2857142857142857,
+    "mean_net_pct": -0.11568927499264338,
+    "median_net_pct": -0.1664237294528891,
+    "sum_net_pct": -7.288424324536533,
+    "mean_gross_pct": -0.03568927499264342,
+    "avg_win_pct": 0.28181436412486094,
+    "avg_loss_pct": -0.2746907306396451,
+    "profit_factor": 0.4103733146999576,
+    "max_drawdown_pct_points": 8.130802825874511,
+    "naive_t_stat": -2.993093742715009,
+    "exit_reasons": {
+     "DATA_GAP": 9,
+     "MAX_HOLD": 10,
+     "TRAIL_STOP": 44
+    },
+    "signals": {
+     "green": 50,
+     "delta": 13
+    },
+    "top_symbols": [
+     [
+      "INJUSDT",
+      6,
+      -1.0165809130687296
+     ],
+     [
+      "OPUSDT",
+      5,
+      -0.6900183016220193
+     ],
+     [
+      "ORDIUSDT",
+      5,
+      0.07736141415880567
+     ],
+     [
+      "XRPUSDT",
+      4,
+      -0.4840219245307883
+     ],
+     [
+      "NEARUSDT",
+      4,
+      0.6178493175456137
+     ],
+     [
+      "APTUSDT",
+      4,
+      -1.674617987118345
+     ],
+     [
+      "ARBUSDT",
+      4,
+      -1.4543120791290851
+     ],
+     [
+      "SOLUSDT",
+      3,
+      -0.4099281625637483
+     ]
+    ],
+    "share_hold_under_2min": 0.0
+   },
+   "prop_check": {
+    "HyroTrader_1F": {
+     "label": "HyroTrader 1 fase",
+     "status": "FAIL_MAX",
+     "phase": 1,
+     "reason": "Superó la pérdida total de 6%.",
+     "worst_day_pct": -3.2115724275754487
+    },
+    "HyroTrader_2F": {
+     "label": "HyroTrader 2 fases",
+     "status": "FAIL_DAILY",
+     "phase": 1,
+     "reason": "Superó la pérdida diaria de 5%.",
+     "worst_day_pct": -5.141276844365816
+    },
+    "Mubite_2F": {
+     "label": "Mubite 2 fases",
+     "status": "FAIL_MAX",
+     "phase": 1,
+     "reason": "Superó la pérdida total de 8%.",
+     "worst_day_pct": -4.8522800223374745
+    }
+   }
+  },
+  "btc_adaptive": {
+   "label": "adaptativa BTC",
+   "config": {
+    "name": "B_marcelo__btc_adaptive",
+    "z_enter": 2.0,
+    "impulse_min": 5,
+    "fit_min": 240,
+    "refit_every": 15,
+    "btc_block_sigma": 3.0,
+    "signals": [
+     "green",
+     "delta"
+    ],
+    "max_wait_min": 5,
+    "cooldown_min": 10,
+    "trail_pct": 0.004,
+    "init_stop_pct": 0.006,
+    "max_hold_min": 30,
+    "fee_bps": 4.0,
+    "slip_bps": 2.0,
+    "min_price_move_pct": 0.0,
+    "exit_mode": "btc_adaptive",
+    "tp_pct": 0.006,
+    "btc_up_sigma": 1.0,
+    "btc_down_sigma": 1.0,
+    "tight_trail_pct": 0.0015,
+    "min_hold_min": 2,
+    "bar_min": 1,
+    "tp_fraction": 0.5
+   },
+   "summary": {
+    "n_trades": 64,
+    "trades_per_day": 19.304566401340594,
+    "win_rate": 0.328125,
+    "mean_net_pct": -0.14049660475618764,
+    "median_net_pct": -0.18573065422250226,
+    "sum_net_pct": -8.991782704396009,
+    "mean_gross_pct": -0.06049660475618765,
+    "avg_win_pct": 0.31720142029292464,
+    "avg_loss_pct": -0.3640235472220332,
+    "profit_factor": 0.42555577165429237,
+    "max_drawdown_pct_points": 10.460142525289305,
+    "naive_t_stat": -2.8859681890965083,
+    "exit_reasons": {
+     "HARD_STOP": 9,
+     "TARGET": 6,
+     "TRAIL_STOP": 28,
+     "DATA_GAP": 7,
+     "MAX_HOLD": 14
+    },
+    "signals": {
+     "green": 51,
+     "delta": 13
+    },
+    "top_symbols": [
+     [
+      "INJUSDT",
+      6,
+      -1.0672909807984274
+     ],
+     [
+      "OPUSDT",
+      5,
+      0.5661632041864764
+     ],
+     [
+      "XRPUSDT",
+      4,
+      -0.4272167086044406
+     ],
+     [
+      "NEARUSDT",
+      4,
+      0.4680997070542683
+     ],
+     [
+      "APTUSDT",
+      4,
+      -2.2250572433930493
+     ],
+     [
+      "ARBUSDT",
+      4,
+      -2.2008008881614716
+     ],
+     [
+      "ORDIUSDT",
+      4,
+      -0.27185609378270936
+     ],
+     [
+      "SOLUSDT",
+      3,
+      -0.4099281625637483
+     ]
+    ],
+    "share_hold_under_2min": 0.0
+   },
+   "prop_check": {
+    "HyroTrader_1F": {
+     "label": "HyroTrader 1 fase",
+     "status": "FAIL_MAX",
+     "phase": 1,
+     "reason": "Superó la pérdida total de 6%.",
+     "worst_day_pct": -3.874319383373981
+    },
+    "HyroTrader_2F": {
+     "label": "HyroTrader 2 fases",
+     "status": "FAIL_DAILY",
+     "phase": 1,
+     "reason": "Superó la pérdida diaria de 5%.",
+     "worst_day_pct": -5.576411638197454
+    },
+    "Mubite_2F": {
+     "label": "Mubite 2 fases",
+     "status": "FAIL_MAX",
+     "phase": 1,
+     "reason": "Superó la pérdida total de 8%.",
+     "worst_day_pct": -4.777249892003111
+    }
+   }
+  }
+ },
+ "baseline": {
+  "B_marcelo": {
+   "status": "OK",
+   "runs": 200,
+   "n_entries": 63,
+   "n_entries_sampled": 63,
+   "random_median_net_pct": -0.11904437135788312,
+   "random_p5_net_pct": -0.18682363576688935,
+   "random_p95_net_pct": -0.04521070199181895,
+   "strategy_mean_net_pct": -0.11568927499264338,
+   "share_random_worse": 0.54,
+   "verdict": "IGUAL_QUE_AZAR"
+  },
+  "D_marcelo_5m": {
+   "status": "OK",
+   "runs": 200,
+   "n_entries": 28,
+   "n_entries_sampled": 28,
+   "random_median_net_pct": -0.1185102087425526,
+   "random_p5_net_pct": -0.24063144540960438,
+   "random_p95_net_pct": -0.00028614268108463826,
+   "strategy_mean_net_pct": -0.062396302890572554,
+   "share_random_worse": 0.8,
+   "verdict": "IGUAL_QUE_AZAR"
+  }
+ },
+ "coverage": {
+  "total_minutes": 5778,
+  "usable_minutes": 4774,
+  "recorder_down_minutes": 1004,
+  "longest_continuous_hours": 8.983333333333333
+ },
+ "needed_continuous_hours": 4.083333333333333,
+ "risk_per_trade_pct": 0.75,
+ "caveat": "Exploratory, in-sample, several variants compared on the same data.",
+ "impulse_counts": {
+  "span_days": 3.3152777777777778,
+  "n_alts": 23,
+  "impulses_per_day": {
+   "btc_block_1_sigma": {
+    "z_2": 19.907834101382488,
+    "z_2.5": 4.8261416003351485,
+    "z_3": 2.714704650188521
+   },
+   "btc_block_2_sigma": {
+    "z_2": 22.320904901550062,
+    "z_2.5": 6.635944700460829,
+    "z_3": 3.3179723502304146
+   },
+   "btc_block_3_sigma": {
+    "z_2": 22.320904901550062,
+    "z_2.5": 6.635944700460829,
+    "z_3": 3.3179723502304146
+   },
+   "btc_block_99_sigma": {
+    "z_2": 22.320904901550062,
+    "z_2.5": 6.635944700460829,
+    "z_3": 3.3179723502304146
+   }
+  }
+ },
+ "symbols": [
+  "BTCUSDT",
+  "ETHUSDT",
+  "SOLUSDT",
+  "BNBUSDT",
+  "DOGEUSDT",
+  "XRPUSDT",
+  "ADAUSDT",
+  "AVAXUSDT",
+  "LINKUSDT",
+  "NEARUSDT",
+  "SUIUSDT",
+  "APTUSDT",
+  "ARBUSDT",
+  "OPUSDT",
+  "TIAUSDT",
+  "INJUSDT",
+  "RENDERUSDT",
+  "FETUSDT",
+  "WIFUSDT",
+  "1000PEPEUSDT",
+  "SEIUSDT",
+  "BLURUSDT",
+  "JTOUSDT",
+  "ORDIUSDT",
+  "MEMEUSDT"
+ ]
+}

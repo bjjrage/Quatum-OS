@@ -7,6 +7,7 @@ import { MetricCard } from "../common/MetricCard";
 import { FlujoPaperPanel } from "./FlujoPaperPanel";
 import { PumpPaperPanel } from "./PumpPaperPanel";
 import { LiderPaperPanel } from "./LiderPaperPanel";
+import { PolyPaperPanel } from "./PolyPaperPanel";
 
 interface PaperTradingViewProps {
   paperAccount: PaperAccount | null;
@@ -33,6 +34,7 @@ export function PaperTradingView({ paperAccount, onRefresh }: PaperTradingViewPr
 
   return (
     <div className="space-y-6">
+      <PolyPaperPanel />
       <FlujoPaperPanel />
       <LiderPaperPanel />
       <PumpPaperPanel />

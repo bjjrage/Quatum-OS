@@ -29,8 +29,21 @@ _N = NormalDist()
 
 
 # --------------------------------------------------------------------------- lectura
+def is_complete_parquet(p: Path) -> bool:
+    """False for files truncated by a crash (missing the PAR1 magic at either end); DuckDB aborts on them."""
+    try:
+        if p.stat().st_size < 12:
+            return False
+        with open(p, "rb") as fh:
+            head = fh.read(4)
+            fh.seek(-4, 2)
+            return head == b"PAR1" and fh.read(4) == b"PAR1"
+    except OSError:
+        return False
+
+
 def _files(base: Path, venue: str, table: str) -> List[str]:
-    return [p.as_posix() for p in Path(base).glob(f"{venue}/table={table}/**/*.parquet")]
+    return [p.as_posix() for p in Path(base).glob(f"{venue}/table={table}/**/*.parquet") if is_complete_parquet(p)]
 
 
 def _has_capture_source(files: Sequence[str]) -> bool:

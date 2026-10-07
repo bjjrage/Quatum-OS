@@ -105,9 +105,10 @@ def load_panel(base_data_path: Path, symbols: Sequence[str], start_ns: Optional[
                end_ns: Optional[int] = None, venue: str = "binance_perp") -> Panel:
     """Build a 1-minute panel from the recorded lakehouse (trade_ticks + bbo_ticks), DuckDB, read-only."""
     import duckdb
+    from src.research.recorder_studies import is_complete_parquet
     base = Path(base_data_path)
-    tfiles = [p.as_posix() for p in base.glob(f"{venue}/table=trade_ticks/**/*.parquet")]
-    bfiles = [p.as_posix() for p in base.glob(f"{venue}/table=bbo_ticks/**/*.parquet")]
+    tfiles = [p.as_posix() for p in base.glob(f"{venue}/table=trade_ticks/**/*.parquet") if is_complete_parquet(p)]
+    bfiles = [p.as_posix() for p in base.glob(f"{venue}/table=bbo_ticks/**/*.parquet") if is_complete_parquet(p)]
     if not tfiles:
         raise FileNotFoundError(f"No trade_ticks recorded under {base}/{venue}")
     syms = ",".join(f"'{s}'" for s in symbols)

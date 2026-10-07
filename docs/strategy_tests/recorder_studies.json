@@ -1,0 +1,321 @@
+{
+ "desde": "2026-10-02T23:08:20+00:00",
+ "hasta": "2026-10-06T23:20:58+00:00",
+ "desfase_reloj_pc_seg": -1.8829245,
+ "huecos_binance_btc": {
+  "huecos": 126,
+  "segundos_perdidos": 65465,
+  "hueco_mas_largo_seg": 29204,
+  "minuto_de_la_hora_mas_frecuente": [
+   {
+    "minuto": 59,
+    "huecos": 60
+   },
+   {
+    "minuto": 54,
+    "huecos": 19
+   },
+   {
+    "minuto": 0,
+    "huecos": 7
+   },
+   {
+    "minuto": 55,
+    "huecos": 5
+   },
+   {
+    "minuto": 18,
+    "huecos": 3
+   }
+  ]
+ },
+ "simbolos_binance": 25,
+ "btc_vs_alts": {
+  "status": "OK",
+  "horas_de_datos": 96.21083333333333,
+  "umbral_movimiento_btc_pct": 0.07406324724010815,
+  "eventos_btc": 78,
+  "n_alts": 24,
+  "respuesta_alts": [
+   {
+    "segundos": 0,
+    "movimiento_medio_pct": 0.08659905666177792,
+    "porcentaje_del_total": 82.60434248421615
+   },
+   {
+    "segundos": 1,
+    "movimiento_medio_pct": 0.09316406205315411,
+    "porcentaje_del_total": 88.86651178102466
+   },
+   {
+    "segundos": 2,
+    "movimiento_medio_pct": 0.09284977354644991,
+    "porcentaje_del_total": 88.56672103909956
+   },
+   {
+    "segundos": 3,
+    "movimiento_medio_pct": 0.09499227907757751,
+    "porcentaje_del_total": 90.61039527170473
+   },
+   {
+    "segundos": 5,
+    "movimiento_medio_pct": 0.09646331340904768,
+    "porcentaje_del_total": 92.01357249333877
+   },
+   {
+    "segundos": 10,
+    "movimiento_medio_pct": 0.09322806576494413,
+    "porcentaje_del_total": 88.92756307572422
+   },
+   {
+    "segundos": 20,
+    "movimiento_medio_pct": 0.10137106594823991,
+    "porcentaje_del_total": 96.69493609246615
+   },
+   {
+    "segundos": 30,
+    "movimiento_medio_pct": 0.09789109255301134,
+    "porcentaje_del_total": 93.37548983916422
+   },
+   {
+    "segundos": 60,
+    "movimiento_medio_pct": 0.10483596147300013,
+    "porcentaje_del_total": 100.0
+   }
+  ],
+  "operaciones": [
+   {
+    "entrar_a_los_seg": 1,
+    "mantener_seg": 10,
+    "operaciones": 1868,
+    "neto_medio_pct": -0.09570220271874652,
+    "aciertos": 0.07708779443254818,
+    "t_stat_por_evento": -14.943142426453313
+   },
+   {
+    "entrar_a_los_seg": 1,
+    "mantener_seg": 30,
+    "operaciones": 1868,
+    "neto_medio_pct": -0.09499883837625821,
+    "aciertos": 0.15042826552462527,
+    "t_stat_por_evento": -9.588527658943802
+   },
+   {
+    "entrar_a_los_seg": 1,
+    "mantener_seg": 60,
+    "operaciones": 1868,
+    "neto_medio_pct": -0.08784691379804499,
+    "aciertos": 0.22483940042826553,
+    "t_stat_por_evento": -6.414652331985728
+   },
+   {
+    "entrar_a_los_seg": 2,
+    "mantener_seg": 10,
+    "operaciones": 1868,
+    "neto_medio_pct": -0.09623031143047386,
+    "aciertos": 0.08404710920770878,
+    "t_stat_por_evento": -14.33395705089939
+   },
+   {
+    "entrar_a_los_seg": 2,
+    "mantener_seg": 30,
+    "operaciones": 1868,
+    "neto_medio_pct": -0.09449525171653428,
+    "aciertos": 0.15364025695931477,
+    "t_stat_por_evento": -9.35675256301988
+   },
+   {
+    "entrar_a_los_seg": 2,
+    "mantener_seg": 60,
+    "operaciones": 1868,
+    "neto_medio_pct": -0.09055685477403849,
+    "aciertos": 0.22483940042826553,
+    "t_stat_por_evento": -6.582441129757915
+   },
+   {
+    "entrar_a_los_seg": 5,
+    "mantener_seg": 10,
+    "operaciones": 1868,
+    "neto_medio_pct": -0.09331679104703448,
+    "aciertos": 0.09314775160599571,
+    "t_stat_por_evento": -13.119933753164343
+   },
+   {
+    "entrar_a_los_seg": 5,
+    "mantener_seg": 30,
+    "operaciones": 1868,
+    "neto_medio_pct": -0.09699347757741465,
+    "aciertos": 0.15792291220556745,
+    "t_stat_por_evento": -8.988462294616323
+   },
+   {
+    "entrar_a_los_seg": 5,
+    "mantener_seg": 60,
+    "operaciones": 1868,
+    "neto_medio_pct": -0.098181644440023,
+    "aciertos": 0.2221627408993576,
+    "t_stat_por_evento": -6.500496135580642
+   }
+  ],
+  "costo_ida_y_vuelta_pct": 0.08
+ },
+ "polymarket_vs_binance": {
+  "status": "OK",
+  "diagnostico": {
+   "mercados_up_down_en_metadata": 2030,
+   "por_duracion_todos": {
+    "5": 1336,
+    "15": 460,
+    "60": 225,
+    "1440": 9
+   },
+   "dentro_del_periodo_grabado": 1950,
+   "ejemplos_preguntas": [
+    "Bitcoin Up or Down - August 5, 10:55AM-11:00AM ET",
+    "Bitcoin Up or Down - December 19, 11:35AM-11:40AM ET",
+    "Bitcoin Up or Down - December 19, 11:40AM-11:45AM ET",
+    "Bitcoin Up or Down - December 19, 11:45AM-11:50AM ET",
+    "Bitcoin Up or Down - December 19, 11:50AM-11:55AM ET",
+    "Bitcoin Up or Down - December 19, 11:55AM-12:00PM ET",
+    "Bitcoin Up or Down - December 19, 12:00PM-12:05PM ET",
+    "Bitcoin Up or Down - December 19, 12:05PM-12:10PM ET"
+   ],
+   "con_precios_grabados": 1943,
+   "muestra": [
+    {
+     "q": "Bitcoin Up or Down - October 4, 1AM ET",
+     "asset": "BTCUSDT",
+     "min": 60,
+     "inicio": "2026-10-04T05:00:00+00:00",
+     "fin": "2026-10-04T06:00:00+00:00",
+     "S0": 84772.55,
+     "S1": 84873.85,
+     "n_cotiz": 220,
+     "primera_cotiz": "2026-10-04T01:47:25+00:00",
+     "ultima_cotiz": "2026-10-04T05:54:15+00:00"
+    },
+    {
+     "q": "Solana Up or Down - October 4, 1AM ET",
+     "asset": "SOLUSDT",
+     "min": 60,
+     "inicio": "2026-10-04T05:00:00+00:00",
+     "fin": "2026-10-04T06:00:00+00:00",
+     "S0": 120.57499999999999,
+     "S1": 120.765,
+     "n_cotiz": 206,
+     "primera_cotiz": "2026-10-04T01:48:30+00:00",
+     "ultima_cotiz": "2026-10-04T05:58:45+00:00"
+    },
+    {
+     "q": "Ethereum Up or Down - October 4, 2AM ET",
+     "asset": "ETHUSDT",
+     "min": 60,
+     "inicio": "2026-10-04T06:00:00+00:00",
+     "fin": "2026-10-04T07:00:00+00:00",
+     "S0": 2693.575,
+     "S1": 2695.205,
+     "n_cotiz": 257,
+     "primera_cotiz": "2026-10-04T01:48:30+00:00",
+     "ultima_cotiz": "2026-10-04T06:58:20+00:00"
+    },
+    {
+     "q": "Bitcoin Up or Down - October 4, 4AM ET",
+     "asset": "BTCUSDT",
+     "min": 60,
+     "inicio": "2026-10-04T08:00:00+00:00",
+     "fin": "2026-10-04T09:00:00+00:00",
+     "S0": 85069.95,
+     "S1": 85053.35,
+     "n_cotiz": 1244,
+     "primera_cotiz": "2026-10-04T01:48:30+00:00",
+     "ultima_cotiz": "2026-10-04T09:11:40+00:00"
+    },
+    {
+     "q": "Solana Up or Down - October 4, 5AM ET",
+     "asset": "SOLUSDT",
+     "min": 60,
+     "inicio": "2026-10-04T09:00:00+00:00",
+     "fin": "2026-10-04T10:00:00+00:00",
+     "S0": 120.935,
+     "S1": 121.285,
+     "n_cotiz": 333,
+     "primera_cotiz": "2026-10-04T03:33:50+00:00",
+     "ultima_cotiz": "2026-10-04T09:53:55+00:00"
+    },
+    {
+     "q": "Solana Up or Down - October 4, 8AM ET",
+     "asset": "SOLUSDT",
+     "min": 60,
+     "inicio": "2026-10-04T12:00:00+00:00",
+     "fin": "2026-10-04T13:00:00+00:00",
+     "S0": 121.185,
+     "S1": 121.295,
+     "n_cotiz": 1195,
+     "primera_cotiz": "2026-10-04T06:15:30+00:00",
+     "ultima_cotiz": "2026-10-04T13:11:35+00:00"
+    }
+   ],
+   "descartes": {
+    "sin_precio_binance": 120,
+    "sin_cotizaciones": 3
+   }
+  },
+  "mercados_usados": 1637,
+  "mercados_ambiguos": 190,
+  "por_duracion_min": {
+   "60": 154,
+   "1440": 9,
+   "15": 379,
+   "5": 1095
+  },
+  "error_prediccion_polymarket": 0.1692509636465325,
+  "error_prediccion_modelo": 0.16384398973225656,
+  "comparaciones_punto_medio": 447,
+  "apuestas": [
+   {
+    "umbral_pts": 3.0,
+    "apuestas": 462,
+    "ganancia_media_por_dolar": 0.08331168831168828,
+    "aciertos": 0.48917748917748916,
+    "precio_medio_pagado": 0.40586580086580065,
+    "t_stat": 3.8224289413032,
+    "por_duracion_min": {
+     "5": 348,
+     "15": 66,
+     "60": 40,
+     "1440": 8
+    }
+   },
+   {
+    "umbral_pts": 5.0,
+    "apuestas": 448,
+    "ganancia_media_por_dolar": 0.0757589285714286,
+    "aciertos": 0.4642857142857143,
+    "precio_medio_pagado": 0.3885267857142857,
+    "t_stat": 3.388869193796298,
+    "por_duracion_min": {
+     "5": 339,
+     "15": 61,
+     "60": 40,
+     "1440": 8
+    }
+   },
+   {
+    "umbral_pts": 10.0,
+    "apuestas": 386,
+    "ganancia_media_por_dolar": 0.08520725388601036,
+    "aciertos": 0.4533678756476684,
+    "precio_medio_pagado": 0.3681606217616581,
+    "t_stat": 3.520542805506494,
+    "por_duracion_min": {
+     "5": 298,
+     "15": 47,
+     "60": 36,
+     "1440": 5
+    }
+   }
+  ],
+  "ejemplo_fee_raw": "{\"exponent\": 1, \"rate\": 0.07, \"takerOnly\": true, \"rebateRate\": 0.2}",
+  "nota": "Ganancia por dólar apostado ANTES de comisiones de Polymarket. Error de predicción = promedio de (probabilidad - resultado)^2: más bajo es mejor."
+ }
+}
