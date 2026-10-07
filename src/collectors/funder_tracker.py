@@ -63,6 +63,8 @@ class FunderTracker:
         self.done_creators: Dict[str, Optional[str]] = {}     # creator -> funder (cache)
         self._calls: Deque[float] = deque()
         self.stats = {"encolados": 0, "resueltos": 0, "sin_fondeo": 0, "errores_rpc": 0}
+        self.error_types: Dict[str, int] = {}                 # visible in the 10-min log line
+        self.using_helius = "helius" in rpc_url
 
     # ---------------------------------------------------------------- selección (sin red, testeable)
     def on_create(self, ev: Dict[str, Any], now: float) -> None:
@@ -133,7 +135,7 @@ class FunderTracker:
         async with aiohttp.ClientSession() as session:
             self.http = session
             logger.info(f"Rastreador de fondeo activo (creadores de tokens con >= {self.min_buyers} compradores; "
-                        f"tope {self.max_rpm} pedidos/min).")
+                        f"tope {self.max_rpm} pedidos/min; RPC {'Helius' if self.using_helius else 'pública'}).")
             last_log = time.time()
             while True:
                 try:
@@ -146,14 +148,20 @@ class FunderTracker:
                             row = await self.resolve(mint, creator)
                         except Exception as e:
                             self.stats["errores_rpc"] += 1
-                            logger.debug(f"fondeo {creator[:6]}…: {type(e).__name__}: {str(e)[:80]}")
-                            await asyncio.sleep(2)
+                            kind = str(e)[:40] if isinstance(e, RuntimeError) else type(e).__name__
+                            self.error_types[kind] = self.error_types.get(kind, 0) + 1
+                            limited = "429" in kind or "-32429" in kind or "rate" in kind.lower()
+                            if limited and self.queue.maxlen is None:
+                                self.queue.appendleft((mint, creator))      # retry it after backing off
+                            await asyncio.sleep(15 if limited else 2)
                             continue
                         self.stats["resueltos" if row["funder"] else "sin_fondeo"] += 1
                         await self.sink.append("pumpfun", "creator_funding", row)
                     if time.time() - last_log > 600:
                         last_log = time.time()
-                        logger.info(f"Fondeo: {self.stats} | cola {len(self.queue)} | pendientes {len(self.pending)}")
+                        logger.info(f"Fondeo: {self.stats} | errores por tipo {self.error_types} | "
+                                    f"RPC {'Helius' if self.using_helius else 'pública'} | cola {len(self.queue)} | "
+                                    f"pendientes {len(self.pending)}")
                 except asyncio.CancelledError:
                     break
                 except Exception as e:

@@ -84,3 +84,50 @@ async def test_resolve_reads_oldest_first_caches_and_matches_schema():
     assert again["funder"] == M and again["cached"] is True and len(http.calls) == 2      # no extra RPC
     assert pa.Table.from_pylist([row, again], schema=SCHEMAS["creator_funding"]).num_rows == 2
     assert set(row) == set(SCHEMAS["creator_funding"].names)
+
+
+async def test_rate_limited_lookup_is_retried_and_error_type_is_counted(monkeypatch):
+    import asyncio
+    from src.collectors import funder_tracker as ft
+
+    calls = {"n": 0}
+
+    class LimitedThenOk(Http):
+        def post(self, url, json=None, timeout=None):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                class R(Resp):
+                    def __init__(self):
+                        self.status, self.payload = 429, {}
+                return R()
+            return super().post(url, json=json, timeout=timeout)
+
+    class Sink:
+        rows = []
+
+        async def append(self, v, t, r):
+            Sink.rows.append(r)
+
+    sleeps = []
+
+    async def fake_sleep(s):
+        sleeps.append(s)
+        if len(sleeps) > 3:
+            raise asyncio.CancelledError
+
+    f = FunderTracker(Sink(), Act({}), rpc_url="https://mainnet.helius-rpc.com/?api-key=x", max_rpm=1000)
+    f.queue.append(("mint1", C))
+    monkeypatch.setattr(ft.asyncio, "sleep", fake_sleep)
+
+    class Session:
+        async def __aenter__(self):
+            return LimitedThenOk()
+
+        async def __aexit__(self, *a):
+            return False
+
+    import aiohttp
+    monkeypatch.setattr(aiohttp, "ClientSession", lambda: Session())
+    await f.run()
+    assert f.error_types == {"RPC 429": 1} and 15 in sleeps and f.using_helius
+    assert Sink.rows and Sink.rows[0]["funder"] == M                       # retried and resolved
