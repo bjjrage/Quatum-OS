@@ -1,13 +1,13 @@
 {
- "generado_utc": "2026-10-07 15:51 UTC",
+ "generado_utc": "2026-10-07 16:21 UTC",
  "polymarket": {
-  "dias": 0.5236455436685571,
-  "senales": 416,
-  "llenadas": 285,
-  "no_llenadas": 131,
-  "pct_no_llenadas": 31.490384615384613,
-  "invertido_usd": 4783.110699999997,
-  "pnl_binance_usd": 1821.9240777518094,
+  "dias": 0.5317820633230386,
+  "senales": 425,
+  "llenadas": 291,
+  "no_llenadas": 134,
+  "pct_no_llenadas": 31.529411764705884,
+  "invertido_usd": 4933.110699999997,
+  "pnl_binance_usd": 1817.3987490481056,
   "resueltas": 0,
   "pnl_oficial_usd": 0,
   "pnl_por_usd_pct": null,
@@ -22,12 +22,72 @@
   },
   "ultimas": [
    {
+    "mercado": "btc-updown-5m-1791388800",
+    "lado": "down",
+    "precio": 0.17,
+    "usd": 25.000000000000004,
+    "edge": 0.6223264178887113,
+    "pnl_binance": null,
+    "pnl_oficial": null,
+    "t": 1791388905.9811466
+   },
+   {
+    "mercado": "eth-updown-15m-1791388800",
+    "lado": "down",
+    "precio": 0.27,
+    "usd": 25.0,
+    "edge": 0.39903247056525,
+    "pnl_binance": null,
+    "pnl_oficial": null,
+    "t": 1791388905.9811466
+   },
+   {
+    "mercado": "btc-updown-15m-1791388800",
+    "lado": "down",
+    "precio": 0.29,
+    "usd": 25.0,
+    "edge": 0.3540183315459003,
+    "pnl_binance": null,
+    "pnl_oficial": null,
+    "t": 1791388905.9811466
+   },
+   {
+    "mercado": "eth-updown-5m-1791388800",
+    "lado": "down",
+    "precio": 0.17,
+    "usd": 25.000000000000004,
+    "edge": 0.06586516580386018,
+    "pnl_binance": null,
+    "pnl_oficial": null,
+    "t": 1791388868.0074608
+   },
+   {
+    "mercado": "sol-updown-5m-1791388800",
+    "lado": "up",
+    "precio": 0.72,
+    "usd": 25.0,
+    "edge": 0.13716058740834103,
+    "pnl_binance": null,
+    "pnl_oficial": null,
+    "t": 1791388864.9973662
+   },
+   {
+    "mercado": "sol-updown-15m-1791388800",
+    "lado": "up",
+    "precio": 0.63,
+    "usd": 25.0,
+    "edge": 0.08502678199425595,
+    "pnl_binance": null,
+    "pnl_oficial": null,
+    "t": 1791388864.9973662
+   },
+   {
     "mercado": "eth-updown-15m-1791387900",
     "lado": "down",
     "precio": 0.33,
     "usd": 25.0,
     "edge": 0.06470151503127325,
-    "pnl_binance": null,
+    "pnl_binance": -25.386924999999998,
     "pnl_oficial": null,
     "t": 1791388008.0036383
    },
@@ -37,7 +97,7 @@
     "precio": 0.54,
     "usd": 25.0,
     "edge": 0.06040419870366864,
-    "pnl_binance": null,
+    "pnl_binance": 20.86159629629629,
     "pnl_oficial": null,
     "t": 1791387987.0088675
    },
@@ -260,66 +320,6 @@
     "pnl_binance": -8.543236799999999,
     "pnl_oficial": null,
     "t": 1791379267.0016255
-   },
-   {
-    "mercado": "eth-updown-5m-1791379200",
-    "lado": "up",
-    "precio": 0.41,
-    "usd": 25.0,
-    "edge": 0.07623814297864612,
-    "pnl_binance": -25.423325,
-    "pnl_oficial": null,
-    "t": 1791379267.0016255
-   },
-   {
-    "mercado": "sol-updown-5m-1791378900",
-    "lado": "down",
-    "precio": 0.24,
-    "usd": 4.8,
-    "edge": 0.1353501570277536,
-    "pnl_binance": 15.138713599999999,
-    "pnl_oficial": null,
-    "t": 1791378968.022384
-   },
-   {
-    "mercado": "eth-updown-5m-1791378900",
-    "lado": "down",
-    "precio": 0.28,
-    "usd": 5.040000000000001,
-    "edge": 0.14705284875599772,
-    "pnl_binance": 12.888875520000001,
-    "pnl_oficial": null,
-    "t": 1791378968.022384
-   },
-   {
-    "mercado": "btc-updown-5m-1791378900",
-    "lado": "down",
-    "precio": 0.4,
-    "usd": 25.0,
-    "edge": 0.10008480066249897,
-    "pnl_binance": -25.42,
-    "pnl_oficial": null,
-    "t": 1791378968.022384
-   },
-   {
-    "mercado": "sol-updown-15m-1791378900",
-    "lado": "down",
-    "precio": 0.35,
-    "usd": 17.0695,
-    "edge": 0.09028961150848414,
-    "pnl_binance": 31.4286682125,
-    "pnl_oficial": null,
-    "t": 1791378968.022384
-   },
-   {
-    "mercado": "eth-updown-15m-1791378900",
-    "lado": "down",
-    "precio": 0.38,
-    "usd": 1.9,
-    "edge": 0.08314093325717181,
-    "pnl_binance": -1.9313348,
-    "pnl_oficial": null,
-    "t": 1791378968.022384
    }
   ],
   "criterio": {
@@ -328,274 +328,6 @@
    "texto": "≥300 apuestas resueltas, PnL oficial > 0 y t por ventana > 2"
   },
   "ultimos_eventos": [
-   {
-    "ts": 1791380794.0100417,
-    "kind": "signal",
-    "slug": "eth-updown-15m-1791380700",
-    "asset": "ETHUSDT",
-    "minutes": 15,
-    "side": "down",
-    "p_model": 0.5197519147315852,
-    "limit": 0.4,
-    "edge": 0.08024808526841476,
-    "sigma": 0.00011126129900450271,
-    "tau_s": 805.9919638633728
-   },
-   {
-    "ts": 1791380794.0100417,
-    "kind": "signal",
-    "slug": "sol-updown-15m-1791380700",
-    "asset": "SOLUSDT",
-    "minutes": 15,
-    "side": "down",
-    "p_model": 0.42625119188235194,
-    "limit": 0.48,
-    "edge": 0.09374880811764807,
-    "sigma": 0.00011455005979885567,
-    "tau_s": 805.9919638633728
-   },
-   {
-    "ts": 1791380796.0089645,
-    "kind": "fill",
-    "slug": "eth-updown-15m-1791380700",
-    "asset": "ETHUSDT",
-    "minutes": 15,
-    "side": "down",
-    "price": 0.4,
-    "shares": 20.0,
-    "usd": 8.0,
-    "fee_per_share": 0.006720000000000001,
-    "p_model": 0.5197519147315852,
-    "edge": 0.08024808526841476,
-    "t": 1791380796.0089645
-   },
-   {
-    "ts": 1791380796.0089645,
-    "kind": "fill",
-    "slug": "sol-updown-15m-1791380700",
-    "asset": "SOLUSDT",
-    "minutes": 15,
-    "side": "down",
-    "price": 0.48,
-    "shares": 10.8,
-    "usd": 5.184,
-    "fee_per_share": 0.008386560000000001,
-    "p_model": 0.42625119188235194,
-    "edge": 0.09374880811764807,
-    "t": 1791380796.0089645
-   },
-   {
-    "ts": 1791381007.989128,
-    "kind": "settle",
-    "slug": "btc-updown-5m-1791380700",
-    "up_won_binance": false,
-    "s0": 83097.65,
-    "s1": 82937.65,
-    "pnl": 28.91312608695652,
-    "side": "down",
-    "price": 0.46,
-    "shares": 54.347826086956516,
-    "usd": 25.0
-   },
-   {
-    "ts": 1791381602.9821863,
-    "kind": "settle",
-    "slug": "btc-updown-15m-1791380700",
-    "up_won_binance": true,
-    "s0": 83097.65,
-    "s1": 83145.05,
-    "pnl": -25.435925,
-    "side": "down",
-    "price": 0.47,
-    "shares": 53.19148936170213,
-    "usd": 25.0
-   },
-   {
-    "ts": 1791381602.9821863,
-    "kind": "settle",
-    "slug": "eth-updown-15m-1791380700",
-    "up_won_binance": true,
-    "s0": 2556.465,
-    "s1": 2568.395,
-    "pnl": -8.134400000000001,
-    "side": "down",
-    "price": 0.4,
-    "shares": 20.0,
-    "usd": 8.0
-   },
-   {
-    "ts": 1791381602.9821863,
-    "kind": "settle",
-    "slug": "sol-updown-15m-1791380700",
-    "up_won_binance": true,
-    "s0": 115.805,
-    "s1": 116.16499999999999,
-    "pnl": -5.274574848,
-    "side": "down",
-    "price": 0.48,
-    "shares": 10.8,
-    "usd": 5.184
-   },
-   {
-    "ts": 1791387830.9822738,
-    "kind": "signal",
-    "slug": "sol-updown-5m-1791387600",
-    "asset": "SOLUSDT",
-    "minutes": 5,
-    "side": "down",
-    "p_model": 0.7696760589172433,
-    "limit": 0.14,
-    "edge": 0.09032394108275665,
-    "sigma": 7.003347821666657e-05,
-    "tau_s": 69.01947212219238
-   },
-   {
-    "ts": 1791387831.0142326,
-    "kind": "signal",
-    "slug": "eth-updown-5m-1791387600",
-    "asset": "ETHUSDT",
-    "minutes": 5,
-    "side": "up",
-    "p_model": 0.7512816929782415,
-    "limit": 0.64,
-    "edge": 0.11128169297824153,
-    "sigma": 5.743125445314743e-05,
-    "tau_s": 68.99960660934448
-   },
-   {
-    "ts": 1791387833.0204868,
-    "kind": "miss",
-    "slug": "eth-updown-5m-1791387600",
-    "side": "up",
-    "limit": 0.64,
-    "book_px": 0.68,
-    "book_size": 10.0
-   },
-   {
-    "ts": 1791387833.0204868,
-    "kind": "fill",
-    "slug": "sol-updown-5m-1791387600",
-    "asset": "SOLUSDT",
-    "minutes": 5,
-    "side": "down",
-    "price": 0.1,
-    "shares": 32.28,
-    "usd": 3.228,
-    "fee_per_share": 0.0006300000000000001,
-    "p_model": 0.7696760589172433,
-    "edge": 0.09032394108275665,
-    "t": 1791387833.0141985
-   },
-   {
-    "ts": 1791387857.9941843,
-    "kind": "signal",
-    "slug": "btc-updown-5m-1791387600",
-    "asset": "BTCUSDT",
-    "minutes": 5,
-    "side": "down",
-    "p_model": 0.8710033719129592,
-    "limit": 0.01,
-    "edge": 0.11899662808704083,
-    "sigma": 5.259138443592074e-05,
-    "tau_s": 42.0131049156189
-   },
-   {
-    "ts": 1791387859.9997113,
-    "kind": "fill",
-    "slug": "btc-updown-5m-1791387600",
-    "asset": "BTCUSDT",
-    "minutes": 5,
-    "side": "down",
-    "price": 0.01,
-    "shares": 2500.0,
-    "usd": 25.0,
-    "fee_per_share": 6.930000000000001e-06,
-    "p_model": 0.8710033719129592,
-    "edge": 0.11899662808704083,
-    "t": 1791387859.9972095
-   },
-   {
-    "ts": 1791387902.000041,
-    "kind": "settle",
-    "slug": "btc-updown-5m-1791387600",
-    "up_won_binance": true,
-    "s0": 83232.95,
-    "s1": 83274.15,
-    "pnl": -25.017325000000003,
-    "side": "down",
-    "price": 0.01,
-    "shares": 2500.0,
-    "usd": 25.0
-   },
-   {
-    "ts": 1791387902.000041,
-    "kind": "settle",
-    "slug": "sol-updown-5m-1791387600",
-    "up_won_binance": true,
-    "s0": 116.455,
-    "s1": 116.505,
-    "pnl": -3.2483364000000003,
-    "side": "down",
-    "price": 0.1,
-    "shares": 32.28,
-    "usd": 3.228
-   },
-   {
-    "ts": 1791387960.0113614,
-    "kind": "signal",
-    "slug": "eth-updown-5m-1791387900",
-    "asset": "ETHUSDT",
-    "minutes": 5,
-    "side": "down",
-    "p_model": 0.6385791991061877,
-    "limit": 0.31,
-    "edge": 0.051420800893812346,
-    "sigma": 5.464899184431459e-05,
-    "tau_s": 239.99684381484985
-   },
-   {
-    "ts": 1791387962.9928255,
-    "kind": "fill",
-    "slug": "eth-updown-5m-1791387900",
-    "asset": "ETHUSDT",
-    "minutes": 5,
-    "side": "down",
-    "price": 0.29,
-    "shares": 80.0,
-    "usd": 23.2,
-    "fee_per_share": 0.00417977,
-    "p_model": 0.6385791991061877,
-    "edge": 0.051420800893812346,
-    "t": 1791387962.9866126
-   },
-   {
-    "ts": 1791387968.990523,
-    "kind": "signal",
-    "slug": "btc-updown-5m-1791387900",
-    "asset": "BTCUSDT",
-    "minutes": 5,
-    "side": "up",
-    "p_model": 0.729692968813278,
-    "limit": 0.66,
-    "edge": 0.06969296881327802,
-    "sigma": 5.163627599089703e-05,
-    "tau_s": 231.01597905158997
-   },
-   {
-    "ts": 1791387970.9858592,
-    "kind": "fill",
-    "slug": "btc-updown-5m-1791387900",
-    "asset": "BTCUSDT",
-    "minutes": 5,
-    "side": "up",
-    "price": 0.65,
-    "shares": 38.46153846153846,
-    "usd": 25.0,
-    "fee_per_share": 0.010351250000000001,
-    "p_model": 0.729692968813278,
-    "edge": 0.06969296881327802,
-    "t": 1791387970.9858592
-   },
    {
     "ts": 1791387984.9846566,
     "kind": "signal",
@@ -721,15 +453,275 @@
     "price": 0.29,
     "shares": 80.0,
     "usd": 23.2
+   },
+   {
+    "ts": 1791388269.9909458,
+    "kind": "signal",
+    "slug": "btc-updown-5m-1791388200",
+    "asset": "BTCUSDT",
+    "minutes": 5,
+    "side": "up",
+    "p_model": 0.8725182759585699,
+    "limit": 0.81,
+    "edge": 0.06251827595856985,
+    "sigma": 4.525595992471594e-05,
+    "tau_s": 230.0110490322113
+   },
+   {
+    "ts": 1791388269.99294,
+    "kind": "signal",
+    "slug": "eth-updown-5m-1791388200",
+    "asset": "ETHUSDT",
+    "minutes": 5,
+    "side": "up",
+    "p_model": 0.9171481863497768,
+    "limit": 0.84,
+    "edge": 0.07714818634977683,
+    "sigma": 4.914909177662376e-05,
+    "tau_s": 230.0110490322113
+   },
+   {
+    "ts": 1791388269.994574,
+    "kind": "signal",
+    "slug": "sol-updown-5m-1791388200",
+    "asset": "SOLUSDT",
+    "minutes": 5,
+    "side": "up",
+    "p_model": 0.8974912384865521,
+    "limit": 0.81,
+    "edge": 0.08749123848655205,
+    "sigma": 6.247443925477296e-05,
+    "tau_s": 230.0110490322113
+   },
+   {
+    "ts": 1791388272.0913177,
+    "kind": "miss",
+    "slug": "btc-updown-5m-1791388200",
+    "side": "up",
+    "limit": 0.81,
+    "book_px": 0.84,
+    "book_size": 35.36
+   },
+   {
+    "ts": 1791388272.0947862,
+    "kind": "miss",
+    "slug": "eth-updown-5m-1791388200",
+    "side": "up",
+    "limit": 0.84,
+    "book_px": 0.87,
+    "book_size": 52.7
+   },
+   {
+    "ts": 1791388272.0947862,
+    "kind": "miss",
+    "slug": "sol-updown-5m-1791388200",
+    "side": "up",
+    "limit": 0.81,
+    "book_px": 0.86,
+    "book_size": 20.0
+   },
+   {
+    "ts": 1791388802.0045516,
+    "kind": "settle",
+    "slug": "btc-updown-15m-1791387900",
+    "up_won_binance": true,
+    "s0": 83274.15,
+    "s1": 83401.65,
+    "pnl": 20.86159629629629,
+    "side": "up",
+    "price": 0.54,
+    "shares": 46.29629629629629,
+    "usd": 25.0
+   },
+   {
+    "ts": 1791388802.0045516,
+    "kind": "settle",
+    "slug": "eth-updown-15m-1791387900",
+    "up_won_binance": true,
+    "s0": 2564.035,
+    "s1": 2569.705,
+    "pnl": -25.386924999999998,
+    "side": "down",
+    "price": 0.33,
+    "shares": 75.75757575757575,
+    "usd": 25.0
+   },
+   {
+    "ts": 1791388862.993729,
+    "kind": "signal",
+    "slug": "sol-updown-15m-1791388800",
+    "asset": "SOLUSDT",
+    "minutes": 15,
+    "side": "up",
+    "p_model": 0.715026781994256,
+    "limit": 0.63,
+    "edge": 0.08502678199425595,
+    "sigma": 6.775007607648889e-05,
+    "tau_s": 837.0122334957123
+   },
+   {
+    "ts": 1791388862.99946,
+    "kind": "signal",
+    "slug": "sol-updown-5m-1791388800",
+    "asset": "SOLUSDT",
+    "minutes": 5,
+    "side": "up",
+    "p_model": 0.857160587408341,
+    "limit": 0.72,
+    "edge": 0.13716058740834103,
+    "sigma": 6.775007607648889e-05,
+    "tau_s": 237.01223349571228
+   },
+   {
+    "ts": 1791388864.9988737,
+    "kind": "fill",
+    "slug": "sol-updown-15m-1791388800",
+    "asset": "SOLUSDT",
+    "minutes": 15,
+    "side": "up",
+    "price": 0.63,
+    "shares": 39.682539682539684,
+    "usd": 25.0,
+    "fee_per_share": 0.010279710000000001,
+    "p_model": 0.715026781994256,
+    "edge": 0.08502678199425595,
+    "t": 1791388864.9973662
+   },
+   {
+    "ts": 1791388864.9988737,
+    "kind": "fill",
+    "slug": "sol-updown-5m-1791388800",
+    "asset": "SOLUSDT",
+    "minutes": 5,
+    "side": "up",
+    "price": 0.72,
+    "shares": 34.72222222222222,
+    "usd": 25.0,
+    "fee_per_share": 0.01016064,
+    "p_model": 0.857160587408341,
+    "edge": 0.13716058740834103,
+    "t": 1791388864.9973662
+   },
+   {
+    "ts": 1791388865.989294,
+    "kind": "signal",
+    "slug": "eth-updown-5m-1791388800",
+    "asset": "ETHUSDT",
+    "minutes": 5,
+    "side": "down",
+    "p_model": 0.7641348341961398,
+    "limit": 0.17,
+    "edge": 0.06586516580386018,
+    "sigma": 5.229974868797236e-05,
+    "tau_s": 234.015700340271
+   },
+   {
+    "ts": 1791388868.012207,
+    "kind": "fill",
+    "slug": "eth-updown-5m-1791388800",
+    "asset": "ETHUSDT",
+    "minutes": 5,
+    "side": "down",
+    "price": 0.17,
+    "shares": 147.05882352941177,
+    "usd": 25.000000000000004,
+    "fee_per_share": 0.0016790900000000005,
+    "p_model": 0.7641348341961398,
+    "edge": 0.06586516580386018,
+    "t": 1791388868.0074608
+   },
+   {
+    "ts": 1791388903.009178,
+    "kind": "signal",
+    "slug": "btc-updown-15m-1791388800",
+    "asset": "BTCUSDT",
+    "minutes": 15,
+    "side": "down",
+    "p_model": 0.3159816684540997,
+    "limit": 0.33,
+    "edge": 0.3540183315459003,
+    "sigma": 4.559226961348629e-05,
+    "tau_s": 796.9924464225769
+   },
+   {
+    "ts": 1791388903.0107195,
+    "kind": "signal",
+    "slug": "eth-updown-15m-1791388800",
+    "asset": "ETHUSDT",
+    "minutes": 15,
+    "side": "down",
+    "p_model": 0.30096752943475,
+    "limit": 0.3,
+    "edge": 0.39903247056525,
+    "sigma": 5.234414378299792e-05,
+    "tau_s": 796.9924464225769
+   },
+   {
+    "ts": 1791388903.0107195,
+    "kind": "signal",
+    "slug": "btc-updown-5m-1791388800",
+    "asset": "BTCUSDT",
+    "minutes": 5,
+    "side": "down",
+    "p_model": 0.16767358211128874,
+    "limit": 0.21,
+    "edge": 0.6223264178887113,
+    "sigma": 4.559226961348629e-05,
+    "tau_s": 196.9924464225769
+   },
+   {
+    "ts": 1791388905.9811466,
+    "kind": "fill",
+    "slug": "btc-updown-15m-1791388800",
+    "asset": "BTCUSDT",
+    "minutes": 15,
+    "side": "down",
+    "price": 0.29,
+    "shares": 86.20689655172414,
+    "usd": 25.0,
+    "fee_per_share": 0.00417977,
+    "p_model": 0.3159816684540997,
+    "edge": 0.3540183315459003,
+    "t": 1791388905.9811466
+   },
+   {
+    "ts": 1791388905.9811466,
+    "kind": "fill",
+    "slug": "eth-updown-15m-1791388800",
+    "asset": "ETHUSDT",
+    "minutes": 15,
+    "side": "down",
+    "price": 0.27,
+    "shares": 92.59259259259258,
+    "usd": 25.0,
+    "fee_per_share": 0.0037251900000000006,
+    "p_model": 0.30096752943475,
+    "edge": 0.39903247056525,
+    "t": 1791388905.9811466
+   },
+   {
+    "ts": 1791388905.9811466,
+    "kind": "fill",
+    "slug": "btc-updown-5m-1791388800",
+    "asset": "BTCUSDT",
+    "minutes": 5,
+    "side": "down",
+    "price": 0.17,
+    "shares": 147.05882352941177,
+    "usd": 25.000000000000004,
+    "fee_per_share": 0.0016790900000000005,
+    "p_model": 0.16767358211128874,
+    "edge": 0.6223264178887113,
+    "t": 1791388905.9811466
    }
   ]
  },
  "papers": {
   "baja_vol": {
-   "actualizado_hace_min": 0.4,
+   "actualizado_hace_min": 0.9,
    "estado": {
     "capital_inicial": 10000.0,
-    "cash": 10377.145616990425,
+    "cash": 10376.57662930933,
     "apalancamiento": 1.0,
     "posiciones": {
      "ZETAUSDT": -7602.597047151307,
@@ -797,7 +789,7 @@
       }
      }
     ],
-    "funding_pagado": 1.7005368557248983,
+    "funding_pagado": 2.2695245368228147,
     "costos_pagados": 5.76923076923077,
     "equity_diaria": [
      {
@@ -806,249 +798,249 @@
      },
      {
       "dia": "2026-10-07",
-      "equity": 10113.002822257504
+      "equity": 10066.278249055978
      }
     ],
     "funding_visto": {
      "ALICEUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "ETHUSDT": {
-      "next": 1791388800000,
-      "rate": -4.097e-05
+      "next": 1791417600000,
+      "rate": -2.27e-05
      },
      "SEIUSDT": {
-      "next": 1791388800000,
-      "rate": 6.224e-05
+      "next": 1791417600000,
+      "rate": 3.659e-05
      },
      "PIXELUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "TNSRUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "MASKUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "RONINUSDT": {
-      "next": 1791388800000,
-      "rate": 3.38e-05
+      "next": 1791403200000,
+      "rate": 5e-05
      },
      "BNBUSDT": {
-      "next": 1791388800000,
+      "next": 1791417600000,
       "rate": 0.0
      },
      "ONDOUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "ACEUSDT": {
-      "next": 1791388800000,
-      "rate": 4.572e-05
+      "next": 1791403200000,
+      "rate": -2.915e-05
      },
      "ZETAUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "GALAUSDT": {
-      "next": 1791388800000,
-      "rate": 3.74e-05
+      "next": 1791417600000,
+      "rate": 5.851e-05
      },
      "BEAMXUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "LINKUSDT": {
-      "next": 1791388800000,
-      "rate": 7.081e-05
+      "next": 1791417600000,
+      "rate": 6.588e-05
      },
      "MANAUSDT": {
-      "next": 1791388800000,
-      "rate": -5.334e-05
+      "next": 1791417600000,
+      "rate": -0.0001926
      },
      "APTUSDT": {
-      "next": 1791388800000,
-      "rate": 4.743e-05
+      "next": 1791417600000,
+      "rate": 3.939e-05
      },
      "XRPUSDT": {
-      "next": 1791388800000,
-      "rate": -8.28e-06
+      "next": 1791417600000,
+      "rate": -1.419e-05
      },
      "VANRYUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 0.0
      },
      "NEARUSDT": {
-      "next": 1791388800000,
-      "rate": 3.785e-05
+      "next": 1791417600000,
+      "rate": 4.505e-05
      },
      "MANTAUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "STRKUSDT": {
-      "next": 1791388800000,
-      "rate": 5e-05
+      "next": 1791403200000,
+      "rate": 4.615e-05
      },
      "ORDIUSDT": {
-      "next": 1791388800000,
-      "rate": -6.28e-05
+      "next": 1791403200000,
+      "rate": -4.087e-05
      },
      "FETUSDT": {
-      "next": 1791388800000,
-      "rate": 6.545e-05
+      "next": 1791417600000,
+      "rate": -5.27e-06
      },
      "1000FLOKIUSDT": {
-      "next": 1791388800000,
-      "rate": 1.725e-05
+      "next": 1791417600000,
+      "rate": -2.875e-05
      },
      "ALTUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "INJUSDT": {
-      "next": 1791388800000,
-      "rate": -5.76e-05
+      "next": 1791417600000,
+      "rate": -6.419e-05
      },
      "ADAUSDT": {
-      "next": 1791388800000,
-      "rate": -1.407e-05
+      "next": 1791417600000,
+      "rate": -2.816e-05
      },
      "BLURUSDT": {
-      "next": 1791388800000,
-      "rate": 5e-05
+      "next": 1791403200000,
+      "rate": 4.632e-05
      },
      "APEUSDT": {
-      "next": 1791388800000,
-      "rate": -2.5e-07
+      "next": 1791417600000,
+      "rate": 6.09e-06
      },
      "DYMUSDT": {
-      "next": 1791388800000,
-      "rate": 4.67e-05
+      "next": 1791403200000,
+      "rate": 5e-05
      },
      "SOLUSDT": {
-      "next": 1791388800000,
-      "rate": 3.03e-05
+      "next": 1791417600000,
+      "rate": 2.773e-05
      },
      "JTOUSDT": {
-      "next": 1791388800000,
-      "rate": 1.29e-06
+      "next": 1791403200000,
+      "rate": -1.374e-05
      },
      "OPUSDT": {
-      "next": 1791388800000,
-      "rate": -0.00016226
+      "next": 1791417600000,
+      "rate": -0.00016064
      },
      "RENDERUSDT": {
-      "next": 1791388800000,
-      "rate": 4.982e-05
+      "next": 1791403200000,
+      "rate": 3.08e-05
      },
      "1000BONKUSDT": {
-      "next": 1791388800000,
-      "rate": -1.116e-05
+      "next": 1791403200000,
+      "rate": -3.354e-05
      },
      "MEMEUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "ARBUSDT": {
-      "next": 1791388800000,
-      "rate": -1.99e-06
+      "next": 1791417600000,
+      "rate": -2.187e-05
      },
      "AVAXUSDT": {
-      "next": 1791388800000,
-      "rate": 2.929e-05
+      "next": 1791417600000,
+      "rate": 4.521e-05
      },
      "NOTUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "ARKMUSDT": {
-      "next": 1791388800000,
+      "next": 1791417600000,
       "rate": 0.0001
      },
      "1000SATSUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "TIAUSDT": {
-      "next": 1791388800000,
-      "rate": -8.2e-06
+      "next": 1791403200000,
+      "rate": -3e-08
      },
      "SUPERUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "BTCUSDT": {
-      "next": 1791388800000,
-      "rate": 8.91e-06
+      "next": 1791417600000,
+      "rate": 1.28e-05
      },
      "DYDXUSDT": {
-      "next": 1791388800000,
-      "rate": 4.236e-05
+      "next": 1791417600000,
+      "rate": 2.413e-05
      },
      "1000SHIBUSDT": {
-      "next": 1791388800000,
-      "rate": -0.00015998
+      "next": 1791417600000,
+      "rate": -0.00016435
      },
      "YGGUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "WIFUSDT": {
-      "next": 1791388800000,
-      "rate": 6.08e-06
+      "next": 1791403200000,
+      "rate": -4.16e-06
      },
      "SAGAUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "SUIUSDT": {
-      "next": 1791388800000,
-      "rate": 0.0001
+      "next": 1791417600000,
+      "rate": 6.802e-05
      },
      "CHZUSDT": {
-      "next": 1791388800000,
+      "next": 1791417600000,
       "rate": 0.0001
      },
      "1000PEPEUSDT": {
-      "next": 1791388800000,
-      "rate": 6.865e-05
+      "next": 1791417600000,
+      "rate": 2.448e-05
      },
      "SANDUSDT": {
-      "next": 1791388800000,
-      "rate": -0.00119788
+      "next": 1791417600000,
+      "rate": -0.00104436
      },
      "MAGICUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "AEVOUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "IMXUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "AXSUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "ILVUSDT": {
-      "next": 1791388800000,
-      "rate": 6.29e-06
+      "next": 1791403200000,
+      "rate": -2.679e-05
      },
      "GMTUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "GMXUSDT": {
-      "next": 1791388800000,
-      "rate": 3.688e-05
+      "next": 1791417600000,
+      "rate": 5.846e-05
      }
     },
     "creado": "2026-10-06T00:18:43.486304+00:00",
@@ -1084,10 +1076,10 @@
    }
   },
   "btc_tendencia": {
-   "actualizado_hace_min": 0.4,
+   "actualizado_hace_min": 0.9,
    "estado": {
     "capital_inicial": 10000.0,
-    "cash": -5.65661819183826,
+    "cash": -5.768565660318812,
     "apalancamiento": 1.0,
     "posiciones": {
      "BTCUSDT": 0.11653368231286729
@@ -1106,7 +1098,7 @@
       }
      }
     ],
-    "funding_pagado": -0.3433818081599215,
+    "funding_pagado": -0.23143433967936922,
     "costos_pagados": 6.0,
     "equity_diaria": [
      {
@@ -1115,249 +1107,249 @@
      },
      {
       "dia": "2026-10-07",
-      "equity": 9701.494238155925
+      "equity": 9732.31032997328
      }
     ],
     "funding_visto": {
      "ALICEUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "ETHUSDT": {
-      "next": 1791388800000,
-      "rate": -4.097e-05
+      "next": 1791417600000,
+      "rate": -2.27e-05
      },
      "SEIUSDT": {
-      "next": 1791388800000,
-      "rate": 6.224e-05
+      "next": 1791417600000,
+      "rate": 3.659e-05
      },
      "PIXELUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "TNSRUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "MASKUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "RONINUSDT": {
-      "next": 1791388800000,
-      "rate": 3.38e-05
+      "next": 1791403200000,
+      "rate": 5e-05
      },
      "BNBUSDT": {
-      "next": 1791388800000,
+      "next": 1791417600000,
       "rate": 0.0
      },
      "ONDOUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "ACEUSDT": {
-      "next": 1791388800000,
-      "rate": 4.572e-05
+      "next": 1791403200000,
+      "rate": -2.915e-05
      },
      "ZETAUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "GALAUSDT": {
-      "next": 1791388800000,
-      "rate": 3.74e-05
+      "next": 1791417600000,
+      "rate": 5.851e-05
      },
      "BEAMXUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "LINKUSDT": {
-      "next": 1791388800000,
-      "rate": 7.081e-05
+      "next": 1791417600000,
+      "rate": 6.588e-05
      },
      "MANAUSDT": {
-      "next": 1791388800000,
-      "rate": -5.334e-05
+      "next": 1791417600000,
+      "rate": -0.0001926
      },
      "APTUSDT": {
-      "next": 1791388800000,
-      "rate": 4.743e-05
+      "next": 1791417600000,
+      "rate": 3.939e-05
      },
      "XRPUSDT": {
-      "next": 1791388800000,
-      "rate": -8.28e-06
+      "next": 1791417600000,
+      "rate": -1.419e-05
      },
      "VANRYUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 0.0
      },
      "NEARUSDT": {
-      "next": 1791388800000,
-      "rate": 3.785e-05
+      "next": 1791417600000,
+      "rate": 4.505e-05
      },
      "MANTAUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "STRKUSDT": {
-      "next": 1791388800000,
-      "rate": 5e-05
+      "next": 1791403200000,
+      "rate": 4.615e-05
      },
      "ORDIUSDT": {
-      "next": 1791388800000,
-      "rate": -6.28e-05
+      "next": 1791403200000,
+      "rate": -4.087e-05
      },
      "FETUSDT": {
-      "next": 1791388800000,
-      "rate": 6.545e-05
+      "next": 1791417600000,
+      "rate": -5.27e-06
      },
      "1000FLOKIUSDT": {
-      "next": 1791388800000,
-      "rate": 1.725e-05
+      "next": 1791417600000,
+      "rate": -2.875e-05
      },
      "ALTUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "INJUSDT": {
-      "next": 1791388800000,
-      "rate": -5.76e-05
+      "next": 1791417600000,
+      "rate": -6.419e-05
      },
      "ADAUSDT": {
-      "next": 1791388800000,
-      "rate": -1.407e-05
+      "next": 1791417600000,
+      "rate": -2.816e-05
      },
      "BLURUSDT": {
-      "next": 1791388800000,
-      "rate": 5e-05
+      "next": 1791403200000,
+      "rate": 4.632e-05
      },
      "APEUSDT": {
-      "next": 1791388800000,
-      "rate": -2.5e-07
+      "next": 1791417600000,
+      "rate": 6.09e-06
      },
      "DYMUSDT": {
-      "next": 1791388800000,
-      "rate": 4.67e-05
+      "next": 1791403200000,
+      "rate": 5e-05
      },
      "SOLUSDT": {
-      "next": 1791388800000,
-      "rate": 3.03e-05
+      "next": 1791417600000,
+      "rate": 2.773e-05
      },
      "JTOUSDT": {
-      "next": 1791388800000,
-      "rate": 1.29e-06
+      "next": 1791403200000,
+      "rate": -1.374e-05
      },
      "OPUSDT": {
-      "next": 1791388800000,
-      "rate": -0.00016226
+      "next": 1791417600000,
+      "rate": -0.00016064
      },
      "RENDERUSDT": {
-      "next": 1791388800000,
-      "rate": 4.982e-05
+      "next": 1791403200000,
+      "rate": 3.08e-05
      },
      "1000BONKUSDT": {
-      "next": 1791388800000,
-      "rate": -1.116e-05
+      "next": 1791403200000,
+      "rate": -3.354e-05
      },
      "MEMEUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "ARBUSDT": {
-      "next": 1791388800000,
-      "rate": -1.99e-06
+      "next": 1791417600000,
+      "rate": -2.187e-05
      },
      "AVAXUSDT": {
-      "next": 1791388800000,
-      "rate": 2.929e-05
+      "next": 1791417600000,
+      "rate": 4.521e-05
      },
      "NOTUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "ARKMUSDT": {
-      "next": 1791388800000,
+      "next": 1791417600000,
       "rate": 0.0001
      },
      "1000SATSUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "TIAUSDT": {
-      "next": 1791388800000,
-      "rate": -8.2e-06
+      "next": 1791403200000,
+      "rate": -3e-08
      },
      "SUPERUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "BTCUSDT": {
-      "next": 1791388800000,
-      "rate": 8.91e-06
+      "next": 1791417600000,
+      "rate": 1.28e-05
      },
      "DYDXUSDT": {
-      "next": 1791388800000,
-      "rate": 4.236e-05
+      "next": 1791417600000,
+      "rate": 2.413e-05
      },
      "1000SHIBUSDT": {
-      "next": 1791388800000,
-      "rate": -0.00015998
+      "next": 1791417600000,
+      "rate": -0.00016435
      },
      "YGGUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "WIFUSDT": {
-      "next": 1791388800000,
-      "rate": 6.08e-06
+      "next": 1791403200000,
+      "rate": -4.16e-06
      },
      "SAGAUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "SUIUSDT": {
-      "next": 1791388800000,
-      "rate": 0.0001
+      "next": 1791417600000,
+      "rate": 6.802e-05
      },
      "CHZUSDT": {
-      "next": 1791388800000,
+      "next": 1791417600000,
       "rate": 0.0001
      },
      "1000PEPEUSDT": {
-      "next": 1791388800000,
-      "rate": 6.865e-05
+      "next": 1791417600000,
+      "rate": 2.448e-05
      },
      "SANDUSDT": {
-      "next": 1791388800000,
-      "rate": -0.00119788
+      "next": 1791417600000,
+      "rate": -0.00104436
      },
      "MAGICUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "AEVOUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "IMXUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "AXSUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "ILVUSDT": {
-      "next": 1791388800000,
-      "rate": 6.29e-06
+      "next": 1791403200000,
+      "rate": -2.679e-05
      },
      "GMTUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "GMXUSDT": {
-      "next": 1791388800000,
-      "rate": 3.688e-05
+      "next": 1791417600000,
+      "rate": 5.846e-05
      }
     },
     "creado": "2026-10-06T00:18:43.488312+00:00",
@@ -1369,10 +1361,10 @@
    }
   },
   "carry_funding": {
-   "actualizado_hace_min": 0.4,
+   "actualizado_hace_min": 0.9,
    "estado": {
     "capital_inicial": 10000.0,
-    "cash": 9996.10148162655,
+    "cash": 9996.63796638683,
     "apalancamiento": 1.0,
     "posiciones": {
      "1000PEPEUSDT": 95151.09994671537,
@@ -1437,7 +1429,7 @@
       }
      }
     ],
-    "funding_pagado": -2.101481626537387,
+    "funding_pagado": -2.637966386815663,
     "costos_pagados": 6.0,
     "equity_diaria": [
      {
@@ -1446,249 +1438,249 @@
      },
      {
       "dia": "2026-10-07",
-      "equity": 10218.577524428325
+      "equity": 10267.513936436228
      }
     ],
     "funding_visto": {
      "ALICEUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "ETHUSDT": {
-      "next": 1791388800000,
-      "rate": -4.097e-05
+      "next": 1791417600000,
+      "rate": -2.27e-05
      },
      "SEIUSDT": {
-      "next": 1791388800000,
-      "rate": 6.224e-05
+      "next": 1791417600000,
+      "rate": 3.659e-05
      },
      "PIXELUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "TNSRUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "MASKUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "RONINUSDT": {
-      "next": 1791388800000,
-      "rate": 3.38e-05
+      "next": 1791403200000,
+      "rate": 5e-05
      },
      "BNBUSDT": {
-      "next": 1791388800000,
+      "next": 1791417600000,
       "rate": 0.0
      },
      "ONDOUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "ACEUSDT": {
-      "next": 1791388800000,
-      "rate": 4.572e-05
+      "next": 1791403200000,
+      "rate": -2.915e-05
      },
      "ZETAUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "GALAUSDT": {
-      "next": 1791388800000,
-      "rate": 3.74e-05
+      "next": 1791417600000,
+      "rate": 5.851e-05
      },
      "BEAMXUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "LINKUSDT": {
-      "next": 1791388800000,
-      "rate": 7.081e-05
+      "next": 1791417600000,
+      "rate": 6.588e-05
      },
      "MANAUSDT": {
-      "next": 1791388800000,
-      "rate": -5.334e-05
+      "next": 1791417600000,
+      "rate": -0.0001926
      },
      "APTUSDT": {
-      "next": 1791388800000,
-      "rate": 4.743e-05
+      "next": 1791417600000,
+      "rate": 3.939e-05
      },
      "XRPUSDT": {
-      "next": 1791388800000,
-      "rate": -8.28e-06
+      "next": 1791417600000,
+      "rate": -1.419e-05
      },
      "VANRYUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 0.0
      },
      "NEARUSDT": {
-      "next": 1791388800000,
-      "rate": 3.785e-05
+      "next": 1791417600000,
+      "rate": 4.505e-05
      },
      "MANTAUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "STRKUSDT": {
-      "next": 1791388800000,
-      "rate": 5e-05
+      "next": 1791403200000,
+      "rate": 4.615e-05
      },
      "ORDIUSDT": {
-      "next": 1791388800000,
-      "rate": -6.28e-05
+      "next": 1791403200000,
+      "rate": -4.087e-05
      },
      "FETUSDT": {
-      "next": 1791388800000,
-      "rate": 6.545e-05
+      "next": 1791417600000,
+      "rate": -5.27e-06
      },
      "1000FLOKIUSDT": {
-      "next": 1791388800000,
-      "rate": 1.725e-05
+      "next": 1791417600000,
+      "rate": -2.875e-05
      },
      "ALTUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "INJUSDT": {
-      "next": 1791388800000,
-      "rate": -5.76e-05
+      "next": 1791417600000,
+      "rate": -6.419e-05
      },
      "ADAUSDT": {
-      "next": 1791388800000,
-      "rate": -1.407e-05
+      "next": 1791417600000,
+      "rate": -2.816e-05
      },
      "BLURUSDT": {
-      "next": 1791388800000,
-      "rate": 5e-05
+      "next": 1791403200000,
+      "rate": 4.632e-05
      },
      "APEUSDT": {
-      "next": 1791388800000,
-      "rate": -2.5e-07
+      "next": 1791417600000,
+      "rate": 6.09e-06
      },
      "DYMUSDT": {
-      "next": 1791388800000,
-      "rate": 4.67e-05
+      "next": 1791403200000,
+      "rate": 5e-05
      },
      "SOLUSDT": {
-      "next": 1791388800000,
-      "rate": 3.03e-05
+      "next": 1791417600000,
+      "rate": 2.773e-05
      },
      "JTOUSDT": {
-      "next": 1791388800000,
-      "rate": 1.29e-06
+      "next": 1791403200000,
+      "rate": -1.374e-05
      },
      "OPUSDT": {
-      "next": 1791388800000,
-      "rate": -0.00016226
+      "next": 1791417600000,
+      "rate": -0.00016064
      },
      "RENDERUSDT": {
-      "next": 1791388800000,
-      "rate": 4.982e-05
+      "next": 1791403200000,
+      "rate": 3.08e-05
      },
      "1000BONKUSDT": {
-      "next": 1791388800000,
-      "rate": -1.116e-05
+      "next": 1791403200000,
+      "rate": -3.354e-05
      },
      "MEMEUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "ARBUSDT": {
-      "next": 1791388800000,
-      "rate": -1.99e-06
+      "next": 1791417600000,
+      "rate": -2.187e-05
      },
      "AVAXUSDT": {
-      "next": 1791388800000,
-      "rate": 2.929e-05
+      "next": 1791417600000,
+      "rate": 4.521e-05
      },
      "NOTUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "ARKMUSDT": {
-      "next": 1791388800000,
+      "next": 1791417600000,
       "rate": 0.0001
      },
      "1000SATSUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "TIAUSDT": {
-      "next": 1791388800000,
-      "rate": -8.2e-06
+      "next": 1791403200000,
+      "rate": -3e-08
      },
      "SUPERUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "BTCUSDT": {
-      "next": 1791388800000,
-      "rate": 8.91e-06
+      "next": 1791417600000,
+      "rate": 1.28e-05
      },
      "DYDXUSDT": {
-      "next": 1791388800000,
-      "rate": 4.236e-05
+      "next": 1791417600000,
+      "rate": 2.413e-05
      },
      "1000SHIBUSDT": {
-      "next": 1791388800000,
-      "rate": -0.00015998
+      "next": 1791417600000,
+      "rate": -0.00016435
      },
      "YGGUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "WIFUSDT": {
-      "next": 1791388800000,
-      "rate": 6.08e-06
+      "next": 1791403200000,
+      "rate": -4.16e-06
      },
      "SAGAUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "SUIUSDT": {
-      "next": 1791388800000,
-      "rate": 0.0001
+      "next": 1791417600000,
+      "rate": 6.802e-05
      },
      "CHZUSDT": {
-      "next": 1791388800000,
+      "next": 1791417600000,
       "rate": 0.0001
      },
      "1000PEPEUSDT": {
-      "next": 1791388800000,
-      "rate": 6.865e-05
+      "next": 1791417600000,
+      "rate": 2.448e-05
      },
      "SANDUSDT": {
-      "next": 1791388800000,
-      "rate": -0.00119788
+      "next": 1791417600000,
+      "rate": -0.00104436
      },
      "MAGICUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "AEVOUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "IMXUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "AXSUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "ILVUSDT": {
-      "next": 1791388800000,
-      "rate": 6.29e-06
+      "next": 1791403200000,
+      "rate": -2.679e-05
      },
      "GMTUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "GMXUSDT": {
-      "next": 1791388800000,
-      "rate": 3.688e-05
+      "next": 1791417600000,
+      "rate": 5.846e-05
      }
     },
     "creado": "2026-10-06T00:18:43.485169+00:00",
@@ -1723,10 +1715,10 @@
    }
   },
   "combinada": {
-   "actualizado_hace_min": 0.4,
+   "actualizado_hace_min": 0.9,
    "estado": {
     "capital_inicial": 10000.0,
-    "cash": 10181.506939924784,
+    "cash": 10181.516903532718,
     "apalancamiento": 1.0,
     "posiciones": {
      "ZETAUSDT": 307.89333835815216,
@@ -1844,7 +1836,7 @@
       }
      }
     ],
-    "funding_pagado": -0.47890254163362106,
+    "funding_pagado": -0.4888661495695024,
     "costos_pagados": 5.8878504672897245,
     "equity_diaria": [
      {
@@ -1853,249 +1845,249 @@
      },
      {
       "dia": "2026-10-07",
-      "equity": 10212.07575546609
+      "equity": 10207.452397980036
      }
     ],
     "funding_visto": {
      "ALICEUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "ETHUSDT": {
-      "next": 1791388800000,
-      "rate": -4.097e-05
+      "next": 1791417600000,
+      "rate": -2.27e-05
      },
      "SEIUSDT": {
-      "next": 1791388800000,
-      "rate": 6.224e-05
+      "next": 1791417600000,
+      "rate": 3.659e-05
      },
      "PIXELUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "TNSRUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "MASKUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "RONINUSDT": {
-      "next": 1791388800000,
-      "rate": 3.38e-05
+      "next": 1791403200000,
+      "rate": 5e-05
      },
      "BNBUSDT": {
-      "next": 1791388800000,
+      "next": 1791417600000,
       "rate": 0.0
      },
      "ONDOUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "ACEUSDT": {
-      "next": 1791388800000,
-      "rate": 4.572e-05
+      "next": 1791403200000,
+      "rate": -2.915e-05
      },
      "ZETAUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "GALAUSDT": {
-      "next": 1791388800000,
-      "rate": 3.74e-05
+      "next": 1791417600000,
+      "rate": 5.851e-05
      },
      "BEAMXUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "LINKUSDT": {
-      "next": 1791388800000,
-      "rate": 7.081e-05
+      "next": 1791417600000,
+      "rate": 6.588e-05
      },
      "MANAUSDT": {
-      "next": 1791388800000,
-      "rate": -5.334e-05
+      "next": 1791417600000,
+      "rate": -0.0001926
      },
      "APTUSDT": {
-      "next": 1791388800000,
-      "rate": 4.743e-05
+      "next": 1791417600000,
+      "rate": 3.939e-05
      },
      "XRPUSDT": {
-      "next": 1791388800000,
-      "rate": -8.28e-06
+      "next": 1791417600000,
+      "rate": -1.419e-05
      },
      "VANRYUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 0.0
      },
      "NEARUSDT": {
-      "next": 1791388800000,
-      "rate": 3.785e-05
+      "next": 1791417600000,
+      "rate": 4.505e-05
      },
      "MANTAUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "STRKUSDT": {
-      "next": 1791388800000,
-      "rate": 5e-05
+      "next": 1791403200000,
+      "rate": 4.615e-05
      },
      "ORDIUSDT": {
-      "next": 1791388800000,
-      "rate": -6.28e-05
+      "next": 1791403200000,
+      "rate": -4.087e-05
      },
      "FETUSDT": {
-      "next": 1791388800000,
-      "rate": 6.545e-05
+      "next": 1791417600000,
+      "rate": -5.27e-06
      },
      "1000FLOKIUSDT": {
-      "next": 1791388800000,
-      "rate": 1.725e-05
+      "next": 1791417600000,
+      "rate": -2.875e-05
      },
      "ALTUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "INJUSDT": {
-      "next": 1791388800000,
-      "rate": -5.76e-05
+      "next": 1791417600000,
+      "rate": -6.419e-05
      },
      "ADAUSDT": {
-      "next": 1791388800000,
-      "rate": -1.407e-05
+      "next": 1791417600000,
+      "rate": -2.816e-05
      },
      "BLURUSDT": {
-      "next": 1791388800000,
-      "rate": 5e-05
+      "next": 1791403200000,
+      "rate": 4.632e-05
      },
      "APEUSDT": {
-      "next": 1791388800000,
-      "rate": -2.5e-07
+      "next": 1791417600000,
+      "rate": 6.09e-06
      },
      "DYMUSDT": {
-      "next": 1791388800000,
-      "rate": 4.67e-05
+      "next": 1791403200000,
+      "rate": 5e-05
      },
      "SOLUSDT": {
-      "next": 1791388800000,
-      "rate": 3.03e-05
+      "next": 1791417600000,
+      "rate": 2.773e-05
      },
      "JTOUSDT": {
-      "next": 1791388800000,
-      "rate": 1.29e-06
+      "next": 1791403200000,
+      "rate": -1.374e-05
      },
      "OPUSDT": {
-      "next": 1791388800000,
-      "rate": -0.00016226
+      "next": 1791417600000,
+      "rate": -0.00016064
      },
      "RENDERUSDT": {
-      "next": 1791388800000,
-      "rate": 4.982e-05
+      "next": 1791403200000,
+      "rate": 3.08e-05
      },
      "1000BONKUSDT": {
-      "next": 1791388800000,
-      "rate": -1.116e-05
+      "next": 1791403200000,
+      "rate": -3.354e-05
      },
      "MEMEUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "ARBUSDT": {
-      "next": 1791388800000,
-      "rate": -1.99e-06
+      "next": 1791417600000,
+      "rate": -2.187e-05
      },
      "AVAXUSDT": {
-      "next": 1791388800000,
-      "rate": 2.929e-05
+      "next": 1791417600000,
+      "rate": 4.521e-05
      },
      "NOTUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "ARKMUSDT": {
-      "next": 1791388800000,
+      "next": 1791417600000,
       "rate": 0.0001
      },
      "1000SATSUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "TIAUSDT": {
-      "next": 1791388800000,
-      "rate": -8.2e-06
+      "next": 1791403200000,
+      "rate": -3e-08
      },
      "SUPERUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "BTCUSDT": {
-      "next": 1791388800000,
-      "rate": 8.91e-06
+      "next": 1791417600000,
+      "rate": 1.28e-05
      },
      "DYDXUSDT": {
-      "next": 1791388800000,
-      "rate": 4.236e-05
+      "next": 1791417600000,
+      "rate": 2.413e-05
      },
      "1000SHIBUSDT": {
-      "next": 1791388800000,
-      "rate": -0.00015998
+      "next": 1791417600000,
+      "rate": -0.00016435
      },
      "YGGUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "WIFUSDT": {
-      "next": 1791388800000,
-      "rate": 6.08e-06
+      "next": 1791403200000,
+      "rate": -4.16e-06
      },
      "SAGAUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "SUIUSDT": {
-      "next": 1791388800000,
-      "rate": 0.0001
+      "next": 1791417600000,
+      "rate": 6.802e-05
      },
      "CHZUSDT": {
-      "next": 1791388800000,
+      "next": 1791417600000,
       "rate": 0.0001
      },
      "1000PEPEUSDT": {
-      "next": 1791388800000,
-      "rate": 6.865e-05
+      "next": 1791417600000,
+      "rate": 2.448e-05
      },
      "SANDUSDT": {
-      "next": 1791388800000,
-      "rate": -0.00119788
+      "next": 1791417600000,
+      "rate": -0.00104436
      },
      "MAGICUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "AEVOUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "IMXUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "AXSUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "ILVUSDT": {
-      "next": 1791388800000,
-      "rate": 6.29e-06
+      "next": 1791403200000,
+      "rate": -2.679e-05
      },
      "GMTUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "GMXUSDT": {
-      "next": 1791388800000,
-      "rate": 3.688e-05
+      "next": 1791417600000,
+      "rate": 5.846e-05
      }
     },
     "creado": "2026-10-06T00:18:43.487312+00:00",
@@ -2156,10 +2148,10 @@
    }
   },
   "examen_2x": {
-   "actualizado_hace_min": 0.4,
+   "actualizado_hace_min": 0.9,
    "estado": {
     "capital_inicial": 10000.0,
-    "cash": 9989.168978610474,
+    "cash": 9989.27498853093,
     "apalancamiento": 2.0,
     "posiciones": {
      "ZETAUSDT": 16472.293602161164,
@@ -2224,7 +2216,7 @@
       }
      }
     ],
-    "funding_pagado": -1.168978610482615,
+    "funding_pagado": -1.274988530934948,
     "costos_pagados": 12.0,
     "equity_diaria": [
      {
@@ -2233,249 +2225,249 @@
      },
      {
       "dia": "2026-10-07",
-      "equity": 10198.304915661987
+      "equity": 10174.854343779723
      }
     ],
     "funding_visto": {
      "ALICEUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "ETHUSDT": {
-      "next": 1791388800000,
-      "rate": -4.097e-05
+      "next": 1791417600000,
+      "rate": -2.27e-05
      },
      "SEIUSDT": {
-      "next": 1791388800000,
-      "rate": 6.224e-05
+      "next": 1791417600000,
+      "rate": 3.659e-05
      },
      "PIXELUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "TNSRUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "MASKUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "RONINUSDT": {
-      "next": 1791388800000,
-      "rate": 3.38e-05
+      "next": 1791403200000,
+      "rate": 5e-05
      },
      "BNBUSDT": {
-      "next": 1791388800000,
+      "next": 1791417600000,
       "rate": 0.0
      },
      "ONDOUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "ACEUSDT": {
-      "next": 1791388800000,
-      "rate": 4.572e-05
+      "next": 1791403200000,
+      "rate": -2.915e-05
      },
      "ZETAUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "GALAUSDT": {
-      "next": 1791388800000,
-      "rate": 3.74e-05
+      "next": 1791417600000,
+      "rate": 5.851e-05
      },
      "BEAMXUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "LINKUSDT": {
-      "next": 1791388800000,
-      "rate": 7.081e-05
+      "next": 1791417600000,
+      "rate": 6.588e-05
      },
      "MANAUSDT": {
-      "next": 1791388800000,
-      "rate": -5.334e-05
+      "next": 1791417600000,
+      "rate": -0.0001926
      },
      "APTUSDT": {
-      "next": 1791388800000,
-      "rate": 4.743e-05
+      "next": 1791417600000,
+      "rate": 3.939e-05
      },
      "XRPUSDT": {
-      "next": 1791388800000,
-      "rate": -8.28e-06
+      "next": 1791417600000,
+      "rate": -1.419e-05
      },
      "VANRYUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 0.0
      },
      "NEARUSDT": {
-      "next": 1791388800000,
-      "rate": 3.785e-05
+      "next": 1791417600000,
+      "rate": 4.505e-05
      },
      "MANTAUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "STRKUSDT": {
-      "next": 1791388800000,
-      "rate": 5e-05
+      "next": 1791403200000,
+      "rate": 4.615e-05
      },
      "ORDIUSDT": {
-      "next": 1791388800000,
-      "rate": -6.28e-05
+      "next": 1791403200000,
+      "rate": -4.087e-05
      },
      "FETUSDT": {
-      "next": 1791388800000,
-      "rate": 6.545e-05
+      "next": 1791417600000,
+      "rate": -5.27e-06
      },
      "1000FLOKIUSDT": {
-      "next": 1791388800000,
-      "rate": 1.725e-05
+      "next": 1791417600000,
+      "rate": -2.875e-05
      },
      "ALTUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "INJUSDT": {
-      "next": 1791388800000,
-      "rate": -5.76e-05
+      "next": 1791417600000,
+      "rate": -6.419e-05
      },
      "ADAUSDT": {
-      "next": 1791388800000,
-      "rate": -1.407e-05
+      "next": 1791417600000,
+      "rate": -2.816e-05
      },
      "BLURUSDT": {
-      "next": 1791388800000,
-      "rate": 5e-05
+      "next": 1791403200000,
+      "rate": 4.632e-05
      },
      "APEUSDT": {
-      "next": 1791388800000,
-      "rate": -2.5e-07
+      "next": 1791417600000,
+      "rate": 6.09e-06
      },
      "DYMUSDT": {
-      "next": 1791388800000,
-      "rate": 4.67e-05
+      "next": 1791403200000,
+      "rate": 5e-05
      },
      "SOLUSDT": {
-      "next": 1791388800000,
-      "rate": 3.03e-05
+      "next": 1791417600000,
+      "rate": 2.773e-05
      },
      "JTOUSDT": {
-      "next": 1791388800000,
-      "rate": 1.29e-06
+      "next": 1791403200000,
+      "rate": -1.374e-05
      },
      "OPUSDT": {
-      "next": 1791388800000,
-      "rate": -0.00016226
+      "next": 1791417600000,
+      "rate": -0.00016064
      },
      "RENDERUSDT": {
-      "next": 1791388800000,
-      "rate": 4.982e-05
+      "next": 1791403200000,
+      "rate": 3.08e-05
      },
      "1000BONKUSDT": {
-      "next": 1791388800000,
-      "rate": -1.116e-05
+      "next": 1791403200000,
+      "rate": -3.354e-05
      },
      "MEMEUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "ARBUSDT": {
-      "next": 1791388800000,
-      "rate": -1.99e-06
+      "next": 1791417600000,
+      "rate": -2.187e-05
      },
      "AVAXUSDT": {
-      "next": 1791388800000,
-      "rate": 2.929e-05
+      "next": 1791417600000,
+      "rate": 4.521e-05
      },
      "NOTUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "ARKMUSDT": {
-      "next": 1791388800000,
+      "next": 1791417600000,
       "rate": 0.0001
      },
      "1000SATSUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "TIAUSDT": {
-      "next": 1791388800000,
-      "rate": -8.2e-06
+      "next": 1791403200000,
+      "rate": -3e-08
      },
      "SUPERUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "BTCUSDT": {
-      "next": 1791388800000,
-      "rate": 8.91e-06
+      "next": 1791417600000,
+      "rate": 1.28e-05
      },
      "DYDXUSDT": {
-      "next": 1791388800000,
-      "rate": 4.236e-05
+      "next": 1791417600000,
+      "rate": 2.413e-05
      },
      "1000SHIBUSDT": {
-      "next": 1791388800000,
-      "rate": -0.00015998
+      "next": 1791417600000,
+      "rate": -0.00016435
      },
      "YGGUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "WIFUSDT": {
-      "next": 1791388800000,
-      "rate": 6.08e-06
+      "next": 1791403200000,
+      "rate": -4.16e-06
      },
      "SAGAUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "SUIUSDT": {
-      "next": 1791388800000,
-      "rate": 0.0001
+      "next": 1791417600000,
+      "rate": 6.802e-05
      },
      "CHZUSDT": {
-      "next": 1791388800000,
+      "next": 1791417600000,
       "rate": 0.0001
      },
      "1000PEPEUSDT": {
-      "next": 1791388800000,
-      "rate": 6.865e-05
+      "next": 1791417600000,
+      "rate": 2.448e-05
      },
      "SANDUSDT": {
-      "next": 1791388800000,
-      "rate": -0.00119788
+      "next": 1791417600000,
+      "rate": -0.00104436
      },
      "MAGICUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "AEVOUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "IMXUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "AXSUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "ILVUSDT": {
-      "next": 1791388800000,
-      "rate": 6.29e-06
+      "next": 1791403200000,
+      "rate": -2.679e-05
      },
      "GMTUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "GMXUSDT": {
-      "next": 1791388800000,
-      "rate": 3.688e-05
+      "next": 1791417600000,
+      "rate": 5.846e-05
      }
     },
     "creado": "2026-10-06T00:18:43.489312+00:00",
@@ -2489,7 +2481,7 @@
      "equity_inicio_dia": 9985.642549504604,
      "pnl_por_dia": {
       "2026-10-06": -16.013082788236716,
-      "2026-10-07": 212.66236615738308
+      "2026-10-07": 189.21179427511925
      },
      "dias_operados": [
       "2026-10-06",
@@ -2529,10 +2521,10 @@
    }
   },
   "flujo_7d": {
-   "actualizado_hace_min": 0.4,
+   "actualizado_hace_min": 0.9,
    "estado": {
     "capital_inicial": 10000.0,
-    "cash": 9996.500476570234,
+    "cash": 9997.213748078115,
     "apalancamiento": 1.0,
     "posiciones": {
      "ZETAUSDT": 8236.146801080582,
@@ -2597,7 +2589,7 @@
       }
      }
     ],
-    "funding_pagado": -2.5004765702038063,
+    "funding_pagado": -3.213748078085002,
     "costos_pagados": 6.0,
     "equity_diaria": [
      {
@@ -2606,249 +2598,249 @@
      },
      {
       "dia": "2026-10-07",
-      "equity": 10095.843215267236
+      "equity": 10111.187327478443
      }
     ],
     "funding_visto": {
      "ALICEUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "ETHUSDT": {
-      "next": 1791388800000,
-      "rate": -4.097e-05
+      "next": 1791417600000,
+      "rate": -2.27e-05
      },
      "SEIUSDT": {
-      "next": 1791388800000,
-      "rate": 6.224e-05
+      "next": 1791417600000,
+      "rate": 3.659e-05
      },
      "PIXELUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "TNSRUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "MASKUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "RONINUSDT": {
-      "next": 1791388800000,
-      "rate": 3.38e-05
+      "next": 1791403200000,
+      "rate": 5e-05
      },
      "BNBUSDT": {
-      "next": 1791388800000,
+      "next": 1791417600000,
       "rate": 0.0
      },
      "ONDOUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "ACEUSDT": {
-      "next": 1791388800000,
-      "rate": 4.572e-05
+      "next": 1791403200000,
+      "rate": -2.915e-05
      },
      "ZETAUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "GALAUSDT": {
-      "next": 1791388800000,
-      "rate": 3.74e-05
+      "next": 1791417600000,
+      "rate": 5.851e-05
      },
      "BEAMXUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "LINKUSDT": {
-      "next": 1791388800000,
-      "rate": 7.081e-05
+      "next": 1791417600000,
+      "rate": 6.588e-05
      },
      "MANAUSDT": {
-      "next": 1791388800000,
-      "rate": -5.334e-05
+      "next": 1791417600000,
+      "rate": -0.0001926
      },
      "APTUSDT": {
-      "next": 1791388800000,
-      "rate": 4.743e-05
+      "next": 1791417600000,
+      "rate": 3.939e-05
      },
      "XRPUSDT": {
-      "next": 1791388800000,
-      "rate": -8.28e-06
+      "next": 1791417600000,
+      "rate": -1.419e-05
      },
      "VANRYUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 0.0
      },
      "NEARUSDT": {
-      "next": 1791388800000,
-      "rate": 3.785e-05
+      "next": 1791417600000,
+      "rate": 4.505e-05
      },
      "MANTAUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "STRKUSDT": {
-      "next": 1791388800000,
-      "rate": 5e-05
+      "next": 1791403200000,
+      "rate": 4.615e-05
      },
      "ORDIUSDT": {
-      "next": 1791388800000,
-      "rate": -6.28e-05
+      "next": 1791403200000,
+      "rate": -4.087e-05
      },
      "FETUSDT": {
-      "next": 1791388800000,
-      "rate": 6.545e-05
+      "next": 1791417600000,
+      "rate": -5.27e-06
      },
      "1000FLOKIUSDT": {
-      "next": 1791388800000,
-      "rate": 1.725e-05
+      "next": 1791417600000,
+      "rate": -2.875e-05
      },
      "ALTUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "INJUSDT": {
-      "next": 1791388800000,
-      "rate": -5.76e-05
+      "next": 1791417600000,
+      "rate": -6.419e-05
      },
      "ADAUSDT": {
-      "next": 1791388800000,
-      "rate": -1.407e-05
+      "next": 1791417600000,
+      "rate": -2.816e-05
      },
      "BLURUSDT": {
-      "next": 1791388800000,
-      "rate": 5e-05
+      "next": 1791403200000,
+      "rate": 4.632e-05
      },
      "APEUSDT": {
-      "next": 1791388800000,
-      "rate": -2.5e-07
+      "next": 1791417600000,
+      "rate": 6.09e-06
      },
      "DYMUSDT": {
-      "next": 1791388800000,
-      "rate": 4.67e-05
+      "next": 1791403200000,
+      "rate": 5e-05
      },
      "SOLUSDT": {
-      "next": 1791388800000,
-      "rate": 3.03e-05
+      "next": 1791417600000,
+      "rate": 2.773e-05
      },
      "JTOUSDT": {
-      "next": 1791388800000,
-      "rate": 1.29e-06
+      "next": 1791403200000,
+      "rate": -1.374e-05
      },
      "OPUSDT": {
-      "next": 1791388800000,
-      "rate": -0.00016226
+      "next": 1791417600000,
+      "rate": -0.00016064
      },
      "RENDERUSDT": {
-      "next": 1791388800000,
-      "rate": 4.982e-05
+      "next": 1791403200000,
+      "rate": 3.08e-05
      },
      "1000BONKUSDT": {
-      "next": 1791388800000,
-      "rate": -1.116e-05
+      "next": 1791403200000,
+      "rate": -3.354e-05
      },
      "MEMEUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "ARBUSDT": {
-      "next": 1791388800000,
-      "rate": -1.99e-06
+      "next": 1791417600000,
+      "rate": -2.187e-05
      },
      "AVAXUSDT": {
-      "next": 1791388800000,
-      "rate": 2.929e-05
+      "next": 1791417600000,
+      "rate": 4.521e-05
      },
      "NOTUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "ARKMUSDT": {
-      "next": 1791388800000,
+      "next": 1791417600000,
       "rate": 0.0001
      },
      "1000SATSUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "TIAUSDT": {
-      "next": 1791388800000,
-      "rate": -8.2e-06
+      "next": 1791403200000,
+      "rate": -3e-08
      },
      "SUPERUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "BTCUSDT": {
-      "next": 1791388800000,
-      "rate": 8.91e-06
+      "next": 1791417600000,
+      "rate": 1.28e-05
      },
      "DYDXUSDT": {
-      "next": 1791388800000,
-      "rate": 4.236e-05
+      "next": 1791417600000,
+      "rate": 2.413e-05
      },
      "1000SHIBUSDT": {
-      "next": 1791388800000,
-      "rate": -0.00015998
+      "next": 1791417600000,
+      "rate": -0.00016435
      },
      "YGGUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "WIFUSDT": {
-      "next": 1791388800000,
-      "rate": 6.08e-06
+      "next": 1791403200000,
+      "rate": -4.16e-06
      },
      "SAGAUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "SUIUSDT": {
-      "next": 1791388800000,
-      "rate": 0.0001
+      "next": 1791417600000,
+      "rate": 6.802e-05
      },
      "CHZUSDT": {
-      "next": 1791388800000,
+      "next": 1791417600000,
       "rate": 0.0001
      },
      "1000PEPEUSDT": {
-      "next": 1791388800000,
-      "rate": 6.865e-05
+      "next": 1791417600000,
+      "rate": 2.448e-05
      },
      "SANDUSDT": {
-      "next": 1791388800000,
-      "rate": -0.00119788
+      "next": 1791417600000,
+      "rate": -0.00104436
      },
      "MAGICUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "AEVOUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "IMXUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "AXSUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "ILVUSDT": {
-      "next": 1791388800000,
-      "rate": 6.29e-06
+      "next": 1791403200000,
+      "rate": -2.679e-05
      },
      "GMTUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "GMXUSDT": {
-      "next": 1791388800000,
-      "rate": 3.688e-05
+      "next": 1791417600000,
+      "rate": 5.846e-05
      }
     },
     "creado": "2026-10-06T00:18:43.482793+00:00",
@@ -2883,10 +2875,10 @@
    }
   },
   "flujo_v1": {
-   "actualizado_hace_min": 0.4,
+   "actualizado_hace_min": 0.9,
    "estado": {
     "capital_inicial": 10000.0,
-    "cash": 9994.584489305273,
+    "cash": 9994.637494265498,
     "apalancamiento": 1.0,
     "posiciones": {
      "ZETAUSDT": 8236.146801080582,
@@ -3193,7 +3185,7 @@
       }
      }
     ],
-    "funding_pagado": -0.5844893052413075,
+    "funding_pagado": -0.637494265467474,
     "costos_pagados": 6.0,
     "equity_diaria": [
      {
@@ -3202,249 +3194,249 @@
      },
      {
       "dia": "2026-10-07",
-      "equity": 10099.15245783103
+      "equity": 10087.427171889894
      }
     ],
     "funding_visto": {
      "ALICEUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "ETHUSDT": {
-      "next": 1791388800000,
-      "rate": -4.097e-05
+      "next": 1791417600000,
+      "rate": -2.27e-05
      },
      "SEIUSDT": {
-      "next": 1791388800000,
-      "rate": 6.224e-05
+      "next": 1791417600000,
+      "rate": 3.659e-05
      },
      "PIXELUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "TNSRUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "MASKUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "RONINUSDT": {
-      "next": 1791388800000,
-      "rate": 3.38e-05
+      "next": 1791403200000,
+      "rate": 5e-05
      },
      "BNBUSDT": {
-      "next": 1791388800000,
+      "next": 1791417600000,
       "rate": 0.0
      },
      "ONDOUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "ACEUSDT": {
-      "next": 1791388800000,
-      "rate": 4.572e-05
+      "next": 1791403200000,
+      "rate": -2.915e-05
      },
      "ZETAUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "GALAUSDT": {
-      "next": 1791388800000,
-      "rate": 3.74e-05
+      "next": 1791417600000,
+      "rate": 5.851e-05
      },
      "BEAMXUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "LINKUSDT": {
-      "next": 1791388800000,
-      "rate": 7.081e-05
+      "next": 1791417600000,
+      "rate": 6.588e-05
      },
      "MANAUSDT": {
-      "next": 1791388800000,
-      "rate": -5.334e-05
+      "next": 1791417600000,
+      "rate": -0.0001926
      },
      "APTUSDT": {
-      "next": 1791388800000,
-      "rate": 4.743e-05
+      "next": 1791417600000,
+      "rate": 3.939e-05
      },
      "XRPUSDT": {
-      "next": 1791388800000,
-      "rate": -8.28e-06
+      "next": 1791417600000,
+      "rate": -1.419e-05
      },
      "VANRYUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 0.0
      },
      "NEARUSDT": {
-      "next": 1791388800000,
-      "rate": 3.785e-05
+      "next": 1791417600000,
+      "rate": 4.505e-05
      },
      "MANTAUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "STRKUSDT": {
-      "next": 1791388800000,
-      "rate": 5e-05
+      "next": 1791403200000,
+      "rate": 4.615e-05
      },
      "ORDIUSDT": {
-      "next": 1791388800000,
-      "rate": -6.28e-05
+      "next": 1791403200000,
+      "rate": -4.087e-05
      },
      "FETUSDT": {
-      "next": 1791388800000,
-      "rate": 6.545e-05
+      "next": 1791417600000,
+      "rate": -5.27e-06
      },
      "1000FLOKIUSDT": {
-      "next": 1791388800000,
-      "rate": 1.725e-05
+      "next": 1791417600000,
+      "rate": -2.875e-05
      },
      "ALTUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "INJUSDT": {
-      "next": 1791388800000,
-      "rate": -5.76e-05
+      "next": 1791417600000,
+      "rate": -6.419e-05
      },
      "ADAUSDT": {
-      "next": 1791388800000,
-      "rate": -1.407e-05
+      "next": 1791417600000,
+      "rate": -2.816e-05
      },
      "BLURUSDT": {
-      "next": 1791388800000,
-      "rate": 5e-05
+      "next": 1791403200000,
+      "rate": 4.632e-05
      },
      "APEUSDT": {
-      "next": 1791388800000,
-      "rate": -2.5e-07
+      "next": 1791417600000,
+      "rate": 6.09e-06
      },
      "DYMUSDT": {
-      "next": 1791388800000,
-      "rate": 4.67e-05
+      "next": 1791403200000,
+      "rate": 5e-05
      },
      "SOLUSDT": {
-      "next": 1791388800000,
-      "rate": 3.03e-05
+      "next": 1791417600000,
+      "rate": 2.773e-05
      },
      "JTOUSDT": {
-      "next": 1791388800000,
-      "rate": 1.29e-06
+      "next": 1791403200000,
+      "rate": -1.374e-05
      },
      "OPUSDT": {
-      "next": 1791388800000,
-      "rate": -0.00016226
+      "next": 1791417600000,
+      "rate": -0.00016064
      },
      "RENDERUSDT": {
-      "next": 1791388800000,
-      "rate": 4.982e-05
+      "next": 1791403200000,
+      "rate": 3.08e-05
      },
      "1000BONKUSDT": {
-      "next": 1791388800000,
-      "rate": -1.116e-05
+      "next": 1791403200000,
+      "rate": -3.354e-05
      },
      "MEMEUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "ARBUSDT": {
-      "next": 1791388800000,
-      "rate": -1.99e-06
+      "next": 1791417600000,
+      "rate": -2.187e-05
      },
      "AVAXUSDT": {
-      "next": 1791388800000,
-      "rate": 2.929e-05
+      "next": 1791417600000,
+      "rate": 4.521e-05
      },
      "NOTUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "ARKMUSDT": {
-      "next": 1791388800000,
+      "next": 1791417600000,
       "rate": 0.0001
      },
      "1000SATSUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "TIAUSDT": {
-      "next": 1791388800000,
-      "rate": -8.2e-06
+      "next": 1791403200000,
+      "rate": -3e-08
      },
      "SUPERUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "BTCUSDT": {
-      "next": 1791388800000,
-      "rate": 8.91e-06
+      "next": 1791417600000,
+      "rate": 1.28e-05
      },
      "DYDXUSDT": {
-      "next": 1791388800000,
-      "rate": 4.236e-05
+      "next": 1791417600000,
+      "rate": 2.413e-05
      },
      "1000SHIBUSDT": {
-      "next": 1791388800000,
-      "rate": -0.00015998
+      "next": 1791417600000,
+      "rate": -0.00016435
      },
      "YGGUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "WIFUSDT": {
-      "next": 1791388800000,
-      "rate": 6.08e-06
+      "next": 1791403200000,
+      "rate": -4.16e-06
      },
      "SAGAUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "SUIUSDT": {
-      "next": 1791388800000,
-      "rate": 0.0001
+      "next": 1791417600000,
+      "rate": 6.802e-05
      },
      "CHZUSDT": {
-      "next": 1791388800000,
+      "next": 1791417600000,
       "rate": 0.0001
      },
      "1000PEPEUSDT": {
-      "next": 1791388800000,
-      "rate": 6.865e-05
+      "next": 1791417600000,
+      "rate": 2.448e-05
      },
      "SANDUSDT": {
-      "next": 1791388800000,
-      "rate": -0.00119788
+      "next": 1791417600000,
+      "rate": -0.00104436
      },
      "MAGICUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "AEVOUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "IMXUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "AXSUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "ILVUSDT": {
-      "next": 1791388800000,
-      "rate": 6.29e-06
+      "next": 1791403200000,
+      "rate": -2.679e-05
      },
      "GMTUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "GMXUSDT": {
-      "next": 1791388800000,
-      "rate": 3.688e-05
+      "next": 1791417600000,
+      "rate": 5.846e-05
      }
     },
     "creado": "2026-10-06T00:18:43.481756+00:00",
@@ -3479,7 +3471,7 @@
    }
   },
   "lider_azar": {
-   "actualizado_hace_min": 0.4,
+   "actualizado_hace_min": 0.9,
    "estado": {
     "capital_inicial": 10000.0,
     "cash": 10000.0,
@@ -3501,244 +3493,244 @@
     ],
     "funding_visto": {
      "ALICEUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "ETHUSDT": {
-      "next": 1791388800000,
-      "rate": -4.097e-05
+      "next": 1791417600000,
+      "rate": -2.27e-05
      },
      "SEIUSDT": {
-      "next": 1791388800000,
-      "rate": 6.224e-05
+      "next": 1791417600000,
+      "rate": 3.659e-05
      },
      "PIXELUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "TNSRUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "MASKUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "RONINUSDT": {
-      "next": 1791388800000,
-      "rate": 3.38e-05
+      "next": 1791403200000,
+      "rate": 5e-05
      },
      "BNBUSDT": {
-      "next": 1791388800000,
+      "next": 1791417600000,
       "rate": 0.0
      },
      "ONDOUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "ACEUSDT": {
-      "next": 1791388800000,
-      "rate": 4.572e-05
+      "next": 1791403200000,
+      "rate": -2.915e-05
      },
      "ZETAUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "GALAUSDT": {
-      "next": 1791388800000,
-      "rate": 3.74e-05
+      "next": 1791417600000,
+      "rate": 5.851e-05
      },
      "BEAMXUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "LINKUSDT": {
-      "next": 1791388800000,
-      "rate": 7.081e-05
+      "next": 1791417600000,
+      "rate": 6.588e-05
      },
      "MANAUSDT": {
-      "next": 1791388800000,
-      "rate": -5.334e-05
+      "next": 1791417600000,
+      "rate": -0.0001926
      },
      "APTUSDT": {
-      "next": 1791388800000,
-      "rate": 4.743e-05
+      "next": 1791417600000,
+      "rate": 3.939e-05
      },
      "XRPUSDT": {
-      "next": 1791388800000,
-      "rate": -8.28e-06
+      "next": 1791417600000,
+      "rate": -1.419e-05
      },
      "VANRYUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 0.0
      },
      "NEARUSDT": {
-      "next": 1791388800000,
-      "rate": 3.785e-05
+      "next": 1791417600000,
+      "rate": 4.505e-05
      },
      "MANTAUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "STRKUSDT": {
-      "next": 1791388800000,
-      "rate": 5e-05
+      "next": 1791403200000,
+      "rate": 4.615e-05
      },
      "ORDIUSDT": {
-      "next": 1791388800000,
-      "rate": -6.28e-05
+      "next": 1791403200000,
+      "rate": -4.087e-05
      },
      "FETUSDT": {
-      "next": 1791388800000,
-      "rate": 6.545e-05
+      "next": 1791417600000,
+      "rate": -5.27e-06
      },
      "1000FLOKIUSDT": {
-      "next": 1791388800000,
-      "rate": 1.725e-05
+      "next": 1791417600000,
+      "rate": -2.875e-05
      },
      "ALTUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "INJUSDT": {
-      "next": 1791388800000,
-      "rate": -5.76e-05
+      "next": 1791417600000,
+      "rate": -6.419e-05
      },
      "ADAUSDT": {
-      "next": 1791388800000,
-      "rate": -1.407e-05
+      "next": 1791417600000,
+      "rate": -2.816e-05
      },
      "BLURUSDT": {
-      "next": 1791388800000,
-      "rate": 5e-05
+      "next": 1791403200000,
+      "rate": 4.632e-05
      },
      "APEUSDT": {
-      "next": 1791388800000,
-      "rate": -2.5e-07
+      "next": 1791417600000,
+      "rate": 6.09e-06
      },
      "DYMUSDT": {
-      "next": 1791388800000,
-      "rate": 4.67e-05
+      "next": 1791403200000,
+      "rate": 5e-05
      },
      "SOLUSDT": {
-      "next": 1791388800000,
-      "rate": 3.03e-05
+      "next": 1791417600000,
+      "rate": 2.773e-05
      },
      "JTOUSDT": {
-      "next": 1791388800000,
-      "rate": 1.29e-06
+      "next": 1791403200000,
+      "rate": -1.374e-05
      },
      "OPUSDT": {
-      "next": 1791388800000,
-      "rate": -0.00016226
+      "next": 1791417600000,
+      "rate": -0.00016064
      },
      "RENDERUSDT": {
-      "next": 1791388800000,
-      "rate": 4.982e-05
+      "next": 1791403200000,
+      "rate": 3.08e-05
      },
      "1000BONKUSDT": {
-      "next": 1791388800000,
-      "rate": -1.116e-05
+      "next": 1791403200000,
+      "rate": -3.354e-05
      },
      "MEMEUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "ARBUSDT": {
-      "next": 1791388800000,
-      "rate": -1.99e-06
+      "next": 1791417600000,
+      "rate": -2.187e-05
      },
      "AVAXUSDT": {
-      "next": 1791388800000,
-      "rate": 2.929e-05
+      "next": 1791417600000,
+      "rate": 4.521e-05
      },
      "NOTUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "ARKMUSDT": {
-      "next": 1791388800000,
+      "next": 1791417600000,
       "rate": 0.0001
      },
      "1000SATSUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "TIAUSDT": {
-      "next": 1791388800000,
-      "rate": -8.2e-06
+      "next": 1791403200000,
+      "rate": -3e-08
      },
      "SUPERUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "BTCUSDT": {
-      "next": 1791388800000,
-      "rate": 8.91e-06
+      "next": 1791417600000,
+      "rate": 1.28e-05
      },
      "DYDXUSDT": {
-      "next": 1791388800000,
-      "rate": 4.236e-05
+      "next": 1791417600000,
+      "rate": 2.413e-05
      },
      "1000SHIBUSDT": {
-      "next": 1791388800000,
-      "rate": -0.00015998
+      "next": 1791417600000,
+      "rate": -0.00016435
      },
      "YGGUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "WIFUSDT": {
-      "next": 1791388800000,
-      "rate": 6.08e-06
+      "next": 1791403200000,
+      "rate": -4.16e-06
      },
      "SAGAUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "SUIUSDT": {
-      "next": 1791388800000,
-      "rate": 0.0001
+      "next": 1791417600000,
+      "rate": 6.802e-05
      },
      "CHZUSDT": {
-      "next": 1791388800000,
+      "next": 1791417600000,
       "rate": 0.0001
      },
      "1000PEPEUSDT": {
-      "next": 1791388800000,
-      "rate": 6.865e-05
+      "next": 1791417600000,
+      "rate": 2.448e-05
      },
      "SANDUSDT": {
-      "next": 1791388800000,
-      "rate": -0.00119788
+      "next": 1791417600000,
+      "rate": -0.00104436
      },
      "MAGICUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "AEVOUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "IMXUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "AXSUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "ILVUSDT": {
-      "next": 1791388800000,
-      "rate": 6.29e-06
+      "next": 1791403200000,
+      "rate": -2.679e-05
      },
      "GMTUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "GMXUSDT": {
-      "next": 1791388800000,
-      "rate": 3.688e-05
+      "next": 1791417600000,
+      "rate": 5.846e-05
      }
     },
     "creado": "2026-10-06T00:18:43.491960+00:00",
@@ -3749,7 +3741,7 @@
    }
   },
   "lider_corto": {
-   "actualizado_hace_min": 0.4,
+   "actualizado_hace_min": 0.9,
    "estado": {
     "capital_inicial": 10000.0,
     "cash": 10000.0,
@@ -3771,244 +3763,244 @@
     ],
     "funding_visto": {
      "ALICEUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "ETHUSDT": {
-      "next": 1791388800000,
-      "rate": -4.097e-05
+      "next": 1791417600000,
+      "rate": -2.27e-05
      },
      "SEIUSDT": {
-      "next": 1791388800000,
-      "rate": 6.224e-05
+      "next": 1791417600000,
+      "rate": 3.659e-05
      },
      "PIXELUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "TNSRUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "MASKUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "RONINUSDT": {
-      "next": 1791388800000,
-      "rate": 3.38e-05
+      "next": 1791403200000,
+      "rate": 5e-05
      },
      "BNBUSDT": {
-      "next": 1791388800000,
+      "next": 1791417600000,
       "rate": 0.0
      },
      "ONDOUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "ACEUSDT": {
-      "next": 1791388800000,
-      "rate": 4.572e-05
+      "next": 1791403200000,
+      "rate": -2.915e-05
      },
      "ZETAUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "GALAUSDT": {
-      "next": 1791388800000,
-      "rate": 3.74e-05
+      "next": 1791417600000,
+      "rate": 5.851e-05
      },
      "BEAMXUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "LINKUSDT": {
-      "next": 1791388800000,
-      "rate": 7.081e-05
+      "next": 1791417600000,
+      "rate": 6.588e-05
      },
      "MANAUSDT": {
-      "next": 1791388800000,
-      "rate": -5.334e-05
+      "next": 1791417600000,
+      "rate": -0.0001926
      },
      "APTUSDT": {
-      "next": 1791388800000,
-      "rate": 4.743e-05
+      "next": 1791417600000,
+      "rate": 3.939e-05
      },
      "XRPUSDT": {
-      "next": 1791388800000,
-      "rate": -8.28e-06
+      "next": 1791417600000,
+      "rate": -1.419e-05
      },
      "VANRYUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 0.0
      },
      "NEARUSDT": {
-      "next": 1791388800000,
-      "rate": 3.785e-05
+      "next": 1791417600000,
+      "rate": 4.505e-05
      },
      "MANTAUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "STRKUSDT": {
-      "next": 1791388800000,
-      "rate": 5e-05
+      "next": 1791403200000,
+      "rate": 4.615e-05
      },
      "ORDIUSDT": {
-      "next": 1791388800000,
-      "rate": -6.28e-05
+      "next": 1791403200000,
+      "rate": -4.087e-05
      },
      "FETUSDT": {
-      "next": 1791388800000,
-      "rate": 6.545e-05
+      "next": 1791417600000,
+      "rate": -5.27e-06
      },
      "1000FLOKIUSDT": {
-      "next": 1791388800000,
-      "rate": 1.725e-05
+      "next": 1791417600000,
+      "rate": -2.875e-05
      },
      "ALTUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "INJUSDT": {
-      "next": 1791388800000,
-      "rate": -5.76e-05
+      "next": 1791417600000,
+      "rate": -6.419e-05
      },
      "ADAUSDT": {
-      "next": 1791388800000,
-      "rate": -1.407e-05
+      "next": 1791417600000,
+      "rate": -2.816e-05
      },
      "BLURUSDT": {
-      "next": 1791388800000,
-      "rate": 5e-05
+      "next": 1791403200000,
+      "rate": 4.632e-05
      },
      "APEUSDT": {
-      "next": 1791388800000,
-      "rate": -2.5e-07
+      "next": 1791417600000,
+      "rate": 6.09e-06
      },
      "DYMUSDT": {
-      "next": 1791388800000,
-      "rate": 4.67e-05
+      "next": 1791403200000,
+      "rate": 5e-05
      },
      "SOLUSDT": {
-      "next": 1791388800000,
-      "rate": 3.03e-05
+      "next": 1791417600000,
+      "rate": 2.773e-05
      },
      "JTOUSDT": {
-      "next": 1791388800000,
-      "rate": 1.29e-06
+      "next": 1791403200000,
+      "rate": -1.374e-05
      },
      "OPUSDT": {
-      "next": 1791388800000,
-      "rate": -0.00016226
+      "next": 1791417600000,
+      "rate": -0.00016064
      },
      "RENDERUSDT": {
-      "next": 1791388800000,
-      "rate": 4.982e-05
+      "next": 1791403200000,
+      "rate": 3.08e-05
      },
      "1000BONKUSDT": {
-      "next": 1791388800000,
-      "rate": -1.116e-05
+      "next": 1791403200000,
+      "rate": -3.354e-05
      },
      "MEMEUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "ARBUSDT": {
-      "next": 1791388800000,
-      "rate": -1.99e-06
+      "next": 1791417600000,
+      "rate": -2.187e-05
      },
      "AVAXUSDT": {
-      "next": 1791388800000,
-      "rate": 2.929e-05
+      "next": 1791417600000,
+      "rate": 4.521e-05
      },
      "NOTUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "ARKMUSDT": {
-      "next": 1791388800000,
+      "next": 1791417600000,
       "rate": 0.0001
      },
      "1000SATSUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "TIAUSDT": {
-      "next": 1791388800000,
-      "rate": -8.2e-06
+      "next": 1791403200000,
+      "rate": -3e-08
      },
      "SUPERUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "BTCUSDT": {
-      "next": 1791388800000,
-      "rate": 8.91e-06
+      "next": 1791417600000,
+      "rate": 1.28e-05
      },
      "DYDXUSDT": {
-      "next": 1791388800000,
-      "rate": 4.236e-05
+      "next": 1791417600000,
+      "rate": 2.413e-05
      },
      "1000SHIBUSDT": {
-      "next": 1791388800000,
-      "rate": -0.00015998
+      "next": 1791417600000,
+      "rate": -0.00016435
      },
      "YGGUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "WIFUSDT": {
-      "next": 1791388800000,
-      "rate": 6.08e-06
+      "next": 1791403200000,
+      "rate": -4.16e-06
      },
      "SAGAUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "SUIUSDT": {
-      "next": 1791388800000,
-      "rate": 0.0001
+      "next": 1791417600000,
+      "rate": 6.802e-05
      },
      "CHZUSDT": {
-      "next": 1791388800000,
+      "next": 1791417600000,
       "rate": 0.0001
      },
      "1000PEPEUSDT": {
-      "next": 1791388800000,
-      "rate": 6.865e-05
+      "next": 1791417600000,
+      "rate": 2.448e-05
      },
      "SANDUSDT": {
-      "next": 1791388800000,
-      "rate": -0.00119788
+      "next": 1791417600000,
+      "rate": -0.00104436
      },
      "MAGICUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "AEVOUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "IMXUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "AXSUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "ILVUSDT": {
-      "next": 1791388800000,
-      "rate": 6.29e-06
+      "next": 1791403200000,
+      "rate": -2.679e-05
      },
      "GMTUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "GMXUSDT": {
-      "next": 1791388800000,
-      "rate": 3.688e-05
+      "next": 1791417600000,
+      "rate": 5.846e-05
      }
     },
     "creado": "2026-10-06T00:18:43.493387+00:00",
@@ -4019,7 +4011,7 @@
    }
   },
   "lider_sin_x": {
-   "actualizado_hace_min": 0.4,
+   "actualizado_hace_min": 0.9,
    "estado": {
     "capital_inicial": 10000.0,
     "cash": 10000.0,
@@ -4041,244 +4033,244 @@
     ],
     "funding_visto": {
      "ALICEUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "ETHUSDT": {
-      "next": 1791388800000,
-      "rate": -4.097e-05
+      "next": 1791417600000,
+      "rate": -2.27e-05
      },
      "SEIUSDT": {
-      "next": 1791388800000,
-      "rate": 6.224e-05
+      "next": 1791417600000,
+      "rate": 3.659e-05
      },
      "PIXELUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "TNSRUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "MASKUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "RONINUSDT": {
-      "next": 1791388800000,
-      "rate": 3.38e-05
+      "next": 1791403200000,
+      "rate": 5e-05
      },
      "BNBUSDT": {
-      "next": 1791388800000,
+      "next": 1791417600000,
       "rate": 0.0
      },
      "ONDOUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "ACEUSDT": {
-      "next": 1791388800000,
-      "rate": 4.572e-05
+      "next": 1791403200000,
+      "rate": -2.915e-05
      },
      "ZETAUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "GALAUSDT": {
-      "next": 1791388800000,
-      "rate": 3.74e-05
+      "next": 1791417600000,
+      "rate": 5.851e-05
      },
      "BEAMXUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "LINKUSDT": {
-      "next": 1791388800000,
-      "rate": 7.081e-05
+      "next": 1791417600000,
+      "rate": 6.588e-05
      },
      "MANAUSDT": {
-      "next": 1791388800000,
-      "rate": -5.334e-05
+      "next": 1791417600000,
+      "rate": -0.0001926
      },
      "APTUSDT": {
-      "next": 1791388800000,
-      "rate": 4.743e-05
+      "next": 1791417600000,
+      "rate": 3.939e-05
      },
      "XRPUSDT": {
-      "next": 1791388800000,
-      "rate": -8.28e-06
+      "next": 1791417600000,
+      "rate": -1.419e-05
      },
      "VANRYUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 0.0
      },
      "NEARUSDT": {
-      "next": 1791388800000,
-      "rate": 3.785e-05
+      "next": 1791417600000,
+      "rate": 4.505e-05
      },
      "MANTAUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "STRKUSDT": {
-      "next": 1791388800000,
-      "rate": 5e-05
+      "next": 1791403200000,
+      "rate": 4.615e-05
      },
      "ORDIUSDT": {
-      "next": 1791388800000,
-      "rate": -6.28e-05
+      "next": 1791403200000,
+      "rate": -4.087e-05
      },
      "FETUSDT": {
-      "next": 1791388800000,
-      "rate": 6.545e-05
+      "next": 1791417600000,
+      "rate": -5.27e-06
      },
      "1000FLOKIUSDT": {
-      "next": 1791388800000,
-      "rate": 1.725e-05
+      "next": 1791417600000,
+      "rate": -2.875e-05
      },
      "ALTUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "INJUSDT": {
-      "next": 1791388800000,
-      "rate": -5.76e-05
+      "next": 1791417600000,
+      "rate": -6.419e-05
      },
      "ADAUSDT": {
-      "next": 1791388800000,
-      "rate": -1.407e-05
+      "next": 1791417600000,
+      "rate": -2.816e-05
      },
      "BLURUSDT": {
-      "next": 1791388800000,
-      "rate": 5e-05
+      "next": 1791403200000,
+      "rate": 4.632e-05
      },
      "APEUSDT": {
-      "next": 1791388800000,
-      "rate": -2.5e-07
+      "next": 1791417600000,
+      "rate": 6.09e-06
      },
      "DYMUSDT": {
-      "next": 1791388800000,
-      "rate": 4.67e-05
+      "next": 1791403200000,
+      "rate": 5e-05
      },
      "SOLUSDT": {
-      "next": 1791388800000,
-      "rate": 3.03e-05
+      "next": 1791417600000,
+      "rate": 2.773e-05
      },
      "JTOUSDT": {
-      "next": 1791388800000,
-      "rate": 1.29e-06
+      "next": 1791403200000,
+      "rate": -1.374e-05
      },
      "OPUSDT": {
-      "next": 1791388800000,
-      "rate": -0.00016226
+      "next": 1791417600000,
+      "rate": -0.00016064
      },
      "RENDERUSDT": {
-      "next": 1791388800000,
-      "rate": 4.982e-05
+      "next": 1791403200000,
+      "rate": 3.08e-05
      },
      "1000BONKUSDT": {
-      "next": 1791388800000,
-      "rate": -1.116e-05
+      "next": 1791403200000,
+      "rate": -3.354e-05
      },
      "MEMEUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "ARBUSDT": {
-      "next": 1791388800000,
-      "rate": -1.99e-06
+      "next": 1791417600000,
+      "rate": -2.187e-05
      },
      "AVAXUSDT": {
-      "next": 1791388800000,
-      "rate": 2.929e-05
+      "next": 1791417600000,
+      "rate": 4.521e-05
      },
      "NOTUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "ARKMUSDT": {
-      "next": 1791388800000,
+      "next": 1791417600000,
       "rate": 0.0001
      },
      "1000SATSUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "TIAUSDT": {
-      "next": 1791388800000,
-      "rate": -8.2e-06
+      "next": 1791403200000,
+      "rate": -3e-08
      },
      "SUPERUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "BTCUSDT": {
-      "next": 1791388800000,
-      "rate": 8.91e-06
+      "next": 1791417600000,
+      "rate": 1.28e-05
      },
      "DYDXUSDT": {
-      "next": 1791388800000,
-      "rate": 4.236e-05
+      "next": 1791417600000,
+      "rate": 2.413e-05
      },
      "1000SHIBUSDT": {
-      "next": 1791388800000,
-      "rate": -0.00015998
+      "next": 1791417600000,
+      "rate": -0.00016435
      },
      "YGGUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "WIFUSDT": {
-      "next": 1791388800000,
-      "rate": 6.08e-06
+      "next": 1791403200000,
+      "rate": -4.16e-06
      },
      "SAGAUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "SUIUSDT": {
-      "next": 1791388800000,
-      "rate": 0.0001
+      "next": 1791417600000,
+      "rate": 6.802e-05
      },
      "CHZUSDT": {
-      "next": 1791388800000,
+      "next": 1791417600000,
       "rate": 0.0001
      },
      "1000PEPEUSDT": {
-      "next": 1791388800000,
-      "rate": 6.865e-05
+      "next": 1791417600000,
+      "rate": 2.448e-05
      },
      "SANDUSDT": {
-      "next": 1791388800000,
-      "rate": -0.00119788
+      "next": 1791417600000,
+      "rate": -0.00104436
      },
      "MAGICUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "AEVOUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "IMXUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "AXSUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "ILVUSDT": {
-      "next": 1791388800000,
-      "rate": 6.29e-06
+      "next": 1791403200000,
+      "rate": -2.679e-05
      },
      "GMTUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "GMXUSDT": {
-      "next": 1791388800000,
-      "rate": 3.688e-05
+      "next": 1791417600000,
+      "rate": 5.846e-05
      }
     },
     "creado": "2026-10-06T00:18:43.490510+00:00",
@@ -4289,7 +4281,7 @@
    }
   },
   "lider_x": {
-   "actualizado_hace_min": 0.4,
+   "actualizado_hace_min": 0.9,
    "estado": {
     "capital_inicial": 10000.0,
     "cash": 10000.0,
@@ -4311,244 +4303,244 @@
     ],
     "funding_visto": {
      "ALICEUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "ETHUSDT": {
-      "next": 1791388800000,
-      "rate": -4.097e-05
+      "next": 1791417600000,
+      "rate": -2.27e-05
      },
      "SEIUSDT": {
-      "next": 1791388800000,
-      "rate": 6.224e-05
+      "next": 1791417600000,
+      "rate": 3.659e-05
      },
      "PIXELUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "TNSRUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "MASKUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "RONINUSDT": {
-      "next": 1791388800000,
-      "rate": 3.38e-05
+      "next": 1791403200000,
+      "rate": 5e-05
      },
      "BNBUSDT": {
-      "next": 1791388800000,
+      "next": 1791417600000,
       "rate": 0.0
      },
      "ONDOUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "ACEUSDT": {
-      "next": 1791388800000,
-      "rate": 4.572e-05
+      "next": 1791403200000,
+      "rate": -2.915e-05
      },
      "ZETAUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "GALAUSDT": {
-      "next": 1791388800000,
-      "rate": 3.74e-05
+      "next": 1791417600000,
+      "rate": 5.851e-05
      },
      "BEAMXUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "LINKUSDT": {
-      "next": 1791388800000,
-      "rate": 7.081e-05
+      "next": 1791417600000,
+      "rate": 6.588e-05
      },
      "MANAUSDT": {
-      "next": 1791388800000,
-      "rate": -5.334e-05
+      "next": 1791417600000,
+      "rate": -0.0001926
      },
      "APTUSDT": {
-      "next": 1791388800000,
-      "rate": 4.743e-05
+      "next": 1791417600000,
+      "rate": 3.939e-05
      },
      "XRPUSDT": {
-      "next": 1791388800000,
-      "rate": -8.28e-06
+      "next": 1791417600000,
+      "rate": -1.419e-05
      },
      "VANRYUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 0.0
      },
      "NEARUSDT": {
-      "next": 1791388800000,
-      "rate": 3.785e-05
+      "next": 1791417600000,
+      "rate": 4.505e-05
      },
      "MANTAUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "STRKUSDT": {
-      "next": 1791388800000,
-      "rate": 5e-05
+      "next": 1791403200000,
+      "rate": 4.615e-05
      },
      "ORDIUSDT": {
-      "next": 1791388800000,
-      "rate": -6.28e-05
+      "next": 1791403200000,
+      "rate": -4.087e-05
      },
      "FETUSDT": {
-      "next": 1791388800000,
-      "rate": 6.545e-05
+      "next": 1791417600000,
+      "rate": -5.27e-06
      },
      "1000FLOKIUSDT": {
-      "next": 1791388800000,
-      "rate": 1.725e-05
+      "next": 1791417600000,
+      "rate": -2.875e-05
      },
      "ALTUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "INJUSDT": {
-      "next": 1791388800000,
-      "rate": -5.76e-05
+      "next": 1791417600000,
+      "rate": -6.419e-05
      },
      "ADAUSDT": {
-      "next": 1791388800000,
-      "rate": -1.407e-05
+      "next": 1791417600000,
+      "rate": -2.816e-05
      },
      "BLURUSDT": {
-      "next": 1791388800000,
-      "rate": 5e-05
+      "next": 1791403200000,
+      "rate": 4.632e-05
      },
      "APEUSDT": {
-      "next": 1791388800000,
-      "rate": -2.5e-07
+      "next": 1791417600000,
+      "rate": 6.09e-06
      },
      "DYMUSDT": {
-      "next": 1791388800000,
-      "rate": 4.67e-05
+      "next": 1791403200000,
+      "rate": 5e-05
      },
      "SOLUSDT": {
-      "next": 1791388800000,
-      "rate": 3.03e-05
+      "next": 1791417600000,
+      "rate": 2.773e-05
      },
      "JTOUSDT": {
-      "next": 1791388800000,
-      "rate": 1.29e-06
+      "next": 1791403200000,
+      "rate": -1.374e-05
      },
      "OPUSDT": {
-      "next": 1791388800000,
-      "rate": -0.00016226
+      "next": 1791417600000,
+      "rate": -0.00016064
      },
      "RENDERUSDT": {
-      "next": 1791388800000,
-      "rate": 4.982e-05
+      "next": 1791403200000,
+      "rate": 3.08e-05
      },
      "1000BONKUSDT": {
-      "next": 1791388800000,
-      "rate": -1.116e-05
+      "next": 1791403200000,
+      "rate": -3.354e-05
      },
      "MEMEUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "ARBUSDT": {
-      "next": 1791388800000,
-      "rate": -1.99e-06
+      "next": 1791417600000,
+      "rate": -2.187e-05
      },
      "AVAXUSDT": {
-      "next": 1791388800000,
-      "rate": 2.929e-05
+      "next": 1791417600000,
+      "rate": 4.521e-05
      },
      "NOTUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "ARKMUSDT": {
-      "next": 1791388800000,
+      "next": 1791417600000,
       "rate": 0.0001
      },
      "1000SATSUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "TIAUSDT": {
-      "next": 1791388800000,
-      "rate": -8.2e-06
+      "next": 1791403200000,
+      "rate": -3e-08
      },
      "SUPERUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "BTCUSDT": {
-      "next": 1791388800000,
-      "rate": 8.91e-06
+      "next": 1791417600000,
+      "rate": 1.28e-05
      },
      "DYDXUSDT": {
-      "next": 1791388800000,
-      "rate": 4.236e-05
+      "next": 1791417600000,
+      "rate": 2.413e-05
      },
      "1000SHIBUSDT": {
-      "next": 1791388800000,
-      "rate": -0.00015998
+      "next": 1791417600000,
+      "rate": -0.00016435
      },
      "YGGUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "WIFUSDT": {
-      "next": 1791388800000,
-      "rate": 6.08e-06
+      "next": 1791403200000,
+      "rate": -4.16e-06
      },
      "SAGAUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "SUIUSDT": {
-      "next": 1791388800000,
-      "rate": 0.0001
+      "next": 1791417600000,
+      "rate": 6.802e-05
      },
      "CHZUSDT": {
-      "next": 1791388800000,
+      "next": 1791417600000,
       "rate": 0.0001
      },
      "1000PEPEUSDT": {
-      "next": 1791388800000,
-      "rate": 6.865e-05
+      "next": 1791417600000,
+      "rate": 2.448e-05
      },
      "SANDUSDT": {
-      "next": 1791388800000,
-      "rate": -0.00119788
+      "next": 1791417600000,
+      "rate": -0.00104436
      },
      "MAGICUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "AEVOUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "IMXUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "AXSUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "ILVUSDT": {
-      "next": 1791388800000,
-      "rate": 6.29e-06
+      "next": 1791403200000,
+      "rate": -2.679e-05
      },
      "GMTUSDT": {
-      "next": 1791388800000,
+      "next": 1791403200000,
       "rate": 5e-05
      },
      "GMXUSDT": {
-      "next": 1791388800000,
-      "rate": 3.688e-05
+      "next": 1791417600000,
+      "rate": 5.846e-05
      }
     },
     "creado": "2026-10-06T00:18:43.490510+00:00",
@@ -4559,15 +4551,15 @@
    }
   },
   "poly_updown": {
-   "actualizado_hace_min": 0.2,
+   "actualizado_hace_min": 17.3,
    "estado": {
     "stats": {
-     "señales": 387,
-     "llenadas": 269,
-     "no_llenadas": 118,
-     "liquidadas": 256,
-     "pnl_usd": 1959.9364158507478,
-     "invertido_usd": 4547.184299999999,
+     "señales": 396,
+     "llenadas": 275,
+     "no_llenadas": 121,
+     "liquidadas": 258,
+     "pnl_usd": 1955.411087147044,
+     "invertido_usd": 4697.184299999999,
      "oficiales": 0,
      "pnl_oficial_usd": 0.0
     },
@@ -4582,13 +4574,17 @@
      "stop_before_end_s": 30
     },
     "abiertas": [
-     "btc-updown-15m-1791387900",
-     "eth-updown-15m-1791387900"
+     "btc-updown-15m-1791388800",
+     "eth-updown-15m-1791388800",
+     "sol-updown-15m-1791388800",
+     "btc-updown-5m-1791388800",
+     "eth-updown-5m-1791388800",
+     "sol-updown-5m-1791388800"
     ]
    }
   },
   "pump_azar": {
-   "actualizado_hace_min": 866.9,
+   "actualizado_hace_min": 897.4,
    "estado": {
     "capital_inicial": 10.0,
     "cash": 0.15795662725739001,
@@ -5223,7 +5219,7 @@
    }
   },
   "pump_billeteras": {
-   "actualizado_hace_min": 866.9,
+   "actualizado_hace_min": 897.4,
    "estado": {
     "capital_inicial": 20.0,
     "cash": 1.2548495564723106,
@@ -5634,7 +5630,7 @@
    }
   },
   "pump_billeteras_2x": {
-   "actualizado_hace_min": 866.9,
+   "actualizado_hace_min": 897.4,
    "estado": {
     "capital_inicial": 20.0,
     "cash": 0.22755023797735716,
@@ -6031,7 +6027,7 @@
    }
   },
   "pump_billeteras_azar": {
-   "actualizado_hace_min": 866.9,
+   "actualizado_hace_min": 897.4,
    "estado": {
     "capital_inicial": 20.0,
     "cash": 1.0517567131934347,
@@ -6582,7 +6578,7 @@
    }
   },
   "pump_detector_tarde": {
-   "actualizado_hace_min": 866.9,
+   "actualizado_hace_min": 897.4,
    "estado": {
     "capital_inicial": 10.0,
     "cash": 0.013077699903251055,
@@ -7035,7 +7031,7 @@
    }
   },
   "pump_grupo": {
-   "actualizado_hace_min": 866.9,
+   "actualizado_hace_min": 897.4,
    "estado": {
     "capital_inicial": 10.0,
     "cash": 0.04993204146983314,
@@ -7402,7 +7398,7 @@
    }
   },
   "pump_grupo_aguantar": {
-   "actualizado_hace_min": 866.9,
+   "actualizado_hace_min": 897.4,
    "estado": {
     "capital_inicial": 10.0,
     "cash": 0.3010845207557028,
@@ -8051,7 +8047,7 @@
    }
   },
   "pump_grupo_nicho": {
-   "actualizado_hace_min": 866.9,
+   "actualizado_hace_min": 897.4,
    "estado": {
     "capital_inicial": 10.0,
     "cash": 0.04762408816456871,
@@ -8418,7 +8414,7 @@
    }
   },
   "pump_nicho": {
-   "actualizado_hace_min": 866.9,
+   "actualizado_hace_min": 897.4,
    "estado": {
     "capital_inicial": 10.0,
     "cash": 0.57015869744045,
@@ -9025,7 +9021,7 @@
    }
   },
   "pump_nicho_azar": {
-   "actualizado_hace_min": 866.9,
+   "actualizado_hace_min": 897.4,
    "estado": {
     "capital_inicial": 10.0,
     "cash": 0.03123495968936449,
@@ -9676,40 +9672,39 @@
  },
  "salud": {
   "api": {
-   "status": "STOPPED",
-   "pid": 23860
+   "status": "RUNNING",
+   "pid": 12568
   },
   "web": {
    "status": "RUNNING",
-   "pid": 20008
+   "pid": 5876
   },
   "os_launcher": {
    "status": "RUNNING",
-   "pid": 20488
+   "pid": 13368
   },
   "supervisor": {
    "status": "RUNNING",
-   "pid": 23848
+   "pid": 900
   },
   "markets_recorder": {
    "status": "RUNNING",
-   "pid": 18468
+   "pid": 17904
   },
   "paper_runtime": {
    "status": "RUNNING",
-   "pid": 21040
+   "pid": 4316
   },
   "pumpfun_recorder": {
    "status": "RUNNING",
-   "pid": 25648
+   "pid": 25336
   },
   "pumpfun_paper": {
-   "status": "DEGRADED",
-   "pid": 25648
+   "status": "DISABLED"
   },
   "leader_paper": {
    "status": "RUNNING",
-   "pid": 21040
+   "pid": 4316
   },
   "x_watcher": {
    "status": "DISABLED"
@@ -9717,104 +9712,104 @@
  },
  "recorders": {
   "binance_perp/bbo_ticks": {
-   "archivos_ultima_hora": 1217,
-   "ultima_escritura_hace_min": -0.2
+   "archivos_ultima_hora": 1083,
+   "ultima_escritura_hace_min": -0.1
   },
   "binance_perp/depth_snapshots": {
-   "archivos_ultima_hora": 24,
-   "ultima_escritura_hace_min": -0.2
+   "archivos_ultima_hora": 20,
+   "ultima_escritura_hace_min": 4.8
   },
   "binance_perp/forced_liquidations": {
    "archivos_ultima_hora": 58,
-   "ultima_escritura_hace_min": 0.4
+   "ultima_escritura_hace_min": 0.7
   },
   "binance_perp/futures_market_metrics": {
    "archivos_ultima_hora": 58,
-   "ultima_escritura_hace_min": 0.4
+   "ultima_escritura_hace_min": 0.7
   },
   "binance_perp/futures_open_interest": {
-   "archivos_ultima_hora": 60,
-   "ultima_escritura_hace_min": 0.4
+   "archivos_ultima_hora": 59,
+   "ultima_escritura_hace_min": 0.7
   },
   "binance_perp/orderbook_l2_depth": {
-   "archivos_ultima_hora": 135,
-   "ultima_escritura_hace_min": -0.5
+   "archivos_ultima_hora": 128,
+   "ultima_escritura_hace_min": 0.2
   },
   "binance_perp/trade_ticks": {
-   "archivos_ultima_hora": 75,
-   "ultima_escritura_hace_min": 0.4
+   "archivos_ultima_hora": 73,
+   "ultima_escritura_hace_min": 0.7
   },
   "deribit/bbo_ticks": {
-   "archivos_ultima_hora": 61,
-   "ultima_escritura_hace_min": -0.6
+   "archivos_ultima_hora": 59,
+   "ultima_escritura_hace_min": 0.7
   },
   "deribit/deribit_metrics": {
-   "archivos_ultima_hora": 61,
-   "ultima_escritura_hace_min": -0.6
+   "archivos_ultima_hora": 59,
+   "ultima_escritura_hace_min": 0.7
   },
   "deribit/trade_ticks": {
-   "archivos_ultima_hora": 57,
-   "ultima_escritura_hace_min": -0.6
+   "archivos_ultima_hora": 55,
+   "ultima_escritura_hace_min": 0.7
   },
   "dexscreener/token_boosts": {
-   "archivos_ultima_hora": 4,
-   "ultima_escritura_hace_min": 21.1
+   "archivos_ultima_hora": 6,
+   "ultima_escritura_hace_min": 11.8
   },
   "dexscreener/token_prices": {
-   "archivos_ultima_hora": 33,
-   "ultima_escritura_hace_min": -0.8
+   "archivos_ultima_hora": 39,
+   "ultima_escritura_hace_min": -0.3
   },
   "dexscreener/token_profiles": {
-   "archivos_ultima_hora": 16,
-   "ultima_escritura_hace_min": -0.7
+   "archivos_ultima_hora": 21,
+   "ultima_escritura_hace_min": 0.7
   },
   "limitless/limitless_book": {
-   "archivos_ultima_hora": 29,
-   "ultima_escritura_hace_min": 9.5
+   "archivos_ultima_hora": 37,
+   "ultima_escritura_hace_min": -0.3
   },
   "limitless/limitless_markets": {
-   "archivos_ultima_hora": 10,
-   "ultima_escritura_hace_min": 8.1
+   "archivos_ultima_hora": 13,
+   "ultima_escritura_hace_min": -0.3
   },
   "polymarket/bbo_ticks": {
-   "archivos_ultima_hora": 673,
-   "ultima_escritura_hace_min": -1.0
+   "archivos_ultima_hora": 659,
+   "ultima_escritura_hace_min": -0.3
   },
   "polymarket/orderbook_l2_depth": {
-   "archivos_ultima_hora": 61,
-   "ultima_escritura_hace_min": -0.6
+   "archivos_ultima_hora": 60,
+   "ultima_escritura_hace_min": -0.3
   },
   "polymarket/polymarket_metadata_history": {
-   "archivos_ultima_hora": 17,
-   "ultima_escritura_hace_min": 0.4
+   "archivos_ultima_hora": 16,
+   "ultima_escritura_hace_min": 0.7
   },
   "polymarket/trade_ticks": {
-   "archivos_ultima_hora": 56,
-   "ultima_escritura_hace_min": -0.6
+   "archivos_ultima_hora": 58,
+   "ultima_escritura_hace_min": -0.3
   },
   "pumpfun/creator_funding": {
-   "archivos_ultima_hora": 24,
-   "ultima_escritura_hace_min": 0.5
+   "archivos_ultima_hora": 28,
+   "ultima_escritura_hace_min": -0.3
   },
   "pumpfun/pumpfun_completes": {
-   "archivos_ultima_hora": 10,
-   "ultima_escritura_hace_min": -1.0
+   "archivos_ultima_hora": 14,
+   "ultima_escritura_hace_min": 2.7
   },
   "pumpfun/pumpfun_creates": {
-   "archivos_ultima_hora": 42,
-   "ultima_escritura_hace_min": -0.9
+   "archivos_ultima_hora": 46,
+   "ultima_escritura_hace_min": -0.3
   },
   "pumpfun/pumpfun_trades": {
-   "archivos_ultima_hora": 45,
-   "ultima_escritura_hace_min": -0.8
+   "archivos_ultima_hora": 49,
+   "ultima_escritura_hace_min": -0.3
   },
   "pumpfun/x_mentions": {
    "archivos_ultima_hora": 0,
-   "ultima_escritura_hace_min": 866.9
+   "ultima_escritura_hace_min": 897.4
   },
   "telegram/calls": {
-   "archivos_ultima_hora": 17,
-   "ultima_escritura_hace_min": -1.1
+   "archivos_ultima_hora": 18,
+   "ultima_escritura_hace_min": -0.3
   }
  },
  "logs": {
@@ -9844,48 +9839,48 @@
    "Traceback (most recent call last):"
   ],
   "poly_paper.log": [
-   "{\"timestamp_utc\": \"2026-10-07T15:26:21Z\", \"level\": \"WARNING\", \"logger\": \"poly_updown_paper\", \"message\": \"Polymarket WS: ConnectionClosedError: received 1013 (try again later) slow consumer: send buffer full; then sent 1013 (try again later) slow consumer: send bu; reconecto en 3 s\"}",
-   "{\"timestamp_utc\": \"2026-10-07T15:26:54Z\", \"level\": \"WARNING\", \"logger\": \"poly_updown_paper\", \"message\": \"Polymarket WS: ConnectionClosedError: received 1013 (try again later) slow consumer: send buffer full; then sent 1013 (try again later) slow consumer: send bu; reconecto en 3 s\"}",
-   "{\"timestamp_utc\": \"2026-10-07T15:27:57Z\", \"level\": \"WARNING\", \"logger\": \"poly_updown_paper\", \"message\": \"Polymarket WS: ConnectionClosedError: received 1013 (try again later) slow consumer: send buffer full; then sent 1013 (try again later) slow consumer: send bu; reconecto en 3 s\"}",
-   "{\"timestamp_utc\": \"2026-10-07T15:28:36Z\", \"level\": \"WARNING\", \"logger\": \"poly_updown_paper\", \"message\": \"Polymarket WS: ConnectionClosedError: no close frame received or sent; reconecto en 3 s\"}",
-   "{\"timestamp_utc\": \"2026-10-07T15:28:40Z\", \"level\": \"WARNING\", \"logger\": \"poly_updown_paper\", \"message\": \"Binance WS: ConnectionClosedError: sent 1011 (internal error) keepalive ping timeout; no close frame received; reconecto en 3 s\"}",
-   "{\"timestamp_utc\": \"2026-10-07T15:37:30Z\", \"level\": \"WARNING\", \"logger\": \"poly_updown_paper\", \"message\": \"Binance WS: ConnectionClosedError: sent 1011 (internal error) keepalive ping timeout; no close frame received; reconecto en 3 s\"}",
-   "{\"timestamp_utc\": \"2026-10-07T15:37:33Z\", \"level\": \"WARNING\", \"logger\": \"poly_updown_paper\", \"message\": \"Polymarket WS: ConnectionClosedError: no close frame received or sent; reconecto en 3 s\"}",
-   "{\"timestamp_utc\": \"2026-10-07T15:37:42Z\", \"level\": \"WARNING\", \"logger\": \"poly_updown_paper\", \"message\": \"Polymarket WS: ConnectionClosedError: received 1013 (try again later) slow consumer: send buffer full; then sent 1013 (try again later) slow consumer: send bu; reconecto en 3 s\"}",
-   "{\"timestamp_utc\": \"2026-10-07T15:38:56Z\", \"level\": \"WARNING\", \"logger\": \"poly_updown_paper\", \"message\": \"Polymarket WS: ConnectionClosedError: received 1013 (try again later) slow consumer: send buffer full; then sent 1013 (try again later) slow consumer: send bu; reconecto en 3 s\"}",
-   "{\"timestamp_utc\": \"2026-10-07T15:45:33Z\", \"level\": \"WARNING\", \"logger\": \"poly_updown_paper\", \"message\": \"Polymarket WS: ConnectionClosedError: received 1013 (try again later) slow consumer: send buffer full; then sent 1013 (try again later) slow consumer: send bu; reconecto en 3 s\"}",
-   "{\"timestamp_utc\": \"2026-10-07T15:45:53Z\", \"level\": \"WARNING\", \"logger\": \"poly_updown_paper\", \"message\": \"Polymarket WS: ConnectionClosedError: received 1013 (try again later) slow consumer: send buffer full; then sent 1013 (try again later) slow consumer: send bu; reconecto en 3 s\"}",
-   "{\"timestamp_utc\": \"2026-10-07T15:47:16Z\", \"level\": \"WARNING\", \"logger\": \"poly_updown_paper\", \"message\": \"Polymarket WS: ConnectionClosedError: received 1013 (try again later) slow consumer: send buffer full; then sent 1013 (try again later) slow consumer: send bu; reconecto en 3 s\"}",
-   "{\"timestamp_utc\": \"2026-10-07T15:48:30Z\", \"level\": \"WARNING\", \"logger\": \"poly_updown_paper\", \"message\": \"Polymarket WS: ConnectionClosedError: received 1013 (try again later) slow consumer: send buffer full; then sent 1013 (try again later) slow consumer: send bu; reconecto en 3 s\"}",
-   "{\"timestamp_utc\": \"2026-10-07T15:49:00Z\", \"level\": \"WARNING\", \"logger\": \"poly_updown_paper\", \"message\": \"Polymarket WS: ConnectionClosedError: received 1013 (try again later) slow consumer: send buffer full; then sent 1013 (try again later) slow consumer: send bu; reconecto en 3 s\"}",
-   "{\"timestamp_utc\": \"2026-10-07T15:49:05Z\", \"level\": \"WARNING\", \"logger\": \"poly_updown_paper\", \"message\": \"Polymarket WS: ConnectionClosedError: received 1013 (try again later) slow consumer: send buffer full; then sent 1013 (try again later) slow consumer: send bu; reconecto en 3 s\"}",
-   "{\"timestamp_utc\": \"2026-10-07T15:50:19Z\", \"level\": \"WARNING\", \"logger\": \"poly_updown_paper\", \"message\": \"Polymarket WS: ConnectionClosedError: received 1013 (try again later) slow consumer: send buffer full; then sent 1013 (try again later) slow consumer: send bu; reconecto en 3 s\"}",
-   "{\"timestamp_utc\": \"2026-10-07T15:51:43Z\", \"level\": \"WARNING\", \"logger\": \"poly_updown_paper\", \"message\": \"Polymarket WS: ConnectionClosedError: received 1013 (try again later) slow consumer: send buffer full; then sent 1013 (try again later) slow consumer: send bu; reconecto en 3 s\"}",
-   "{\"timestamp_utc\": \"2026-10-07T15:51:49Z\", \"level\": \"WARNING\", \"logger\": \"poly_updown_paper\", \"message\": \"Polymarket WS: ConnectionClosedError: received 1013 (try again later) slow consumer: send buffer full; then sent 1013 (try again later) slow consumer: send bu; reconecto en 3 s\"}",
-   "{\"timestamp_utc\": \"2026-10-07T15:51:54Z\", \"level\": \"WARNING\", \"logger\": \"poly_updown_paper\", \"message\": \"Polymarket WS: ConnectionClosedError: received 1013 (try again later) slow consumer: send buffer full; then sent 1013 (try again later) slow consumer: send bu; reconecto en 3 s\"}",
-   "{\"timestamp_utc\": \"2026-10-07T15:52:01Z\", \"level\": \"WARNING\", \"logger\": \"poly_updown_paper\", \"message\": \"Polymarket WS: ConnectionClosedError: received 1013 (try again later) slow consumer: send buffer full; then sent 1013 (try again later) slow consumer: send bu; reconecto en 3 s\"}"
+   "{\"timestamp_utc\": \"2026-10-07T15:54:20Z\", \"level\": \"WARNING\", \"logger\": \"poly_updown_paper\", \"message\": \"Binance WS: ConnectionClosedError: sent 1011 (internal error) keepalive ping timeout; no close frame received; reconecto en 3 s\"}",
+   "{\"timestamp_utc\": \"2026-10-07T15:54:33Z\", \"level\": \"WARNING\", \"logger\": \"poly_updown_paper\", \"message\": \"Binance WS: TimeoutError: timed out during opening handshake; reconecto en 3 s\"}",
+   "{\"timestamp_utc\": \"2026-10-07T15:54:46Z\", \"level\": \"WARNING\", \"logger\": \"poly_updown_paper\", \"message\": \"Binance WS: TimeoutError: timed out during opening handshake; reconecto en 3 s\"}",
+   "{\"timestamp_utc\": \"2026-10-07T15:54:59Z\", \"level\": \"WARNING\", \"logger\": \"poly_updown_paper\", \"message\": \"Binance WS: TimeoutError: timed out during opening handshake; reconecto en 3 s\"}",
+   "{\"timestamp_utc\": \"2026-10-07T15:55:12Z\", \"level\": \"WARNING\", \"logger\": \"poly_updown_paper\", \"message\": \"Binance WS: TimeoutError: timed out during opening handshake; reconecto en 3 s\"}",
+   "{\"timestamp_utc\": \"2026-10-07T15:55:25Z\", \"level\": \"WARNING\", \"logger\": \"poly_updown_paper\", \"message\": \"Binance WS: TimeoutError: timed out during opening handshake; reconecto en 3 s\"}",
+   "{\"timestamp_utc\": \"2026-10-07T15:55:39Z\", \"level\": \"WARNING\", \"logger\": \"poly_updown_paper\", \"message\": \"Polymarket WS: ConnectionClosedError: no close frame received or sent; reconecto en 3 s\"}",
+   "{\"timestamp_utc\": \"2026-10-07T15:56:24Z\", \"level\": \"WARNING\", \"logger\": \"poly_updown_paper\", \"message\": \"Polymarket WS: ConnectionClosedError: received 1013 (try again later) slow consumer: send buffer full; then sent 1013 (try again later) slow consumer: send bu; reconecto en 3 s\"}",
+   "{\"timestamp_utc\": \"2026-10-07T15:56:29Z\", \"level\": \"WARNING\", \"logger\": \"poly_updown_paper\", \"message\": \"Polymarket WS: ConnectionClosedError: received 1013 (try again later) slow consumer: send buffer full; then sent 1013 (try again later) slow consumer: send bu; reconecto en 3 s\"}",
+   "{\"timestamp_utc\": \"2026-10-07T16:00:10Z\", \"level\": \"WARNING\", \"logger\": \"poly_updown_paper\", \"message\": \"Polymarket WS: ConnectionClosedError: received 1013 (try again later) slow consumer: send buffer full; then sent 1013 (try again later) slow consumer: send bu; reconecto en 3 s\"}",
+   "{\"timestamp_utc\": \"2026-10-07T16:00:23Z\", \"level\": \"WARNING\", \"logger\": \"poly_updown_paper\", \"message\": \"Polymarket WS: ConnectionClosedError: received 1013 (try again later) slow consumer: send buffer full; then sent 1013 (try again later) slow consumer: send bu; reconecto en 3 s\"}",
+   "{\"timestamp_utc\": \"2026-10-07T16:01:37Z\", \"level\": \"WARNING\", \"logger\": \"poly_updown_paper\", \"message\": \"Binance WS: ConnectionClosedError: sent 1011 (internal error) keepalive ping timeout; no close frame received; reconecto en 3 s\"}",
+   "{\"timestamp_utc\": \"2026-10-07T16:01:47Z\", \"level\": \"WARNING\", \"logger\": \"poly_updown_paper\", \"message\": \"Polymarket WS: ConnectionClosedError: received 1013 (try again later) slow consumer: send buffer full; then sent 1013 (try again later) slow consumer: send bu; reconecto en 3 s\"}",
+   "{\"timestamp_utc\": \"2026-10-07T16:01:51Z\", \"level\": \"WARNING\", \"logger\": \"poly_updown_paper\", \"message\": \"Binance WS: ConnectionClosedError: no close frame received or sent; reconecto en 3 s\"}",
+   "{\"timestamp_utc\": \"2026-10-07T16:01:52Z\", \"level\": \"WARNING\", \"logger\": \"poly_updown_paper\", \"message\": \"Polymarket WS: ConnectionClosedError: received 1013 (try again later) slow consumer: send buffer full; then sent 1013 (try again later) slow consumer: send bu; reconecto en 3 s\"}",
+   "{\"timestamp_utc\": \"2026-10-07T16:02:18Z\", \"level\": \"WARNING\", \"logger\": \"poly_updown_paper\", \"message\": \"Polymarket WS: ConnectionClosedError: received 1013 (try again later) slow consumer: send buffer full; then sent 1013 (try again later) slow consumer: send bu; reconecto en 3 s\"}",
+   "{\"timestamp_utc\": \"2026-10-07T16:02:33Z\", \"level\": \"WARNING\", \"logger\": \"poly_updown_paper\", \"message\": \"Polymarket WS: ConnectionClosedError: received 1013 (try again later) slow consumer: send buffer full; then sent 1013 (try again later) slow consumer: send bu; reconecto en 3 s\"}",
+   "{\"timestamp_utc\": \"2026-10-07T16:02:46Z\", \"level\": \"WARNING\", \"logger\": \"poly_updown_paper\", \"message\": \"Polymarket WS: TimeoutError: timed out during opening handshake; reconecto en 3 s\"}",
+   "{\"timestamp_utc\": \"2026-10-07T16:02:58Z\", \"level\": \"WARNING\", \"logger\": \"poly_updown_paper\", \"message\": \"Polymarket WS: ConnectionClosedError: received 1013 (try again later) slow consumer: send buffer full; then sent 1013 (try again later) slow consumer: send bu; reconecto en 3 s\"}",
+   "{\"timestamp_utc\": \"2026-10-07T16:03:57Z\", \"level\": \"WARNING\", \"logger\": \"poly_updown_paper\", \"message\": \"Polymarket WS: ConnectionClosedError: received 1013 (try again later) slow consumer: send buffer full; then sent 1013 (try again later) slow consumer: send bu; reconecto en 3 s\"}"
   ],
   "recorder.log": [
-   "{\"timestamp_utc\": \"2026-10-07T15:45:58Z\", \"level\": \"WARNING\", \"logger\": \"dexscreener_watcher\", \"message\": \"DexScreener: TimeoutError: \"}",
-   "{\"timestamp_utc\": \"2026-10-07T15:46:08Z\", \"level\": \"WARNING\", \"logger\": \"limitless_recorder\", \"message\": \"Limitless: TimeoutError: \"}",
-   "{\"timestamp_utc\": \"2026-10-07T15:46:38Z\", \"level\": \"WARNING\", \"logger\": \"limitless_recorder\", \"message\": \"Limitless: TimeoutError: \"}",
-   "{\"timestamp_utc\": \"2026-10-07T15:46:38Z\", \"level\": \"WARNING\", \"logger\": \"pumpfun_recorder\", \"message\": \"pump.fun WS desconectado (public): ConnectionClosedError: sent 1011 (internal error) keepalive ping timeout; no close frame received. Reintento en 1s\"}",
-   "{\"timestamp_utc\": \"2026-10-07T15:46:52Z\", \"level\": \"WARNING\", \"logger\": \"binance_recorder\", \"message\": \"Binance PUBLIC WS disconnected: no close frame received or sent. Reconnecting in 1.0s...\"}",
-   "{\"timestamp_utc\": \"2026-10-07T15:46:56Z\", \"level\": \"WARNING\", \"logger\": \"dexscreener_watcher\", \"message\": \"DexScreener respondi\\u00f3 404 en dexscreener.com\"}",
-   "{\"timestamp_utc\": \"2026-10-07T15:47:16Z\", \"level\": \"WARNING\", \"logger\": \"binance_recorder\", \"message\": \"Binance PUBLIC WS disconnected: no close frame received or sent. Reconnecting in 1.0s...\"}",
-   "{\"timestamp_utc\": \"2026-10-07T15:47:16Z\", \"level\": \"WARNING\", \"logger\": \"limitless_recorder\", \"message\": \"Limitless: TimeoutError: \"}",
-   "{\"timestamp_utc\": \"2026-10-07T15:47:48Z\", \"level\": \"WARNING\", \"logger\": \"limitless_recorder\", \"message\": \"Limitless: TimeoutError: \"}",
-   "{\"timestamp_utc\": \"2026-10-07T15:48:19Z\", \"level\": \"WARNING\", \"logger\": \"pumpfun_recorder\", \"message\": \"pump.fun WS desconectado (public): ConnectionClosedError: sent 1011 (internal error) keepalive ping timeout; no close frame received. Reintento en 1s\"}",
-   "{\"timestamp_utc\": \"2026-10-07T15:48:19Z\", \"level\": \"WARNING\", \"logger\": \"limitless_recorder\", \"message\": \"Limitless: TimeoutError: \"}",
-   "{\"timestamp_utc\": \"2026-10-07T15:48:32Z\", \"level\": \"WARNING\", \"logger\": \"dexscreener_watcher\", \"message\": \"DexScreener respondi\\u00f3 404 en dexscreener.com\"}",
-   "{\"timestamp_utc\": \"2026-10-07T15:48:58Z\", \"level\": \"WARNING\", \"logger\": \"limitless_recorder\", \"message\": \"Limitless: TimeoutError: \"}",
-   "{\"timestamp_utc\": \"2026-10-07T15:49:36Z\", \"level\": \"WARNING\", \"logger\": \"limitless_recorder\", \"message\": \"Limitless: TimeoutError: \"}",
-   "{\"timestamp_utc\": \"2026-10-07T15:50:11Z\", \"level\": \"WARNING\", \"logger\": \"dexscreener_watcher\", \"message\": \"DexScreener: TimeoutError: \"}",
-   "{\"timestamp_utc\": \"2026-10-07T15:50:14Z\", \"level\": \"WARNING\", \"logger\": \"limitless_recorder\", \"message\": \"Limitless: TimeoutError: \"}",
-   "{\"timestamp_utc\": \"2026-10-07T15:50:59Z\", \"level\": \"WARNING\", \"logger\": \"pumpfun_recorder\", \"message\": \"pump.fun WS desconectado (public): ConnectionClosedError: sent 1011 (internal error) keepalive ping timeout; no close frame received. Reintento en 1s\"}",
-   "{\"timestamp_utc\": \"2026-10-07T15:50:59Z\", \"level\": \"WARNING\", \"logger\": \"limitless_recorder\", \"message\": \"Limitless: TimeoutError: \"}",
-   "{\"timestamp_utc\": \"2026-10-07T15:51:10Z\", \"level\": \"WARNING\", \"logger\": \"dexscreener_watcher\", \"message\": \"DexScreener respondi\\u00f3 404 en dexscreener.com\"}",
-   "{\"timestamp_utc\": \"2026-10-07T15:51:37Z\", \"level\": \"WARNING\", \"logger\": \"limitless_recorder\", \"message\": \"Limitless: TimeoutError: \"}"
+   "{\"timestamp_utc\": \"2026-10-07T16:01:48Z\", \"level\": \"WARNING\", \"logger\": \"binance_recorder\", \"message\": \"Binance REST fallback ON: WebSocket de precios ca\\u00eddo, se piden precios por REST.\"}",
+   "{\"timestamp_utc\": \"2026-10-07T16:01:50Z\", \"level\": \"WARNING\", \"logger\": \"polymarket_recorder\", \"message\": \"Polymarket WS disconnected: no close frame received or sent. Reconnecting in 1.0s...\"}",
+   "{\"timestamp_utc\": \"2026-10-07T16:01:52Z\", \"level\": \"WARNING\", \"logger\": \"binance_recorder\", \"message\": \"Binance PUBLIC WS disconnected: no close frame received or sent. Reconnecting in 1.0s...\"}",
+   "{\"timestamp_utc\": \"2026-10-07T16:02:06Z\", \"level\": \"WARNING\", \"logger\": \"binance_recorder\", \"message\": \"Binance PUBLIC WS disconnected: no close frame received or sent. Reconnecting in 1.0s...\"}",
+   "{\"timestamp_utc\": \"2026-10-07T16:02:30Z\", \"level\": \"WARNING\", \"logger\": \"polymarket_recorder\", \"message\": \"Polymarket WS disconnected: received 1013 (try again later) slow consumer: send buffer full; then sent 1013 (try again later) slow consumer: send buffer full. Reconnecting in 1.0s...\"}",
+   "{\"timestamp_utc\": \"2026-10-07T16:02:33Z\", \"level\": \"WARNING\", \"logger\": \"pumpfun_recorder\", \"message\": \"pump.fun WS desconectado (public): ConnectionClosedError: sent 1011 (internal error) keepalive ping timeout; no close frame received. Reintento en 1s\"}",
+   "{\"timestamp_utc\": \"2026-10-07T16:02:33Z\", \"level\": \"WARNING\", \"logger\": \"dexscreener_watcher\", \"message\": \"DexScreener: TimeoutError: \"}",
+   "{\"timestamp_utc\": \"2026-10-07T16:04:48Z\", \"level\": \"WARNING\", \"logger\": \"binance_recorder\", \"message\": \"Binance REST fallback ON: WebSocket de precios ca\\u00eddo, se piden precios por REST.\"}",
+   "{\"timestamp_utc\": \"2026-10-07T16:05:28Z\", \"level\": \"WARNING\", \"logger\": \"polymarket_recorder\", \"message\": \"Polymarket WS disconnected: received 1013 (try again later) slow consumer: send buffer full; then sent 1013 (try again later) slow consumer: send buffer full. Reconnecting in 1.0s...\"}",
+   "{\"timestamp_utc\": \"2026-10-07T16:05:29Z\", \"level\": \"WARNING\", \"logger\": \"binance_recorder\", \"message\": \"Binance PUBLIC WS disconnected: no close frame received or sent. Reconnecting in 1.0s...\"}",
+   "{\"timestamp_utc\": \"2026-10-07T16:06:07Z\", \"level\": \"WARNING\", \"logger\": \"binance_recorder\", \"message\": \"Binance PUBLIC WS disconnected: no close frame received or sent. Reconnecting in 1.0s...\"}",
+   "{\"timestamp_utc\": \"2026-10-07T16:06:14Z\", \"level\": \"WARNING\", \"logger\": \"binance_recorder\", \"message\": \"Binance PUBLIC WS disconnected: no close frame received or sent. Reconnecting in 1.0s...\"}",
+   "{\"timestamp_utc\": \"2026-10-07T16:06:20Z\", \"level\": \"WARNING\", \"logger\": \"binance_recorder\", \"message\": \"Binance PUBLIC WS disconnected: no close frame received or sent. Reconnecting in 1.0s...\"}",
+   "{\"timestamp_utc\": \"2026-10-07T16:06:33Z\", \"level\": \"WARNING\", \"logger\": \"binance_recorder\", \"message\": \"Binance PUBLIC WS disconnected: no close frame received or sent. Reconnecting in 1.0s...\"}",
+   "{\"timestamp_utc\": \"2026-10-07T16:06:37Z\", \"level\": \"WARNING\", \"logger\": \"binance_recorder\", \"message\": \"Binance PUBLIC WS disconnected: no close frame received or sent. Reconnecting in 1.0s...\"}",
+   "{\"timestamp_utc\": \"2026-10-07T16:07:05Z\", \"level\": \"WARNING\", \"logger\": \"binance_recorder\", \"message\": \"Binance PUBLIC WS disconnected: no close frame received or sent. Reconnecting in 1.0s...\"}",
+   "{\"timestamp_utc\": \"2026-10-07T16:07:27Z\", \"level\": \"WARNING\", \"logger\": \"binance_recorder\", \"message\": \"Binance PUBLIC WS disconnected: no close frame received or sent. Reconnecting in 1.0s...\"}",
+   "{\"timestamp_utc\": \"2026-10-07T16:07:32Z\", \"level\": \"WARNING\", \"logger\": \"binance_recorder\", \"message\": \"Binance PUBLIC WS disconnected: no close frame received or sent. Reconnecting in 1.0s...\"}",
+   "{\"timestamp_utc\": \"2026-10-07T16:07:43Z\", \"level\": \"WARNING\", \"logger\": \"binance_recorder\", \"message\": \"Binance PUBLIC WS disconnected: no close frame received or sent. Reconnecting in 1.0s...\"}",
+   "{\"timestamp_utc\": \"2026-10-07T16:15:22Z\", \"level\": \"WARNING\", \"logger\": \"polymarket_recorder\", \"message\": \"Polymarket WS disconnected: received 1013 (try again later) slow consumer: send buffer full; then sent 1013 (try again later) slow consumer: send buffer full. Reconnecting in 1.0s...\"}"
   ]
  }
 }
