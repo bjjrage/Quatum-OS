@@ -239,6 +239,18 @@ SCHEMAS: Dict[str, pa.Schema] = {
         ("sells_m5", pa.int64()),
         ("pair_created_ms", pa.int64()),
     ]),
+    "creator_funding": pa.schema([                  # pump.fun: quién fondeó la billetera creadora
+        ("ts_query_utc_ns", pa.int64()),
+        ("mint", pa.string()),
+        ("creator", pa.string()),
+        ("funder", pa.string()),
+        ("lamports", pa.int64()),
+        ("funding_signature", pa.string()),
+        ("funding_block_time", pa.int64()),
+        ("n_signatures", pa.int64()),
+        ("reached_oldest", pa.bool_()),
+        ("cached", pa.bool_()),
+    ]),
     "calls": pa.schema([                            # telegram: contratos publicados en canales de calls
         ("ts_message_utc_ns", pa.int64()),
         ("ts_received_utc_ns", pa.int64()),

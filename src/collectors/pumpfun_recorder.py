@@ -176,7 +176,8 @@ class PumpfunRecorder:
         from src.collectors.x_watcher import TokenActivity
         self.activity = TokenActivity()
         self._x_task: Optional[asyncio.Task] = None
-        self._extra_tasks: List[asyncio.Task] = []      # DexScreener y Telegram
+        self._extra_tasks: List[asyncio.Task] = []      # DexScreener, Telegram y fondeo de creadores
+        self.funder = None                               # src/collectors/funder_tracker.py
         self.paper = None                         # canonical WALLET_SKILL_V1 forward paper
         self._paper_tasks: List[asyncio.Task] = []
 
@@ -209,6 +210,14 @@ class PumpfunRecorder:
         if cfg.get("telegram_enabled", True):
             from src.collectors.telegram_watcher import TelegramWatcher
             self._extra_tasks.append(asyncio.create_task(TelegramWatcher(self.sink, self.root).run()))
+        if cfg.get("funder_enabled", True):
+            from src.collectors.funder_tracker import HELIUS_RPC, PUBLIC_RPC, FunderTracker
+            from src.common.secret_loader import get_secret
+            key = get_secret("HELIUS_API_KEY", self.root)
+            self.funder = FunderTracker(self.sink, self.activity, HELIUS_RPC.format(key=key) if key else PUBLIC_RPC,
+                                        min_buyers=int(cfg.get("funder_min_buyers", 15)),
+                                        max_rpm=int(cfg.get("funder_max_rpm", 60)))
+            self._extra_tasks.append(asyncio.create_task(self.funder.run()))
 
     async def _start_paper(self) -> None:
         from src.common.runtime_health import RuntimeHealth
@@ -277,6 +286,8 @@ class PumpfunRecorder:
                 self.activity.on_trade(ev, now)
             elif kind == "create":
                 self.activity.on_create(ev, now)
+                if self.funder is not None:
+                    self.funder.on_create(ev, now)
             if self.paper is not None:
                 try:
                     if kind == "trade":

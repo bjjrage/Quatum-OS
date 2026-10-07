@@ -11,6 +11,10 @@ token was born (born <= new_born - 2 h). Creator buckets (fixed before looking a
 Trade simulated on every token: enter at the first trade >= 60 s after the create (we see creates live), pump.fun fee
 1.25% per side. Outcomes in 2 h: net at 15/60 min, 2x before -50%, max multiple, graduation. Reported by halves.
 Times are this PC's receive time (consistent across pump.fun tables).
+
+--key funder: group by the wallet that FUNDED the creator (pumpfun/creator_funding, written by the recorder's
+funder tracker) instead of the creator wallet; tokens without a resolved funder keep their creator. Funders are only
+looked up for tokens with traction at ~3 min, so the entry is moved to >= 240 s to avoid using that future information.
 """
 import argparse
 from pathlib import Path
@@ -36,7 +40,10 @@ def main() -> None:
     ap.add_argument("--data", type=Path, required=True)
     ap.add_argument("-o", "--output", type=Path, default=Path("docs/creator_reputation.md"))
     ap.add_argument("--entry-s", type=float, default=60.0)
+    ap.add_argument("--key", choices=["creator", "funder"], default="creator")
     args = ap.parse_args()
+    if args.key == "funder" and args.entry_s < 240:
+        args.entry_s = 240.0
     trs, crs, cps = (src(args.data, t) for t in ("pumpfun_trades", "pumpfun_creates", "pumpfun_completes"))
     if not trs or not crs:
         raise SystemExit("Faltan pumpfun_trades o pumpfun_creates")
@@ -44,6 +51,16 @@ def main() -> None:
     con.execute("PRAGMA temp_directory='.duckdb_tmp'")
     con.execute(f"""CREATE TABLE c AS SELECT mint, arg_min(creator, ts_received_utc_ns) AS creator,
         MIN(ts_received_utc_ns)/1e9 AS born FROM {crs} WHERE creator IS NOT NULL GROUP BY mint""")
+    n_funded = 0
+    if args.key == "funder":
+        fnd = src(args.data, "creator_funding")
+        if not fnd:
+            raise SystemExit("No hay pumpfun/creator_funding todavía: dejar correr el rastreador de fondeo.")
+        con.execute(f"CREATE TABLE f AS SELECT mint, arg_min(funder, ts_query_utc_ns) AS funder FROM {fnd} "
+                    f"WHERE funder IS NOT NULL GROUP BY mint")
+        n_funded = con.execute("SELECT COUNT(*) FROM f").fetchone()[0]
+        con.execute("CREATE OR REPLACE TABLE c AS SELECT c.mint, COALESCE(f.funder, c.creator) AS creator, c.born "
+                    "FROM c LEFT JOIN f USING (mint)")
     con.execute(f"CREATE TABLE g AS SELECT mint, MIN(ts_received_utc_ns)/1e9 AS gt FROM {cps} GROUP BY mint" if cps
                 else "CREATE TABLE g (mint VARCHAR, gt DOUBLE)")
     con.execute(f"""CREATE TABLE t AS SELECT DISTINCT mint, ts_received_utc_ns/1e9 AS ts,
@@ -103,7 +120,9 @@ def main() -> None:
     head = ("| grupo | n | neto 15m med./medio | neto 60m med./medio | 2x antes de -50% | -50% antes de 2x | "
             "máx. mult. mediano | llega a 3x | gradúa ≤2h |")
     sep = "|" + "---|" * 9
-    out = ["# Reputación del creador en pump.fun (walk-forward, sin mirar el futuro)", "",
+    title = "billetera madre (quien fondeó al creador)" if args.key == "funder" else "creador"
+    out = [f"# Reputación por {title} en pump.fun (walk-forward, sin mirar el futuro)", "",
+           *([f"- Tokens con billetera madre resuelta: {n_funded:,} (el resto se agrupa por su creador)."] if args.key == "funder" else []),
            f"- Tokens con entrada simulada a los {args.entry_s:.0f} s: {len(df):,}. Creadores distintos: {len(per_creator):,}; "
            f"tokens por creador: mediana {per_creator.median():.0f}, p90 {per_creator.quantile(.9):.0f}, máximo {per_creator.max():,}.",
            f"- Historial visible = tokens del mismo creador nacidos ≥ {VISIBLE_S // 3600} h antes. Fee {FEE * 100:.2f}% por lado.",
