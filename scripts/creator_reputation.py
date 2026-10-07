@@ -41,6 +41,9 @@ def main() -> None:
     ap.add_argument("-o", "--output", type=Path, default=Path("docs/creator_reputation.md"))
     ap.add_argument("--entry-s", type=float, default=60.0)
     ap.add_argument("--key", choices=["creator", "funder"], default="creator")
+    ap.add_argument("--max-funder-creators", type=int, default=100,
+                    help="funders with more distinct creators than this are exchanges/services (hot wallets), not a "
+                         "mother: their tokens fall back to the creator wallet")
     args = ap.parse_args()
     if args.key == "funder" and args.entry_s < 240:
         args.entry_s = 240.0
@@ -56,8 +59,12 @@ def main() -> None:
         fnd = src(args.data, "creator_funding")
         if not fnd:
             raise SystemExit("No hay pumpfun/creator_funding todavía: dejar correr el rastreador de fondeo.")
-        con.execute(f"CREATE TABLE f AS SELECT mint, arg_min(funder, ts_query_utc_ns) AS funder FROM {fnd} "
-                    f"WHERE funder IS NOT NULL GROUP BY mint")
+        con.execute(f"CREATE TABLE f0 AS SELECT mint, arg_min(funder, ts_query_utc_ns) AS funder, "
+                    f"arg_min(creator, ts_query_utc_ns) AS fcreator FROM {fnd} WHERE funder IS NOT NULL GROUP BY mint")
+        con.execute(f"CREATE TABLE svc AS SELECT funder, COUNT(DISTINCT fcreator) AS n_cre, COUNT(*) AS n_tok FROM f0 "
+                    f"GROUP BY funder HAVING COUNT(DISTINCT fcreator) > {args.max_funder_creators}")
+        n_svc, n_svc_tok = con.execute("SELECT COUNT(*), COALESCE(SUM(n_tok), 0) FROM svc").fetchone()
+        con.execute("CREATE TABLE f AS SELECT mint, funder FROM f0 WHERE funder NOT IN (SELECT funder FROM svc)")
         n_funded = con.execute("SELECT COUNT(*) FROM f").fetchone()[0]
         con.execute("CREATE OR REPLACE TABLE c AS SELECT c.mint, COALESCE(f.funder, c.creator) AS creator, c.born "
                     "FROM c LEFT JOIN f USING (mint)")
@@ -122,7 +129,9 @@ def main() -> None:
     sep = "|" + "---|" * 9
     title = "billetera madre (quien fondeó al creador)" if args.key == "funder" else "creador"
     out = [f"# Reputación por {title} en pump.fun (walk-forward, sin mirar el futuro)", "",
-           *([f"- Tokens con billetera madre resuelta: {n_funded:,} (el resto se agrupa por su creador)."] if args.key == "funder" else []),
+           *([f"- Tokens con billetera madre resuelta: {n_funded:,} (el resto se agrupa por su creador). "
+              f"Excluidas {n_svc} billeteras que fondearon a más de {args.max_funder_creators} creadores distintos "
+              f"({n_svc_tok:,} tokens): son exchanges o servicios, no una madre."] if args.key == "funder" else []),
            f"- Tokens con entrada simulada a los {args.entry_s:.0f} s: {len(df):,}. Creadores distintos: {len(per_creator):,}; "
            f"tokens por creador: mediana {per_creator.median():.0f}, p90 {per_creator.quantile(.9):.0f}, máximo {per_creator.max():,}.",
            f"- Historial visible = tokens del mismo creador nacidos ≥ {VISIBLE_S // 3600} h antes. Fee {FEE * 100:.2f}% por lado.",
@@ -134,6 +143,19 @@ def main() -> None:
     for h in ("H1", "H2"):
         for b in ("serial_malo", "con_exitos", "nuevo"):
             out.append(line(f"{h} · {b}", df[(df.half == h) & (df.bucket == b)]))
+    if args.key == "funder":
+        g = df.groupby("creator")
+        tab = g.agg(n=("mint", "count"), win2x=("win2x", "mean"), loss50=("loss50", "mean"), grad=("grad", "mean"),
+                    mult=("max_mult", "median"), net60=("net60", "median")).reset_index()
+        tab = tab[tab.n >= 5].sort_values("n", ascending=False).head(25)
+        out += ["", "## Por madre (≥ 5 tokens con entrada simulada), de más a menos tokens", "",
+                "| madre | tokens | 2x antes de -50% | -50% antes de 2x | máx. mult. mediano | gradúa ≤2h | neto 60m mediano |",
+                "|---|---|---|---|---|---|---|"]
+        for _, r in tab.iterrows():
+            out.append(f"| `{r.creator[:6]}…{r.creator[-4:]}` | {int(r.n)} | {r.win2x * 100:.0f}% | {r.loss50 * 100:.0f}% | "
+                       f"{r.mult:.2f}x | {r.grad * 100:.1f}% | {r.net60 * 100:.1f}% |")
+        out += ["", "Referencia: la fila 'todos' de arriba. Una madre solo importa si lo suyo es claramente distinto "
+                "y se repite en las dos mitades; con pocos tokens por madre, mucha de esta tabla es azar."]
     out += ["", "## Cómo leerlo", "",
             "- Si `serial_malo` es claramente peor que `todos` en H1 y H2: filtro útil (nunca entrar a sus tokens).",
             "- Si `con_exitos` es claramente mejor en las dos mitades: es una señal de entrada (o un multiplicador de tamaño).",
