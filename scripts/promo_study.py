@@ -14,6 +14,7 @@ Split by the on-chain/social features and by halves of time. Tokens that graduat
 their exit is the last curve price (the graduation price), flagged in `gradúa`.
 """
 import argparse
+import json
 import random
 from pathlib import Path
 
@@ -82,6 +83,8 @@ def main() -> None:
     ap.add_argument("--data", type=Path, required=True)
     ap.add_argument("-o", "--output", type=Path, default=Path("docs/promo_study.md"))
     ap.add_argument("--latency-s", type=float, default=30.0, help="DexScreener se consulta cada 30 s: llegamos tarde")
+    ap.add_argument("--orders", type=Path, default=Path("data/research/dex_orders.jsonl"),
+                    help="resultado de dex_orders_backfill.py: pagos históricos con hora exacta (si existe se usa)")
     args = ap.parse_args()
     trs, crs, cps = (src(args.data, "pumpfun", t) for t in ("pumpfun_trades", "pumpfun_creates", "pumpfun_completes"))
     bst, prf = src(args.data, "dexscreener", "token_boosts"), src(args.data, "dexscreener", "token_profiles")
@@ -96,6 +99,38 @@ def main() -> None:
         promos.append(f"SELECT token_address AS mint, ts_polled_utc_ns/1e9 AS t, 'boost' AS kind, total_amount AS amt FROM {bst} WHERE chain_id='solana'")
     if prf:
         promos.append(f"SELECT token_address AS mint, ts_polled_utc_ns/1e9 AS t, 'perfil' AS kind, NULL::DOUBLE AS amt FROM {prf} WHERE chain_id='solana'")
+    watcher_promos = list(promos)
+    n_ord, delay_line = 0, None
+    if args.orders.exists():
+        rows = []
+        for ln in args.orders.read_text(encoding="utf-8").splitlines():
+            try:
+                j = json.loads(ln)
+            except ValueError:
+                continue
+            for o in j.get("orders") or []:
+                if o.get("status") not in (None, "approved") or not o.get("paymentTimestamp"):
+                    continue
+                kind = {"tokenProfile": "perfil", "communityTakeover": "cto"}.get(o.get("type"), "ad")
+                rows.append((j["mint"], o["paymentTimestamp"] / 1000.0, kind))
+            for b in j.get("boosts") or []:
+                tb = b.get("paymentTimestamp") or b.get("timestamp") or b.get("date")
+                if tb:
+                    rows.append((j["mint"], tb / 1000.0 if tb > 1e11 else float(tb), "boost"))
+        if rows:
+            con.register("ordf", pd.DataFrame(rows, columns=["mint", "t", "kind"]))
+            con.execute("CREATE TABLE ord AS SELECT * FROM ordf")
+            n_ord = con.execute("SELECT COUNT(DISTINCT mint) FROM ord").fetchone()[0]
+            promos.append("SELECT mint, t, kind, NULL::DOUBLE AS amt FROM ord")
+            if watcher_promos:
+                d = con.execute(f"""SELECT w.t - o.t AS d FROM (SELECT mint, MIN(t) AS t FROM ({' UNION ALL '.join(watcher_promos)})
+                    GROUP BY 1) w JOIN (SELECT mint, MIN(t) AS t FROM ord GROUP BY 1) o USING (mint)
+                    WHERE w.t - o.t BETWEEN -600 AND 7200""").df().d
+                if len(d) >= 5:
+                    delay_line = (f"- Retraso entre el pago y que nuestro vigilante lo ve (en {len(d)} tokens vistos por los dos): "
+                                  f"mediana {d.median():.0f} s, p25 {d.quantile(.25):.0f} s, p75 {d.quantile(.75):.0f} s, "
+                                  f"p90 {d.quantile(.9):.0f} s. Con `--latency-s` por debajo de la mediana se simula una "
+                                  f"velocidad que el vigilante actual no tiene.")
     con.execute(f"""CREATE TABLE ev AS SELECT p.mint, MIN(p.t) AS t, arg_min(p.kind, p.t) AS kind, MAX(p.amt) AS amt, ANY_VALUE(b.born) AS born
         FROM ({' UNION ALL '.join(promos)}) p JOIN born b USING (mint) GROUP BY p.mint""")
     n_promo_all = con.execute(f"SELECT COUNT(DISTINCT mint) FROM ({' UNION ALL '.join(promos)})").fetchone()[0]
@@ -149,7 +184,10 @@ def main() -> None:
     df = pd.DataFrame(rows)
     out = ["# Push pago (DexScreener) × on-chain × Telegram en pump.fun", "",
            f"Tokens de Solana con boost/perfil pago visto: {n_promo_all}; de pump.fun nacidos dentro de lo grabado y "
-           f"con ventana completa: {len(ev)}. Entrada {args.latency_s:.0f} s después de ver el push, fee {FEE * 100:.2f}% por lado.", ""]
+           f"con ventana completa: {len(ev)}. Entrada {args.latency_s:.0f} s después del push, fee {FEE * 100:.2f}% por lado.",
+           *([f"- Pagos históricos reconstruidos con la API de órdenes de DexScreener: {n_ord:,} tokens con alguna promoción "
+              f"paga (la hora del evento es la hora del pago)."] if n_ord else []),
+           *([delay_line] if delay_line else []), ""]
     if df.empty or not (df.role == "push").any():
         args.output.write_text("\n".join(out + ["Sin eventos suficientes todavía: dejar grabando más días."]), encoding="utf-8")
         print("Sin eventos suficientes")
@@ -181,6 +219,29 @@ def main() -> None:
     for h in ("H1", "H2"):
         out.append(line(f"push {h}", push[push.half == h]))
         out.append(line(f"control {h}", df[(df.role == "control") & (df.half == h)]))
+    ctl = df[df.role == "control"]
+
+    def welch(a, b):
+        a, b = np.asarray(a, float), np.asarray(b, float)
+        if len(a) < 10 or len(b) < 10:
+            return np.nan, np.nan
+        se = np.sqrt(a.var(ddof=1) / len(a) + b.var(ddof=1) / len(b))
+        return (a.mean() - b.mean()) * 100, (a.mean() - b.mean()) / se if se > 0 else np.nan
+
+    cuts = [("push: todos", push), ("push H1", push[push.half == "H1"]), ("push H2", push[push.half == "H2"]),
+            (f"suba previa < mediana ({push.runup_30m.median() * 100:.0f}%)", push[push.runup_30m < push.runup_30m.median()]),
+            ("suba previa ≥ mediana", push[push.runup_30m >= push.runup_30m.median()]),
+            ("tempranas aún tienen ≥ mediana", push[push.early_share >= push.early_share.median()]),
+            ("tempranas ya vendieron", push[push.early_share < push.early_share.median()]),
+            ("con call en Telegram antes", push[push.tg_before]), ("sin call en Telegram antes", push[~push.tg_before])]
+    out += ["", "## Diferencia con el control (retorno MEDIO del push menos el del control, en puntos) y su t de Welch", "",
+            "| grupo | n push | 15 min: dif. (t) | 60 min: dif. (t) |", "|---|---|---|---|"]
+    for name, d in cuts:
+        d15, t15 = welch(d.net15, ctl.net15)
+        d60, t60 = welch(d.net60, ctl.net60)
+        out.append(f"| {name} | {len(d)} | " + (f"{d15:+.1f} (t {t15:.1f}) | {d60:+.1f} (t {t60:.1f}) |"
+                                                 if d15 == d15 else "(pocos) | (pocos) |"))
+    out += ["", "Con |t| < 2 la diferencia puede ser azar. Probé varios cortes: uno suelto con t ≈ 2 no alcanza."]
     out += ["", "## ¿Qué on-chain / social separa los push que funcionan?", "", head, sep,
             line(f"tempranas aún tienen ≥ mediana ({q_early * 100:.0f}%)", push[push.early_share >= q_early]),
             line("tempranas ya vendieron (< mediana)", push[push.early_share < q_early]),
