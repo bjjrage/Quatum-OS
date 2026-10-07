@@ -14,7 +14,37 @@ def test_start_refuses_when_already_running(monkeypatch):
 
 def test_stop_when_not_running_is_noop(monkeypatch):
     monkeypatch.setattr(rc, "is_running", lambda: False)
+    monkeypatch.setattr(rc, "_supervisor_pid", lambda: 0)
     assert c.post("/api/recorder/stop").json()["state"] == "ALREADY_STOPPED"
+
+
+def test_stop_uses_supervisor_when_manifest_is_unreadable(monkeypatch, tmp_path):
+    monkeypatch.setattr(rc, "RUNTIME", tmp_path)
+    monkeypatch.setattr(rc, "STOP_FILE", tmp_path / "STOP_RECORDER")
+    monkeypatch.setattr(rc, "is_running", lambda: False)
+    monkeypatch.setattr(rc, "_supervisor_pid", lambda: 4242)
+
+    class Supervisor:
+        def __init__(self):
+            self.checks = 0
+            self.terminated = False
+
+        def is_running(self):
+            self.checks += 1
+            return self.checks == 1
+
+        def terminate(self):
+            self.terminated = True
+
+    supervisor = Supervisor()
+    monkeypatch.setattr(rc.psutil, "Process", lambda pid: supervisor)
+    monkeypatch.setattr(rc.time, "sleep", lambda seconds: None)
+
+    result = rc.stop(grace_s=3.0)
+
+    assert result["state"] == "STOPPED_CLEANLY"
+    assert not supervisor.terminated
+    assert not rc.STOP_FILE.exists()
 
 
 def test_non_local_caller_is_rejected():

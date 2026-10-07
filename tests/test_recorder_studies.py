@@ -31,7 +31,7 @@ def _make(base, lag=3):
         for sym, px in (("BTCUSDT", btc[i]), ("ALTUSDT", alt[i])):
             ts = (T0 + i) * 1_000_000_000 + 500_000_000
             rows.append({"ts_exchange_ns": ts, "ts_received_utc_ns": ts + 2_000_000_000, "symbol": sym,
-                         "bid_price": px * 0.99995, "ask_price": px * 1.00005})
+                         "bid_price": px * 0.99995, "ask_price": px * 1.00005, "capture_source": "websocket"})
     _write(base, "binance_perp", "bbo_ticks", rows)
     # mercados de 15 min: Polymarket cotiza la probabilidad "vieja" (60 s de atraso) => hay ventaja
     meta, bbo = [], []

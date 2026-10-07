@@ -67,6 +67,9 @@ def test_arrow_schemas_completeness() -> None:
         "pumpfun_completes",
         "x_mentions",
         "depth_snapshots",
+        "token_boosts",
+        "token_profiles",
+        "calls",
     }
     assert set(SCHEMAS.keys()) == expected_tables
     for table_name, schema in SCHEMAS.items():
@@ -76,6 +79,10 @@ def test_arrow_schemas_completeness() -> None:
             assert "ts_utc_ns" in schema.names and "imbalance_05" in schema.names
         elif table_name == "x_mentions":
             assert "ts_query_utc_ns" in schema.names and "mint" in schema.names
+        elif table_name in ("token_boosts", "token_profiles"):
+            assert "ts_polled_utc_ns" in schema.names and "token_address" in schema.names
+        elif table_name == "calls":
+            assert "ts_message_utc_ns" in schema.names and "ts_received_utc_ns" in schema.names
         elif table_name.startswith("pumpfun_"):
             assert "ts_received_utc_ns" in schema.names and "slot" in schema.names
         else:

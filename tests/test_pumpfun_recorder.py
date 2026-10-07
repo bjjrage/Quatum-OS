@@ -92,7 +92,7 @@ def test_resolve_url_defaults_to_public_and_never_needs_key(tmp_path):
 
 
 def test_env_file_parsing(tmp_path):
-    from src.common.secrets import describe, get_secret, read_env_file
+    from src.common.secret_loader import describe, get_secret, read_env_file
     (tmp_path / ".env").write_text("﻿# claves\nXAI_API_KEY=xai-123\nEMPTY=\nQUOTED=\"v\"\n", encoding="utf-8")
     assert read_env_file(tmp_path / ".env")["QUOTED"] == "v"
     assert get_secret("XAI_API_KEY", tmp_path) == "xai-123"

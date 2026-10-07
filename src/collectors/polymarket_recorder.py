@@ -3,6 +3,7 @@ import asyncio
 import json
 import re
 import time
+from datetime import datetime, timezone
 from typing import Dict, Any, List, Set, Optional, Tuple
 import aiohttp
 import websockets
@@ -48,6 +49,60 @@ def is_crypto_market_question(question: str) -> bool:
     if not question:
         return False
     return bool(_TICKER_RE.search(question) or _WORD_RE.search(question))
+
+
+def parse_fast_updown_window(item: Dict[str, Any], now_s: float):
+    """Parse active 5m/15m BTC/ETH/SOL metadata without relying on a canonical slug."""
+    if item.get("closed") is True or item.get("active") is False:
+        return None
+    question = str(item.get("question") or item.get("title") or "")
+    if "up or down" not in question.lower():
+        return None
+    qlow = question.lower()
+    coin = next((c for c, words in (("btc", ("bitcoin", "btc")), ("eth", ("ethereum", "eth")),
+                                      ("sol", ("solana", "sol")))
+                 if any(re.search(rf"\b{re.escape(w)}\b", qlow) for w in words)), None)
+    if not coin:
+        return None
+    slug = str(item.get("slug") or "")
+    slug_match = re.search(r"(?:^|-)(5m|15m)-(\d{9,})$", slug, re.I)
+    step = (300 if slug_match.group(1).lower() == "5m" else 900) if slug_match else None
+    start_s = float(slug_match.group(2)) if slug_match else None
+    try:
+        end_raw = item.get("endDate") or item.get("endDateIso")
+        end_s = datetime.fromisoformat(str(end_raw).replace("Z", "+00:00")).timestamp()
+    except (TypeError, ValueError):
+        end_s = None
+    try:
+        start_raw = item.get("startDate") or item.get("startDateIso")
+        metadata_start = datetime.fromisoformat(str(start_raw).replace("Z", "+00:00")).timestamp()
+    except (TypeError, ValueError):
+        metadata_start = None
+    if end_s is not None and metadata_start is not None:
+        duration = round(end_s - metadata_start)
+        if duration in (300, 900):
+            step, start_s = duration, metadata_start
+    if step is None:
+        times = re.search(r"(\d{1,2})(?::(\d{2}))?\s*(AM|PM)\s*-\s*(\d{1,2})(?::(\d{2}))?\s*(AM|PM)",
+                          question, re.I)
+        if times and end_s is not None:
+            def minute(hour, minute, ap):
+                return ((int(hour) % 12) + (12 if ap.upper() == "PM" else 0)) * 60 + int(minute or 0)
+            span = minute(times.group(4), times.group(5), times.group(6)) - minute(times.group(1), times.group(2), times.group(3))
+            span = span if span > 0 else span + 1440
+            if span in (5, 15):
+                step = span * 60
+    if step not in (300, 900):
+        return None
+    if start_s is None and end_s is not None:
+        start_s = end_s - step
+    if end_s is None and start_s is not None:
+        end_s = start_s + step
+    if start_s is None or end_s is None or end_s <= now_s or start_s > now_s + 3 * step:
+        return None
+    if not item.get("clobTokenIds"):
+        return None
+    return coin, step, float(start_s), float(end_s)
 
 
 class PolymarketRecorder:
@@ -188,7 +243,8 @@ class PolymarketRecorder:
         end_date_iso = item.get("endDate", "")
 
         # Versioned fee schedule extraction
-        fee_raw = json.dumps(item.get("feeSchedule") or item.get("fee") or {"fee_bps": 0})
+        fee_schedule = item.get("feeSchedule") or item.get("fee")
+        fee_raw = json.dumps(fee_schedule) if fee_schedule is not None else ""
         fee_version = item.get("feeModelVersion", "PM_FEE_v2026_DEFAULT")
         status = "needs_review" if not resolution_source or "uma" in resolution_source.lower() else "active"
 
@@ -252,6 +308,38 @@ class PolymarketRecorder:
         base_url = "https://gamma-api.polymarket.com/markets"
         new_tokens: Set[str] = set()
         now_utc_ns = time.time_ns()
+        # Prefer current market metadata; use the constructed slug probes only when catalog lookup misses.
+        try:
+            async with self._session.get(base_url, params={"active": "true", "closed": "false", "limit": 500,
+                                                            "order": "endDate", "ascending": "true"}, timeout=10.0) as resp:
+                catalog = await resp.json() if resp.status == 200 else None
+            if isinstance(catalog, list):
+                seen_identity: Set[str] = set()
+                for item in catalog:
+                    if not isinstance(item, dict):
+                        continue
+                    parsed = parse_fast_updown_window(item, now_s)
+                    if not parsed:
+                        continue
+                    _, _, _, end_s = parsed
+                    identity = str(item.get("slug") or item.get("conditionId") or item.get("id") or "")
+                    if not identity or identity in seen_identity or identity in self._fast_seen_slugs:
+                        continue
+                    seen_identity.add(identity)
+                    found: Set[str] = set()
+                    await self._ingest_item(item, now_utc_ns, found)
+                    if not found:
+                        continue
+                    self._fast_seen_slugs.add(identity)
+                    for token in found:
+                        self._fast_tokens[token] = end_s
+                    new_tokens |= found
+        except Exception as exc:
+            logger.debug(f"Short-market metadata discovery failed: {type(exc).__name__}")
+        if new_tokens:
+            self.active_asset_ids |= new_tokens
+            await self._subscribe_new(new_tokens)
+            return len(new_tokens)
         for coin in ("btc", "eth", "sol"):
             for label, step in (("5m", 300), ("15m", 900)):
                 t0 = int(now_s // step) * step
@@ -270,6 +358,10 @@ class PolymarketRecorder:
                     found: Set[str] = set()
                     for item in items:
                         if not isinstance(item, dict) or not item.get("clobTokenIds"):
+                            continue
+                        item.setdefault("slug", slug)
+                        parsed = parse_fast_updown_window(item, now_s)
+                        if not parsed or parsed[0] != coin or parsed[1] != step:
                             continue
                         await self._ingest_item(item, now_utc_ns, found)
                     if found:

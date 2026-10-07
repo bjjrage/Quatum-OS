@@ -1,9 +1,16 @@
 import random
 
-from src.paper.pump_paper import ACCOUNTS, GroupGraph, PumpAccount, PumpPaper, buy_tokens, sell_sol
+from src.paper.pump_paper import ACCOUNTS, FEE, PUMP_FEE_MODEL, GroupGraph, PumpAccount, PumpPaper, buy_tokens, sell_sol
 from src.research.niches import NicheHeat, meme_keys, sector_map
 
 VS0, VT0 = 30 * 10**9, 1_073_000_000 * 10**6          # reservas iniciales típicas de pump.fun
+
+
+def test_pump_fee_assumption_is_versioned_and_marked_unverified():
+    assert FEE == 0.0125  # current paper assumption remains unchanged
+    assert PUMP_FEE_MODEL["status"] == "ECONOMICS_UNVERIFIED"
+    assert PUMP_FEE_MODEL["version"] == "PUMPFUN_FEE_SCHEDULE_2026-05"
+    assert PUMP_FEE_MODEL["source_url"].startswith("https://pump.fun/")
 
 
 def test_curve_round_trip_loses_only_fees():

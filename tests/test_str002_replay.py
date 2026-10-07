@@ -183,23 +183,24 @@ def _tr(day, net, stop=0.6):
 
 def test_prop_check_fails_on_daily_loss():
     trades = [_tr(0, -0.6) for _ in range(7)]           # 7 full stops at 0.75% risk = -5.1% in one day
-    assert prop_check(trades, PROP_RULES["HyroTrader_1F"], 0.0075)["status"] == "FAIL_DAILY"
+    assert prop_check(trades, PROP_RULES["HyroTrader_1F"], 0.0075)["status"] == "FAIL_DAILY_MODEL_ONLY"
 
 
 def test_prop_check_passes_with_steady_small_gains_over_enough_days():
     trades = [_tr(d, 0.25) for d in range(20) for _ in range(2)]   # +0.625% per trade at 0.75% risk / 0.6% stop
     r = prop_check(trades, PROP_RULES["HyroTrader_1F"], 0.0075)
-    assert r["status"] == "PASA", r
+    assert r["status"] == "PASA_MODEL_ONLY", r
 
 
 def test_prop_check_consistency_rule_keeps_trading_after_one_huge_day():
     trades = [_tr(0, 6.0)] + [_tr(d, 0.0) for d in range(1, 3)]   # one day makes ~7.5% -> >40% of the 10% target
     r = prop_check(trades, PROP_RULES["HyroTrader_1F"], 0.0075)
-    assert r["status"] == "AUN_NO"
+    assert r["status"] == "AUN_NO_MODEL_ONLY"
+    assert r["rules_status"] == "RULES_UNVERIFIED"
 
 
 def test_mubite_rejects_risk_above_its_cap():
-    assert prop_check([_tr(0, 0.1)], PROP_RULES["Mubite_2F"], 0.05)["status"] == "FAIL_RULES"
+    assert prop_check([_tr(0, 0.1)], PROP_RULES["Mubite_2F"], 0.05)["status"] == "FAIL_RULES_MODEL_ONLY"
 
 
 # ---------------------------------------------------------------- data coverage (real-recording quirks)

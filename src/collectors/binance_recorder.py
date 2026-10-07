@@ -198,6 +198,7 @@ class BinanceRecorder:
                 "ask_price": ask_p,
                 "ask_size": ask_s,
                 "spread": round(ask_p - bid_p, 6),
+                "capture_source": "rest_fallback",
             })
         return rows
 
@@ -239,6 +240,7 @@ class BinanceRecorder:
                 "ask_price": ask_p,
                 "ask_size": ask_s,
                 "spread": round(ask_p - bid_p, 6),
+                "capture_source": "websocket",
             }
             await self.sink.append(Venue.BINANCE_PERP.value, "bbo_ticks", bbo_row)
 

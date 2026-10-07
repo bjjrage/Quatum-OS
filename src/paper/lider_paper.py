@@ -22,6 +22,7 @@ Estado: data/paper/lider_*/state.json y data/paper/lider_eventos.json (eventos, 
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import random
 import time
@@ -109,7 +110,7 @@ def find_events(stats: Dict[str, Dict[str, float]], seg_map: Dict[str, str]) -> 
 
 def x_ok(lag: Dict[str, Any]) -> bool:
     x = lag.get("x")
-    return bool(x) and int(x.get("posts_found") or 0) >= X_MIN_POSTS and bool(x.get("narrative_link"))
+    return bool(x) and x.get("x_status") == "X_POSITIVE" and int(x.get("posts_found") or 0) >= X_MIN_POSTS and bool(x.get("narrative_link"))
 
 
 def basket_return(entry: Dict[str, float], prices: Dict[str, float]) -> Optional[float]:
@@ -176,10 +177,18 @@ class LiderPaper:
         self.books = {n: LotBook(self.root / n) for n in LIDER_ACCOUNTS}
         self.key, self.daily_x_usd, self.model = api_key, daily_x_usd, model or DEFAULT_MODEL
         self.events_file = Path(events_file) if events_file else self.root / "lider_eventos.json"
-        self.ev: Dict[str, Any] = {"ultimo_chequeo_dia": "", "eventos": [], "segmento_ultimo": {}, "gasto_x": {},
-                                   "descartados": []}
+        self.ev: Dict[str, Any] = {"ultimo_chequeo_dia": "", "checkpoints": {}, "eventos": [],
+                                   "segmento_ultimo": {}, "gasto_x": {}, "descartados": []}
+        from src.common.x_budget import XBudgetLedger
+        self.x_ledger = XBudgetLedger(self.root)
+        from src.common.runtime_health import RuntimeHealth
+        self.health = RuntimeHealth("leader_paper", self.root)
+        self.health.update("RUNNING", started=True, success=True)
         if self.events_file.exists():
             self.ev.update(json.loads(self.events_file.read_text(encoding="utf-8")))
+        self.ev.setdefault("checkpoints", {})
+        for day, amount in (self.ev.get("gasto_x") or {}).items():
+            self.x_ledger.seed_legacy(day, "leader_paper_legacy", float(amount or 0.0))
 
     def _save_events(self) -> None:
         self.events_file.parent.mkdir(parents=True, exist_ok=True)
@@ -191,36 +200,96 @@ class LiderPaper:
     def check_due(self, now_ms: int) -> bool:
         t = datetime.fromtimestamp(now_ms / 1000, tz=timezone.utc)
         minute = t.hour * 60 + t.minute
-        return WINDOW[0] <= minute < WINDOW[1] and t.strftime("%Y-%m-%d") != self.ev.get("ultimo_chequeo_dia")
+        day = t.strftime("%Y-%m-%d")
+        checkpoint = (self.ev.get("checkpoints") or {}).get(day, {})
+        completed = checkpoint.get("status") == "COMPLETED" or day == self.ev.get("ultimo_chequeo_dia")
+        return WINDOW[0] <= minute < WINDOW[1] and not completed
 
     # ------------------------------------------------------------------ X
     def _x_budget_ok(self, day: str) -> bool:
-        return float(self.ev["gasto_x"].get(day, 0.0)) < self.daily_x_usd
+        return self.x_ledger.snapshot(day).get("remaining_usd", 0.0) > 0
 
-    async def _ask_x(self, http, ev: Dict[str, Any], lag: Dict[str, Any], day: str) -> Optional[Dict[str, Any]]:
+    async def _ask_x(self, http, ev: Dict[str, Any], lag: Dict[str, Any], day: str) -> Dict[str, Any]:
         from src.collectors.x_watcher import XAI_URL, estimate_cost, parse_json_answer, response_text
-        if not self.key or not self._x_budget_ok(day):
-            return None
-        import aiohttp
-        leader = ev["lideres"][0]
-        sym = lag["symbol"].replace("USDT", "")
-        body = {"model": self.model, "input": [{"role": "user", "content": PROMPT.format(
-            symbol=sym, segment=SEGMENT_ES.get(ev["segmento"], ev["segmento"]),
-            leader=leader["symbol"].replace("USDT", ""), r3=leader["r3"])}],
-            "tools": [{"type": "x_search"}], "max_tool_calls": 1}
+        from src.common.x_budget import DEFAULT_CALL_RESERVATION_USD
+        import hashlib
+        query = PROMPT.format(symbol=lag["symbol"].replace("USDT", ""),
+                              segment=SEGMENT_ES.get(ev["segmento"], ev["segmento"]),
+                              leader=ev["lideres"][0]["symbol"].replace("USDT", ""),
+                              r3=ev["lideres"][0]["r3"])
+        query_hash = hashlib.sha256(query.encode("utf-8")).hexdigest()
+        if not self.key:
+            return {"x_status": "NO_KEY", "posts_found": None, "narrative_link": None,
+                    "consumer": "leader_paper", "model": self.model, "query_version": "leader_x_v1",
+                    "query_hash": query_hash, "cost_usd": 0.0, "request_id": None}
+        call_id = self.x_ledger.reserve("leader_paper", query, self.model,
+                                        estimated_cost=max(DEFAULT_CALL_RESERVATION_USD, self.x_ledger.limit_usd))
+        if not call_id:
+            return {"x_status": "BUDGET_EXHAUSTED", "posts_found": None, "narrative_link": None,
+                    "consumer": "leader_paper", "model": self.model, "query_version": "leader_x_v1",
+                    "query_hash": query_hash, "cost_usd": 0.0, "request_id": None}
+        body = {"model": self.model, "input": [{"role": "user", "content": query}],
+                "tools": [{"type": "x_search"}], "max_tool_calls": 1}
         headers = {"Authorization": f"Bearer {self.key}", "Content-Type": "application/json"}
-        async with http.post(XAI_URL, json=body, headers=headers, timeout=aiohttp.ClientTimeout(total=120)) as r:
-            status = r.status
-            resp = await r.json(content_type=None) if status == 200 else {}
-        if status != 200:
-            logger.warning(f"xAI respondió {status} para {sym}")
-            return None
-        cost = estimate_cost(resp)
-        self.ev["gasto_x"][day] = float(self.ev["gasto_x"].get(day, 0.0)) + cost
+        try:
+            async with http.post(XAI_URL, json=body, headers=headers, timeout=120) as r:
+                status_code = r.status
+                resp = await r.json(content_type=None) if status_code == 200 else {}
+                response_id = resp.get("id")
+        except Exception as exc:
+            self.x_ledger.finish(call_id, "API_ERROR", None)
+            return {"x_status": "API_ERROR", "posts_found": None, "narrative_link": None,
+                    "retryable": True, "error_type": type(exc).__name__, "consumer": "leader_paper",
+                    "model": self.model, "query_version": "leader_x_v1", "query_hash": query_hash,
+                    "cost_usd": DEFAULT_CALL_RESERVATION_USD, "request_id": None}
+        if status_code != 200:
+            self.x_ledger.finish(call_id, "API_ERROR", 0.0, request_id=str(response_id or "") or None)
+            return {"x_status": "API_ERROR", "posts_found": None, "narrative_link": None,
+                    "retryable": status_code == 429 or status_code >= 500, "http_status": status_code,
+                    "consumer": "leader_paper", "model": self.model, "query_version": "leader_x_v1",
+                    "query_hash": query_hash, "cost_usd": 0.0, "request_id": str(response_id or "") or None}
         ans = parse_json_answer(response_text(resp))
-        return {"posts_found": int(ans.get("posts_found") or 0), "narrative_link": bool(ans.get("narrative_link")),
-                "has_large_account": bool(ans.get("has_large_account")), "summary": str(ans.get("summary") or "")[:300],
-                "cost_usd": cost}
+        cost = estimate_cost(resp)
+        if not any(k in (resp.get("usage") or {}) for k in ("cost_in_usd_ticks", "input_tokens", "output_tokens")) and not (resp.get("usage") or {}).get("server_side_tool_usage_details"):
+            cost = DEFAULT_CALL_RESERVATION_USD
+        valid = isinstance(ans.get("posts_found"), int) and not isinstance(ans.get("posts_found"), bool)
+        status = ("X_POSITIVE" if ans["posts_found"] > 0 else "X_NEGATIVE") if valid else "NO_DATA"
+        self.x_ledger.finish(call_id, status, cost, posts_count=int(ans["posts_found"]) if valid else None,
+                             narrative_link=bool(ans.get("narrative_link")) if valid else None,
+                             request_id=str(response_id or "") or None)
+        return {"x_status": status, "posts_found": int(ans["posts_found"]) if valid else None,
+                "narrative_link": bool(ans.get("narrative_link")) if valid else None,
+                "has_large_account": bool(ans.get("has_large_account")),
+                "summary": str(ans.get("summary") or "")[:300], "cost_usd": cost,
+                "consumer": "leader_paper", "model": self.model, "query_version": "leader_x_v1",
+                "query_hash": query_hash, "request_id": str(response_id or "") or None}
+
+    async def process(self, http, get: Callable[..., Awaitable[Any]], symbols, now_ms: int,
+                      ask: Optional[Callable[..., Awaitable[Any]]] = None) -> List[Dict[str, Any]]:
+        day = datetime.fromtimestamp(now_ms / 1000, tz=timezone.utc).strftime("%Y-%m-%d")
+        checkpoint = (self.ev["checkpoints"].get(day) or {})
+        if checkpoint.get("status") == "COMPLETED" or day == self.ev.get("ultimo_chequeo_dia"):
+            return []
+        self.ev["checkpoints"][day] = {"status": "STARTED", "started_at": datetime.fromtimestamp(
+            now_ms / 1000, tz=timezone.utc).isoformat()}
+        self._save_events()
+        try:
+            made = await self._process_attempt(http, get, symbols, now_ms, ask)
+            self.ev["checkpoints"][day] = {"status": "COMPLETED", "completed_at": datetime.fromtimestamp(
+                now_ms / 1000, tz=timezone.utc).isoformat()}
+            self.ev["ultimo_chequeo_dia"] = day
+            self._save_events()
+            self.health.update("RUNNING", success=True)
+            return made
+        except Exception as exc:
+            self.ev["checkpoints"][day] = {"status": "FAILED_RETRYABLE", "failed_at": datetime.fromtimestamp(
+                now_ms / 1000, tz=timezone.utc).isoformat(), "last_error_type": type(exc).__name__}
+            try:
+                self._save_events()
+            except OSError:
+                logger.error("No se pudo persistir el checkpoint FAILED_RETRYABLE.")
+            self.health.update("DEGRADED", error=exc)
+            raise
 
     # ------------------------------------------------------------------ abrir posiciones de un evento
     def open_event(self, ev: Dict[str, Any], prices: Dict[str, float], stats: Dict[str, Dict[str, float]],
@@ -241,8 +310,10 @@ class LiderPaper:
                 done[name] = []
                 continue
             usd = EVENT_USD / len(syms)
+            opened = {lot["symbol"] for lot in self.books[name].s["lotes"] if lot["evento"] == eid}
             for s in syms:
-                self.books[name].open_lot(eid, s, usd, side, prices[s], now_ms)
+                if s not in opened:
+                    self.books[name].open_lot(eid, s, usd, side, prices[s], now_ms)
             done[name] = list(syms)
         return done
 
@@ -259,12 +330,11 @@ class LiderPaper:
         return n
 
     # ------------------------------------------------------------------ proceso diario
-    async def process(self, http, get: Callable[..., Awaitable[Any]], symbols, now_ms: int,
+    async def _process_attempt(self, http, get: Callable[..., Awaitable[Any]], symbols, now_ms: int,
                       ask: Optional[Callable[..., Awaitable[Any]]] = None) -> List[Dict[str, Any]]:
         import asyncio
         from src.research.niches import sector_of
         day = datetime.fromtimestamp(now_ms / 1000, tz=timezone.utc).strftime("%Y-%m-%d")
-        self.ev["ultimo_chequeo_dia"] = day
         stats: Dict[str, Dict[str, float]] = {}
         for sym in symbols:
             try:
@@ -274,6 +344,8 @@ class LiderPaper:
             if st:
                 stats[sym] = st
             await asyncio.sleep(0.05)
+        if not stats:
+            raise RuntimeError("No se obtuvo ninguna serie diaria válida para completar el checkpoint de Leader.")
         seg_map = {s: sector_of(s) for s in stats if sector_of(s)}
         events = find_events(stats, seg_map)
         made: List[Dict[str, Any]] = []
@@ -286,14 +358,28 @@ class LiderPaper:
                                               "motivo": f"ya hubo un evento hace {gap} d"}])[-100:]
                     continue
             ev["id"] = f"{day}_{ev['segmento']}"
+            if any(existing.get("id") == ev["id"] for existing in self.ev["eventos"]):
+                continue
             ev["dia"] = day
             ev["miembros_syms"] = [s for s, g_ in seg_map.items() if g_ == ev["segmento"]]
             for lag in ev["rezagadas"]:
                 try:
-                    lag["x"] = await (ask(ev, lag, day) if ask else self._ask_x(http, ev, lag, day))
+                    observation = await (ask(ev, lag, day) if ask else self._ask_x(http, ev, lag, day))
+                    observation = dict(observation or {})
+                    if not observation.get("x_status"):
+                        if isinstance(observation.get("posts_found"), int):
+                            observation["x_status"] = "X_POSITIVE" if observation["posts_found"] > 0 else "X_NEGATIVE"
+                        else:
+                            observation["x_status"] = "NO_DATA"
+                    observation.setdefault("consumer", "leader_paper")
+                    observation.setdefault("model", self.model)
+                    observation.setdefault("query_version", "leader_x_v1")
+                    lag["x"] = observation
                 except Exception as e:
-                    logger.warning(f"X falló para {lag['symbol']}: {type(e).__name__}")
-                    lag["x"] = None
+                    logger.warning(f"X fall? para {lag['symbol']}: {type(e).__name__}")
+                    lag["x"] = {"x_status": "API_ERROR", "posts_found": None, "narrative_link": None,
+                                 "consumer": "leader_paper", "model": self.model,
+                                 "query_version": "leader_x_v1", "error_type": type(e).__name__}
             try:
                 prices = {d["symbol"]: float(d["price"]) for d in await get("/fapi/v1/ticker/price")
                           if d.get("symbol") in set(symbols)}

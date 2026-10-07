@@ -1,8 +1,7 @@
 """pump.fun recorder (Solana): escucha el programa de pump.fun en vivo y guarda cada compra/venta, token nuevo y
 graduación, decodificando los eventos que el programa escribe en sus logs ("Program data: <base64>").
 
-Fuente por defecto: RPC pública de Solana (gratis, sin créditos). Si config/pumpfun.json pide "helius" y existe
-config/helius_key.txt, usa Helius con un tope diario de MB (Helius cobra 2 créditos cada 0,1 MB).
+Fuente por defecto: RPC pública de Solana (gratis, sin créditos). Si config/pumpfun.json pide "helius" y existe HELIUS_API_KEY en el entorno/.env, usa Helius con un tope diario de MB (Helius cobra 2 créditos cada 0,1 MB).
 La clave nunca se escribe en logs.
 """
 from __future__ import annotations
@@ -11,6 +10,7 @@ import asyncio
 import base64
 import hashlib
 import json
+import os
 import struct
 import time
 from pathlib import Path
@@ -156,7 +156,7 @@ def load_source_config(root: Path = ROOT) -> Dict[str, Any]:
 
 def resolve_url(cfg: Dict[str, Any], root: Path = ROOT) -> Tuple[str, str]:
     if cfg.get("source") == "helius":
-        from src.common.secrets import get_secret
+        from src.common.secret_loader import get_secret
         key = get_secret("HELIUS_API_KEY", root) or ""
         if key:
             return HELIUS_WSS.format(key=key), "helius"
@@ -177,7 +177,7 @@ class PumpfunRecorder:
         self.activity = TokenActivity()
         self._x_task: Optional[asyncio.Task] = None
         self._extra_tasks: List[asyncio.Task] = []      # DexScreener y Telegram
-        self.paper = None                         # paper de grupos + nichos (src/paper/pump_paper.py)
+        self.paper = None                         # canonical WALLET_SKILL_V1 forward paper
         self._paper_tasks: List[asyncio.Task] = []
 
     async def start(self) -> None:
@@ -190,12 +190,18 @@ class PumpfunRecorder:
         if cfg.get("paper_enabled", True):
             self._paper_tasks.append(asyncio.create_task(self._start_paper()))
         if cfg.get("x_enabled", True):
-            from src.collectors.x_watcher import DEFAULT_MODEL, XWatcher
-            from src.common.secrets import get_secret
-            xw = XWatcher(self.sink, self.activity, get_secret("XAI_API_KEY", self.root),
-                          daily_usd=float(cfg.get("x_daily_usd", 1.0)), model=str(cfg.get("x_model") or DEFAULT_MODEL))
-            xw.priority_source = lambda: self.paper.x_queue if self.paper is not None else ()
-            self._x_task = asyncio.create_task(xw.run())
+            if os.environ.get("QUANT_OS_NO_PAID_X") == "1":
+                from src.common.runtime_health import RuntimeHealth
+                RuntimeHealth("x_watcher", self.root).update(
+                    "DISABLED", enabled=False, disabled_reason="PAID_CALLS_DISABLED_BY_LAUNCHER")
+                logger.info("X watcher disabled by launcher; no paid requests will be made.")
+            else:
+                from src.collectors.x_watcher import DEFAULT_MODEL, XWatcher
+                from src.common.secret_loader import get_secret
+                xw = XWatcher(self.sink, self.activity, get_secret("XAI_API_KEY", self.root),
+                              daily_usd=float(cfg.get("x_daily_usd", 1.0)), model=str(cfg.get("x_model") or DEFAULT_MODEL))
+                xw.priority_source = lambda: self.paper.x_queue if self.paper is not None else ()
+                self._x_task = asyncio.create_task(xw.run())
         if cfg.get("dexscreener_enabled", True):
             from src.collectors.dexscreener_watcher import DexScreenerWatcher
             self._extra_tasks.append(asyncio.create_task(
@@ -205,16 +211,22 @@ class PumpfunRecorder:
             self._extra_tasks.append(asyncio.create_task(TelegramWatcher(self.sink, self.root).run()))
 
     async def _start_paper(self) -> None:
+        from src.common.runtime_health import RuntimeHealth
+        health = RuntimeHealth("pumpfun_paper", self.root)
+        health.update("STARTING", started=True)
         try:
-            from src.paper.pump_paper import PumpPaper
-            paper = PumpPaper(activity=self.activity)
+            from src.paper.pump_wallet_skill_v1 import WalletSkillPaper
+            paper = WalletSkillPaper(root=self.root / "data" / "paper")
             n = await asyncio.to_thread(paper.warmup, self.root / "data" / "raw")
-            logger.info(f"pump paper listo ({n} operaciones repasadas).")
+            logger.info(f"WALLET_SKILL_V1 paper listo ({n} operaciones repasadas).")
             self.paper = paper
+            health.update("RUNNING", success=True)
             self._paper_tasks.append(asyncio.create_task(paper.run_ticks()))
         except asyncio.CancelledError:
+            health.update("STOPPED")
             pass
         except Exception as e:
+            health.update("ERROR", error=e)
             logger.warning(f"pump paper no arrancó: {type(e).__name__}: {str(e)[:200]}")
 
     async def stop(self) -> None:

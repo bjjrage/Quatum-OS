@@ -50,6 +50,7 @@ class BboTick(BaseModel):
     ask_price: float
     ask_size: float
     spread: float
+    capture_source: str = "unknown"
 
 
 class TradeTick(BaseModel):
@@ -197,6 +198,11 @@ SCHEMAS: Dict[str, pa.Schema] = {
         ("summary", pa.string()),
         ("cost_usd", pa.float64()),
         ("model", pa.string()),
+        ("x_status", pa.string()),
+        ("consumer", pa.string()),
+        ("query_version", pa.string()),
+        ("query_hash", pa.string()),
+        ("request_id", pa.string()),
     ]),
     "token_boosts": pa.schema([                     # dexscreener: promoción paga
         ("ts_polled_utc_ns", pa.int64()),
@@ -249,6 +255,7 @@ SCHEMAS: Dict[str, pa.Schema] = {
         ("ask_price", pa.float64()),
         ("ask_size", pa.float64()),
         ("spread", pa.float64()),
+        ("capture_source", pa.string()),
     ]),
     "trade_ticks": pa.schema([
         ("ts_exchange_ns", pa.int64()),

@@ -1,44 +1,46 @@
-"""Simulador del examen de prop firm con los resultados DIARIOS reales (historia) de nuestras estrategias.
+"""Daily-return resampling for exploratory, model-only prop-firm projections.
 
-Se arman miles de caminos posibles remuestreando bloques de días seguidos de la historia (mantiene rachas buenas y
-malas) y se aplican las reglas del examen a distintos apalancamientos. Resultado: probabilidad de pasar, de quemar
-la cuenta, y cuántos días tarda.
-
-Reglas (HyroTrader, verificar antes de pagar):
-  1 fase:  objetivo 10%; pérdida diaria 4%; pérdida máxima 6% (desde el capital inicial); mínimo 5 días.
-  2 fases: fase 1 10% y fase 2 5%; pérdida diaria 5%; pérdida máxima 10%; mínimo 5 días por fase.
-  Regla del 40%: ningún día puede aportar >= 40% de la ganancia total (si pasa, hay que seguir operando).
-Simplificaciones: se mira el cierre diario (dentro del día puede ser peor: la pérdida diaria real es más exigente).
+These projections are not an authoritative HyroTrader pass/fail result. The
+account's drawdown mode, intraday equity, trade-level qualifying days, fees,
+and manually reviewed position-loss rule are not available to this simulator.
+See :mod:`src.research.hyro_rules` for versioned rule facts and limitations.
 """
 from __future__ import annotations
 
 import random
 from typing import Any, Dict, List, Optional, Sequence
 
+from src.research.hyro_rules import RULES_STATUS, TWO_STEP_RULES, daily_floor, max_loss_breached
+
 RULES = {
     "HyroTrader_1F": [{"target": 0.10, "daily": 0.04, "max": 0.06, "min_days": 5}],
-    "HyroTrader_2F": [{"target": 0.10, "daily": 0.05, "max": 0.10, "min_days": 5},
-                      {"target": 0.05, "daily": 0.05, "max": 0.10, "min_days": 5}],
+    "HyroTrader_2F": [{"target": 0.10, "daily": 0.05, "max": 0.10, "min_days": 5,
+                       "profit_distribution_cap": 0.40},
+                      {"target": 0.05, "daily": 0.05, "max": 0.10, "min_days": 5,
+                       "profit_distribution_cap": 0.40}],
 }
 
 
 def run_phase(path_iter, phase: Dict[str, float], lev: float, max_days: int, daily_buffer: float = 0.0):
-    """Devuelve ('PASA'|'QUEMA'|'TIEMPO', días). daily_buffer: margen extra que se deja contra el límite diario."""
-    eq, best_day, days = 1.0, 0.0, 0
+    """Daily-return projection only; output is model-only, not an authoritative challenge result."""
+    eq, days, counted = 1.0, 0, 0.0
+    initial = 1.0
     while days < max_days:
         r = next(path_iter) * lev
         days += 1
+        day_start = eq
         day_pnl = r * eq
-        if r <= -(phase["daily"] - daily_buffer) or day_pnl <= -phase["daily"]:   # pérdida diaria sobre el saldo inicial del día
-            return "QUEMA", days
         eq *= 1.0 + r
-        if eq <= 1.0 - phase["max"]:
-            return "QUEMA", days
-        best_day = max(best_day, day_pnl)
-        gain = eq - 1.0
-        if gain >= phase["target"] and days >= phase["min_days"] and best_day < 0.40 * gain:
-            return "PASA", days
-    return "TIEMPO", days
+        daily_pct = max(0.0, float(phase["daily"]) - float(daily_buffer))
+        if eq < daily_floor(initial, day_start, daily_pct):
+            return "RISK_LIMIT_REACHED_MODEL_ONLY", days
+        if max_loss_breached(eq, initial, float(phase["max"])):
+            return "RISK_LIMIT_REACHED_MODEL_ONLY", days
+        cap = phase["target"] * float(phase.get("profit_distribution_cap", 0.40))
+        counted += min(day_pnl, cap) if day_pnl > 0 else day_pnl
+        if counted >= phase["target"] and days >= phase["min_days"]:
+            return "TARGET_REACHED_MODEL_ONLY", days
+    return "HORIZON_END_MODEL_ONLY", days
 
 
 def simulate(daily: Sequence[float], rules: List[Dict[str, float]], lev: float, n: int = 3000,
@@ -52,27 +54,36 @@ def simulate(daily: Sequence[float], rules: List[Dict[str, float]], lev: float, 
             for k in range(block):
                 yield daily[i + k]
 
-    passed, burned, timeout, days_pass = 0, 0, 0, []
+    target_hits, risk_hits, horizon_ends, days_to_target = 0, 0, 0, []
     for _ in range(n):
         it = path()
-        total, ok = 0, True
-        for ph in rules:
-            res, d = run_phase(it, ph, lev, max_days - total)
-            total += d
-            if res != "PASA":
-                ok = False
-                if res == "QUEMA":
-                    burned += 1
+        total, reached_all = 0, True
+        for phase in rules:
+            result, days = run_phase(it, phase, lev, max_days - total)
+            total += days
+            if result != "TARGET_REACHED_MODEL_ONLY":
+                reached_all = False
+                if result == "RISK_LIMIT_REACHED_MODEL_ONLY":
+                    risk_hits += 1
                 else:
-                    timeout += 1
+                    horizon_ends += 1
                 break
-        if ok:
-            passed += 1
-            days_pass.append(total)
-    days_pass.sort()
-    q = lambda f: days_pass[int(f * (len(days_pass) - 1))] if days_pass else None
-    return {"apalancamiento": lev, "pasa_pct": passed / n * 100, "quema_pct": burned / n * 100,
-            "no_llega_en_1_anio_pct": timeout / n * 100, "dias_mediana": q(0.5), "dias_p25": q(0.25), "dias_p75": q(0.75)}
+        if reached_all:
+            target_hits += 1
+            days_to_target.append(total)
+    days_to_target.sort()
+    q = lambda f: days_to_target[int(f * (len(days_to_target) - 1))] if days_to_target else None
+    return {"apalancamiento": lev, "rules_status": RULES_STATUS,
+            "target_hit_pct_model_only": target_hits / n * 100,
+            "risk_limit_hit_pct_model_only": risk_hits / n * 100,
+            "horizon_end_pct_model_only": horizon_ends / n * 100,
+            "simulation_horizon_days": max_days,
+            "days_to_target_median_model_only": q(0.5),
+            "days_to_target_p25_model_only": q(0.25),
+            "days_to_target_p75_model_only": q(0.75),
+            "limitations": ["No trade-level evidence for 5 valid days per phase.",
+                            "No intraday equity path or selected fixed/trailing drawdown mode.",
+                            "Manual max-loss-per-position check cannot be evaluated from daily returns."]}
 
 
 def attempts_needed(p_pass: float) -> Optional[float]:
@@ -86,7 +97,7 @@ def exam_table(daily: Sequence[float], levs: Sequence[float] = (0.5, 1.0, 1.5, 2
         rows = []
         for lev in levs:
             r = simulate(daily, rules, lev, n=n)
-            r["intentos_esperados"] = attempts_needed(r["pasa_pct"] / 100)
+            r["expected_runs_to_target_model_only"] = attempts_needed(r["target_hit_pct_model_only"] / 100)
             rows.append(r)
         out[name] = rows
     return out
@@ -104,7 +115,7 @@ def run_exam_study(hist_root, say=lambda m: None, n: int = 3000) -> Dict[str, An
         "combinada": (s_combo([s_xs(sc_taker(14), 15, True), s_xs(sc_funding(7), 9, False),
                                s_xs(sc_vol(28), 30, False)]), 7),
     }
-    out: Dict[str, Any] = {"nota": __doc__.split("Reglas")[0].strip()}
+    out: Dict[str, Any] = {"nota": __doc__.split("Reglas")[0].strip(), "rules_status": RULES_STATUS, "hyro_rules": TWO_STEP_RULES}
     for name, (fn, reb) in strategies.items():
         say(f"Backtest {name}...")
         rows = backtest(g, fn, reb)

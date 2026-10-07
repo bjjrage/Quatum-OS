@@ -32,7 +32,9 @@ def test_kline_stats_ignores_incomplete_candle():
     kl[-1][6] = NOW + 1000                      # vela de hoy sin cerrar
     s = lp.kline_stats(kl, NOW)
     assert s is not None
-    assert lp.kline_stats(kl[:35], NOW) is None or True
+    assert s["r3"] == 0.0
+    assert abs(s["vs"] - 1.0) < 1e-9
+    assert lp.kline_stats(kl[:34], NOW) is None
 
 
 def test_find_events():
@@ -62,9 +64,10 @@ def test_find_events_needs_volume_and_members():
 
 
 def test_x_ok():
-    assert lp.x_ok({"x": {"posts_found": 7, "narrative_link": True}})
-    assert not lp.x_ok({"x": {"posts_found": 4, "narrative_link": True}})
-    assert not lp.x_ok({"x": {"posts_found": 9, "narrative_link": False}})
+    assert lp.x_ok({"x": {"x_status": "X_POSITIVE", "posts_found": 7, "narrative_link": True}})
+    assert not lp.x_ok({"x": {"x_status": "X_POSITIVE", "posts_found": 4, "narrative_link": True}})
+    assert not lp.x_ok({"x": {"x_status": "X_POSITIVE", "posts_found": 9, "narrative_link": False}})
+    assert not lp.x_ok({"x": {"x_status": "API_ERROR", "posts_found": 9, "narrative_link": True}})
     assert not lp.x_ok({"x": None}) and not lp.x_ok({})
 
 
@@ -142,12 +145,44 @@ def test_no_x_key_means_no_filter_trades(tmp_path):
     ev = {"id": "x", "lideres": [{"symbol": "AUSDT", "r3": .5, "vs": 3}],
           "rezagadas": [{"symbol": "BUSDT", "r3": 0, "vs": 1, "x": None}], "segmento": "ia"}
     r = asyncio.run(lider._ask_x(None, ev, ev["rezagadas"][0], "2026-10-06"))
-    assert r is None
+    assert r["x_status"] == "NO_KEY"
     done = lider.open_event(ev, {"AUSDT": 1.0, "BUSDT": 1.0, "CUSDT": 1.0}, {"CUSDT": {}}, NOW)
     assert done["lider_x"] == [] and done["lider_sin_x"] == ["BUSDT"]
 
 
 def test_x_budget(tmp_path):
     lider = lp.LiderPaper(tmp_path, api_key="k", daily_x_usd=1.0)
-    lider.ev["gasto_x"]["2026-10-06"] = 1.2
+    lider.x_ledger.seed_legacy("2026-10-06", "leader_paper_legacy", 1.2)
     assert not lider._x_budget_ok("2026-10-06") and lider._x_budget_ok("2026-10-07")
+
+
+def test_daily_checkpoint_retries_after_failure_and_deduplicates_completion(tmp_path):
+    lider = lp.LiderPaper(tmp_path, api_key=None, events_file=tmp_path / "events.json")
+    calls = {"n": 0}
+
+    async def get(path, **kw):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise RuntimeError("temporary network error")
+        if "klines" in path:
+            return klines([10.0] * 40)
+        return [{"symbol": "AAAUSDT", "price": "10"}]
+
+    try:
+        asyncio.run(lider.process(None, get, ["AAAUSDT"], NOW))
+    except RuntimeError:
+        pass
+    else:
+        raise AssertionError("transient data failure should leave a retryable checkpoint")
+    day = datetime.fromtimestamp(NOW / 1000, tz=timezone.utc).strftime("%Y-%m-%d")
+    assert lider.ev["checkpoints"][day]["status"] == "FAILED_RETRYABLE"
+    assert lider.check_due(NOW)
+
+    asyncio.run(lider.process(None, get, ["AAAUSDT"], NOW))
+    assert lider.ev["checkpoints"][day]["status"] == "COMPLETED"
+    assert lider.ev["ultimo_chequeo_dia"] == day
+    completed_calls = calls["n"]
+    assert asyncio.run(lider.process(None, get, ["AAAUSDT"], NOW)) == []
+    assert calls["n"] == completed_calls
+    restarted = lp.LiderPaper(tmp_path, api_key=None, events_file=tmp_path / "events.json")
+    assert restarted.ev["checkpoints"][day]["status"] == "COMPLETED"

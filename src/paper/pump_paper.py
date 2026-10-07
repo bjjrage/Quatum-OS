@@ -45,6 +45,13 @@ ROOT = Path(__file__).resolve().parents[2]
 PAPER_ROOT = ROOT / "data" / "paper"
 LAMPORTS, TOKEN_UNITS = 1e9, 1e6
 FEE, TX_SOL = 0.0125, 0.0005
+PUMP_FEE_MODEL = {
+    "version": "PUMPFUN_FEE_SCHEDULE_2026-05",
+    "verified_at": "2026-10-05",
+    "status": "ECONOMICS_UNVERIFIED",
+    "source_url": "https://pump.fun/docs/fees",
+    "paper_assumption": "Fixed 1.25% per side; graduated PumpSwap fee tiers are not represented.",
+}
 IDLE_CLOSE_S = 7200
 FILL_TIMEOUT_S = 15
 
@@ -551,12 +558,17 @@ class PumpPaper:
 
     async def run_ticks(self) -> None:
         import asyncio
+        from src.common.runtime_health import RuntimeHealth
+        health = RuntimeHealth("pumpfun_paper", self.root.parents[1])
         while True:
             try:
                 await asyncio.sleep(5)
                 self.tick(time.time())
+                health.update("RUNNING", success=True)
             except asyncio.CancelledError:
                 self.save()
+                health.update("STOPPED")
                 break
             except Exception as e:
+                health.update("DEGRADED", error=e)
                 logger.warning(f"pump paper: {type(e).__name__}: {str(e)[:150]}")

@@ -8,6 +8,18 @@ router = APIRouter(prefix="/api/research", tags=["Research"])
 SPOT = "https://api.binance.com"
 
 
+@router.get("/runtime_health")
+def runtime_health(request: Request):
+    """Consolidated local-only health; reads status JSON and configuration, never starts services."""
+    host = request.client.host if request.client else ""
+    if host not in ("127.0.0.1", "::1", "localhost", "testclient"):
+        raise HTTPException(status_code=403, detail="Only available from the local machine.")
+    from src.common.runtime_health import runtime_health_snapshot
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[3]
+    return runtime_health_snapshot(root)
+
+
 def _ms(day: str) -> int:
     return int(datetime.strptime(day, "%Y-%m-%d").replace(tzinfo=timezone.utc).timestamp() * 1000)
 
@@ -66,7 +78,7 @@ def spot_daily(request: Request, symbols: str, start: str, end: str):
 @router.get("/pumpfun_probe")
 async def pumpfun_probe(request: Request, seconds: float = 20.0, source: str = "public"):
     """Prueba de 20 s contra pump.fun en vivo: cuenta transacciones y eventos decodificados y muestra ejemplos.
-    No guarda nada. source=public (gratis) o helius (usa config/helius_key.txt)."""
+    No guarda nada. source=public (gratis) o helius (usa .env (HELIUS_API_KEY))."""
     host = request.client.host if request.client else ""
     if host not in ("127.0.0.1", "::1", "localhost", "testclient"):
         raise HTTPException(status_code=403, detail="Only available from the local machine.")
@@ -118,7 +130,7 @@ async def secrets_check(request: Request):
     if host not in ("127.0.0.1", "::1", "localhost", "testclient"):
         raise HTTPException(status_code=403, detail="Only available from the local machine.")
     import httpx
-    from src.common.secrets import describe, get_secret
+    from src.common.secret_loader import describe, get_secret
     xai = get_secret("XAI_API_KEY")
     out = {"XAI_API_KEY": describe(xai), "HELIUS_API_KEY": describe(get_secret("HELIUS_API_KEY"))}
     if xai:
@@ -141,7 +153,7 @@ async def x_probe(request: Request, mint: str, symbol: str = "", name: str = "")
         raise HTTPException(status_code=403, detail="Only available from the local machine.")
     import aiohttp, time
     from src.collectors.x_watcher import TokenActivity, XWatcher, XAI_URL
-    from src.common.secrets import get_secret
+    from src.common.secret_loader import get_secret
 
     class _Mem:
         def __init__(self):
@@ -187,10 +199,14 @@ async def x_probe(request: Request, mint: str, symbol: str = "", name: str = "")
 @router.get("/paper_flujo")
 def paper_flujo_status():
     """Estado del paper trading del flujo comprador V1 (lee data/paper/flujo_v1/state.json)."""
-    from src.paper.flujo_paper import STATE_DIR, PaperBook
+    from src.paper.flujo_paper import STATE_DIR, PaperBook, UnreadableStateError
     if not (STATE_DIR / "state.json").exists():
         return {"estado": "SIN_ARRANCAR"}
-    b = PaperBook(STATE_DIR)
+    try:
+        b = PaperBook(STATE_DIR)
+    except UnreadableStateError as exc:
+        return {"estado": "STATE_UNREADABLE", "cuenta": "flujo_v1", "error_type": exc.error_type,
+                "mensaje": "El estado existe pero no es legible. Se conservó el archivo original sin cambios."}
     last = b.s["rebalanceos"][-1] if b.s["rebalanceos"] else None
     pos = b.s["posiciones"]
     return {"estado": "CORRIENDO", "resumen": b.summary(), "ultimo_rebalanceo": {k: v for k, v in (last or {}).items()
@@ -214,10 +230,17 @@ async def _live_prices(symbols):
 @router.get("/paper_cuentas")
 async def paper_cuentas():
     """Comparación de todas las cuentas de paper, valuadas con precios de ahora."""
-    from src.paper.flujo_paper import PAPER_ROOT, STRATEGIES, PaperBook, exam_view
-    books = {n: PaperBook(PAPER_ROOT / n) for n in STRATEGIES if (PAPER_ROOT / n / "state.json").exists()}
+    from src.paper.flujo_paper import PAPER_ROOT, STRATEGIES, PaperBook, UnreadableStateError, exam_view
+    books, unavailable = {}, {}
+    for name in STRATEGIES:
+        if not (PAPER_ROOT / name / "state.json").exists():
+            continue
+        try:
+            books[name] = PaperBook(PAPER_ROOT / name)
+        except UnreadableStateError as exc:
+            unavailable[name] = {"estado": "STATE_UNREADABLE", "error_type": exc.error_type}
     syms = {s_ for b in books.values() for s_ in b.s["posiciones"]}
-    prices = await _live_prices(syms)
+    prices = await _live_prices(syms) if syms else {}
     out = []
     for n, b in books.items():
         ok = all(s_ in prices for s_ in b.s["posiciones"])
@@ -228,20 +251,24 @@ async def paper_cuentas():
                     "posiciones": len(b.s["posiciones"]), "rebalanceos": len(b.s["rebalanceos"]),
                     "costos_y_funding": b.s["costos_pagados"] + b.s["funding_pagado"], "desde": b.s["creado"],
                     "capital_inicial": c0, "examen": exam_view(b, eq)})
-    return {"cuentas": out}
+    return {"cuentas": out, "cuentas_no_disponibles": unavailable}
 
 
 @router.get("/paper_flujo_live")
 async def paper_flujo_live(cuenta: str = "flujo_v1"):
     """Posiciones de una cuenta de paper valuadas con precios de Binance en este momento."""
     from datetime import datetime, timedelta, timezone
-    from src.paper.flujo_paper import PAPER_ROOT, STRATEGIES, PaperBook, exam_view
+    from src.paper.flujo_paper import PAPER_ROOT, STRATEGIES, PaperBook, UnreadableStateError, exam_view
     if cuenta not in STRATEGIES:
         raise HTTPException(status_code=404, detail="Cuenta desconocida")
     REB_DAYS = STRATEGIES[cuenta][1]
     if not (PAPER_ROOT / cuenta / "state.json").exists():
         return {"estado": "SIN_ARRANCAR", "cuenta": cuenta}
-    b = PaperBook(PAPER_ROOT / cuenta)
+    try:
+        b = PaperBook(PAPER_ROOT / cuenta)
+    except UnreadableStateError as exc:
+        return {"estado": "STATE_UNREADABLE", "cuenta": cuenta, "error_type": exc.error_type,
+                "mensaje": "El estado existe pero no es legible. Se conservó el archivo original sin cambios."}
     pos = b.s["posiciones"]
     prices = await _live_prices(set(pos))
     ent = b.entry_prices()
@@ -280,12 +307,14 @@ async def paper_flujo_live(cuenta: str = "flujo_v1"):
 
 @router.get("/pump_paper")
 def pump_paper_status():
-    """Cuentas de paper de pump.fun (grupos + nichos) leídas de data/paper/pump_*/state.json."""
+    """Canonical WALLET_SKILL_V1 forward paper plus read-only archived experiments."""
     import json as _json
-    from src.paper.pump_paper import ACCOUNTS, PAPER_ROOT
-    out = []
-    extra: Dict[str, Any] = {}
-    for name in ACCOUNTS:
+    from pathlib import Path
+    from src.paper.pump_paper import PUMP_FEE_MODEL
+    from src.paper.pump_wallet_skill_v1 import ACTIVE_ACCOUNTS, ARCHIVED_ACCOUNTS, PAPER_ROOT, RULES_VERSION
+
+    active = []
+    for name, desc in ACTIVE_ACCOUNTS.items():
         p = PAPER_ROOT / f"pump_{name}" / "state.json"
         if not p.exists():
             continue
@@ -293,18 +322,70 @@ def pump_paper_status():
             s = _json.loads(p.read_text(encoding="utf-8"))
         except Exception:
             continue
-        c0 = s.get("capital_inicial", 10.0)
-        eq = s.get("equity", s.get("cash", c0))
-        n = s.get("n_cerradas", 0)
-        out.append({"cuenta": name, "descripcion": s.get("descripcion", ""), "equity_sol": eq,
-                    "resultado_pct": (eq / c0 - 1) * 100 if c0 else None, "abiertas": len(s.get("posiciones", {})),
-                    "cerradas": n, "aciertos_pct": (s.get("ganadas", 0) / n * 100) if n else None,
-                    "resultado_cerradas_sol": s.get("resultado_sol", 0.0), "comisiones_sol": s.get("comisiones_sol", 0.0),
-                    "senales": s.get("senales", 0), "saltadas": s.get("saltadas", 0), "tomas_2x": s.get("tomas_2x", 0),
-                    "ultimas_cerradas": (s.get("cerradas") or [])[-8:][::-1], "actualizado": s.get("actualizado")})
-        extra = {"grupos": s.get("grupos"), "billeteras_en_grupos": s.get("billeteras_en_grupos"),
-                 "ultimas_senales": (s.get("ultimas_senales") or [])[::-1], "nichos_ahora": s.get("nichos_ahora") or []}
-    return {"cuentas": out, **extra}
+        c0 = float(s.get("capital_inicial", 20.0))
+        eq = float(s.get("equity", s.get("cash", c0)))
+        n = int(s.get("n_cerradas", 0))
+        active.append({
+            "cuenta": name,
+            "descripcion": desc,
+            "strategy": s.get("strategy", RULES_VERSION),
+            "equity_sol": eq,
+            "resultado_pct": (eq / c0 - 1) * 100 if c0 else None,
+            "abiertas": len(s.get("posiciones", {})),
+            "cerradas": n,
+            "aciertos_pct": (s.get("ganadas", 0) / n * 100) if n else None,
+            "hit_2x": int(s.get("tomas_2x", 0)),
+            "resultado_cerradas_sol": s.get("resultado_sol", 0.0),
+            "comisiones_sol": s.get("comisiones_sol", 0.0),
+            "senales": s.get("senales", 0),
+            "saltadas": s.get("saltadas", 0),
+            "entry_sol": s.get("entry_sol", 0.5),
+            "capital_inicial": c0,
+            "good_wallets_current": s.get("good_wallets_current"),
+            "actualizado": s.get("actualizado"),
+            "ultimas_cerradas": (s.get("cerradas") or [])[-8:][::-1],
+        })
+
+    archived = []
+    for name, status in ARCHIVED_ACCOUNTS.items():
+        p = PAPER_ROOT / f"pump_{name}" / "state.json"
+        row = {"cuenta": name, "status": status, "read_only": True}
+        if p.exists():
+            try:
+                s = _json.loads(p.read_text(encoding="utf-8"))
+                c0 = float(s.get("capital_inicial", 10.0))
+                eq = float(s.get("equity", s.get("cash", c0)))
+                row.update({
+                    "descripcion": s.get("descripcion", ""),
+                    "resultado_pct": (eq / c0 - 1) * 100 if c0 else None,
+                    "cerradas": s.get("n_cerradas", 0),
+                    "senales": s.get("senales", 0),
+                    "actualizado": s.get("actualizado"),
+                })
+            except Exception:
+                row["state"] = "STATE_UNREADABLE"
+        archived.append(row)
+
+    skill = {}
+    sp = PAPER_ROOT / "pump_wallet_skill_v1" / "status.json"
+    if sp.exists():
+        try:
+            skill = _json.loads(sp.read_text(encoding="utf-8"))
+        except Exception:
+            skill = {"state": "STATE_UNREADABLE"}
+
+    from src.common.runtime_health import runtime_health_snapshot
+    root = Path(__file__).resolve().parents[3]
+    runtime = runtime_health_snapshot(root)["components"]["pumpfun_paper"]
+    return {
+        "strategy": RULES_VERSION,
+        "research_status": "PAPER_FORWARD_UNVALIDATED",
+        "cuentas": active,
+        "archivadas": archived,
+        "wallet_skill": skill,
+        "runtime": runtime,
+        "fee_model": PUMP_FEE_MODEL,
+    }
 
 
 @router.get("/lider_paper")
@@ -345,5 +426,8 @@ def lider_paper_status():
                         "abrio": e.get("abrio")})
     hoy = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     gasto = ev.get("gasto_x") or {}
-    return {"cuentas": cuentas, "eventos": eventos, "ultimo_chequeo": ev.get("ultimo_chequeo_dia"),
+    from pathlib import Path
+    from src.common.runtime_health import runtime_health_snapshot
+    runtime = runtime_health_snapshot(Path(__file__).resolve().parents[3])["components"]["leader_paper"]
+    return {"runtime": runtime, "cuentas": cuentas, "eventos": eventos, "ultimo_chequeo": ev.get("ultimo_chequeo_dia"),
             "gasto_x_hoy": gasto.get(hoy, 0.0), "gasto_x_total": sum(gasto.values())}

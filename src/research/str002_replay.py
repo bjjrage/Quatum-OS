@@ -781,9 +781,9 @@ def run_replay(panel: Panel, cfgs: Sequence[ReplayConfig], alts: Optional[Sequen
 PROP_RULES: Dict[str, Dict[str, Any]] = {
     # Sources (verify before paying, rules change): hyrotrader.com/blog/hyrotrader-vs-breakout,
     # mubite.com/en/challengeRules. Floating (open) losses are NOT simulated: closed trades only.
-    "HyroTrader_1F": {"label": "HyroTrader 1 fase", "daily": 0.04, "max": 0.06, "targets": [0.10],
+    "HyroTrader_1F": {"label": "Hyro 1 fase legacy (proxy, no Challenge actual)", "daily": 0.04, "max": 0.06, "targets": [0.10],
                       "consistency": 0.40, "min_days": 5},
-    "HyroTrader_2F": {"label": "HyroTrader 2 fases", "daily": 0.05, "max": 0.10, "targets": [0.10, 0.05],
+    "HyroTrader_2F": {"label": "Hyro 2 fases (proyeccion model-only)", "daily": 0.05, "max": 0.10, "targets": [0.10, 0.05],
                       "consistency": 0.40, "min_days": 5},
     "Mubite_2F": {"label": "Mubite 2 fases", "daily": 0.05, "max": 0.08, "targets": [0.10, 0.05],
                   "consistency": None, "min_days": 13, "max_risk_per_trade": 0.03},
@@ -801,11 +801,24 @@ def _account_returns(trades: List[Dict[str, Any]], risk_per_trade: float) -> Lis
 
 
 def prop_check(trades: List[Dict[str, Any]], rules: Dict[str, Any], risk_per_trade: float) -> Dict[str, Any]:
+    """Evaluate a historical proxy; never represents an official HyroTrader result."""
+    from src.research.hyro_rules import RULES_STATUS
+
+    def model_only(row: Dict[str, Any]) -> Dict[str, Any]:
+        row["status"] = f"{row['status']}_MODEL_ONLY"
+        row["rules_status"] = RULES_STATUS
+        row["limitations"] = [
+            "Uses closed replay trades; intratrade floating equity is unavailable.",
+            "The account fixed/trailing drawdown mode is unverified.",
+            "This STR-002 proxy does not verify the official two-phase challenge rules.",
+        ]
+        return row
+
     if rules.get("max_risk_per_trade") is not None and risk_per_trade > rules["max_risk_per_trade"]:
-        return {"status": "FAIL_RULES", "reason": "Riesgo por operación mayor al permitido."}
+        return model_only({"status": "FAIL_RULES", "reason": "Riesgo por operaci?n mayor al permitido."})
     rets = _account_returns(trades, risk_per_trade)
     if not rets:
-        return {"status": "SIN_DATOS", "reason": "No hubo operaciones."}
+        return model_only({"status": "SIN_DATOS", "reason": "No hubo operaciones."})
     phases = list(rules["targets"])
     start_bal, bal = 1.0, 1.0
     phase, days_in_phase, day, day_start = 0, set(), None, 1.0
@@ -821,29 +834,31 @@ def prop_check(trades: List[Dict[str, Any]], rules: Dict[str, Any], risk_per_tra
         dd_day = (bal - day_start) / start_bal
         worst_day = min(worst_day, dd_day)
         if dd_day <= -rules["daily"]:
-            return {"status": "FAIL_DAILY", "phase": phase + 1, "reason": f"Superó la pérdida diaria de {rules['daily']*100:.0f}%.",
-                    "worst_day_pct": worst_day * 100}
+            return model_only({"status": "FAIL_DAILY", "phase": phase + 1,
+                               "reason": f"Super? la p?rdida diaria de {rules['daily']*100:.0f}%.",
+                               "worst_day_pct": worst_day * 100})
         if (bal - start_bal) / start_bal <= -rules["max"]:
-            return {"status": "FAIL_MAX", "phase": phase + 1, "reason": f"Superó la pérdida total de {rules['max']*100:.0f}%.",
-                    "worst_day_pct": worst_day * 100}
+            return model_only({"status": "FAIL_MAX", "phase": phase + 1,
+                               "reason": f"Super? la p?rdida total de {rules['max']*100:.0f}%.",
+                               "worst_day_pct": worst_day * 100})
         target = phases[phase]
         if (bal - start_bal) / start_bal >= target:
             cons = rules.get("consistency")
             best = max(day_pnl.values()) / start_bal if day_pnl else 0.0
             if cons is not None and best > cons * target:
-                continue  # target reached but one day is too large: must keep trading (not a fail)
+                continue
             if len(days_in_phase) < rules["min_days"]:
-                continue  # needs more trading days
+                continue
             phase += 1
             if phase == len(phases):
-                return {"status": "PASA", "reason": "Llegó al objetivo sin romper límites.",
-                        "worst_day_pct": worst_day * 100}
+                return model_only({"status": "PASA", "reason": "Objetivo del modelo alcanzado dentro de sus supuestos.",
+                                   "worst_day_pct": worst_day * 100})
             start_bal, bal, days_in_phase, day_pnl, day = 1.0, 1.0, set(), {}, None
     target = phases[phase]
-    return {"status": "AUN_NO", "phase": phase + 1,
-            "progress_pct": (bal - start_bal) / start_bal * 100, "target_pct": target * 100,
-            "worst_day_pct": worst_day * 100,
-            "reason": "No rompió límites, pero todavía no llegó al objetivo con estos datos."}
+    return model_only({"status": "AUN_NO", "phase": phase + 1,
+                       "progress_pct": (bal - start_bal) / start_bal * 100, "target_pct": target * 100,
+                       "worst_day_pct": worst_day * 100,
+                       "reason": "El modelo no rompi? sus l?mites, pero todav?a no lleg? al objetivo."})
 
 
 def prop_checks(trades: List[Dict[str, Any]], panel: Panel, risk_per_trade: float) -> Dict[str, Any]:

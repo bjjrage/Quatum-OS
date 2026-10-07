@@ -21,17 +21,21 @@ export function LiderPaperPanel() {
   const tone = (x: any) => (x === null || x === undefined ? "text-slate-400" : x >= 0 ? "text-emerald-400" : "text-rose-400");
   const cuentas: any[] = d?.cuentas || [];
   const eventos: any[] = d?.eventos || [];
+  const runtimeHealth = d?.runtime || {};
+  const runtimeStatus = runtimeHealth.status || "NEVER_STARTED";
+  const runtimeLabel: Record<string, string> = { NEVER_STARTED: "Proceso apagado", STARTING: "Proceso iniciando", RUNNING: cuentas.length || eventos.length ? "Proceso activo" : "Proceso activo sin eventos", DEGRADED: "Proceso degradado", ERROR: "Proceso con error", DISABLED: "Proceso deshabilitado", STOPPED: "Proceso apagado" };
   const sym = (s: string) => s.replace("USDT", "");
   return (
     <div className="rounded-lg border border-cyan-900/60 bg-slate-950/40 p-4 text-xs font-mono-code space-y-3">
       <div className="flex flex-wrap items-center gap-3">
+        <span className={runtimeStatus === "RUNNING" ? "text-emerald-400" : runtimeStatus === "ERROR" || runtimeStatus === "DEGRADED" ? "text-rose-300" : "text-amber-300"}>{runtimeLabel[runtimeStatus] || runtimeStatus}</span>
         <Rocket className="w-4 h-4 text-cyan-400" />
         <span className="text-slate-100 font-semibold">Binance — explotó el líder del segmento, ¿siguen las rezagadas?</span>
         <span className="text-slate-500">1 chequeo por día · 1.000 USD por evento · 7 días · X filtra (tope diario de gasto)</span>
         {err && <span className="text-rose-300">{err}</span>}
       </div>
       {!cuentas.length ? (
-        <div className="text-slate-400">Todavía sin eventos: se abre la primera cuenta cuando explote un líder (30% en 3 días con volumen).</div>
+        <div className="text-slate-400">{runtimeStatus === "RUNNING" ? "Proceso activo sin eventos." : runtimeStatus === "STARTING" ? "Proceso iniciando." : runtimeStatus === "ERROR" || runtimeStatus === "DEGRADED" ? (runtimeHealth?.last_error_type || "Error") + ": " + (runtimeHealth?.last_error_message_sanitized || "ver estado local") : runtimeLabel[runtimeStatus] || runtimeStatus}</div>
       ) : (
         <table className="w-full">
           <thead><tr className="text-slate-500 text-left">
@@ -66,8 +70,8 @@ export function LiderPaperPanel() {
               <span className="text-orange-400"> líder {sym(e.lideres[0].symbol)} +{n(e.lideres[0].r3 * 100, 0)}%</span>
               <span className="text-slate-400"> · rezagadas: </span>
               {e.rezagadas.map((r: any) => (
-                <span key={r.symbol} className={r.x && r.x.posts_found >= 5 && r.x.narrative_link ? "text-emerald-400" : "text-slate-500"}>
-                  {sym(r.symbol)}{r.x ? ` (X: ${r.x.posts_found})` : ""}{" "}
+                <span key={r.symbol} className={r.x?.x_status === "X_POSITIVE" && r.x.posts_found >= 5 && r.x.narrative_link ? "text-emerald-400" : "text-slate-500"}>
+                  {sym(r.symbol)}{r.x ? ` (X ${r.x.x_status || "NO_DATA"}${r.x.posts_found === null || r.x.posts_found === undefined ? "" : `: ${r.x.posts_found}`})` : " (X: NO_DATA)"}{" "}
                 </span>
               ))}
             </div>
