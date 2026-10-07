@@ -106,7 +106,7 @@ class LimitlessRecorder:
         if wait > 0:
             await asyncio.sleep(wait)
         self._last_req = time.monotonic()
-        async with self.http.get(API + path, params=params, timeout=15) as r:
+        async with self.http.get(API + path, params=params, timeout=30) as r:
             if r.status != 200:
                 self.stats["errores"] += 1
                 return None
@@ -168,6 +168,9 @@ class LimitlessRecorder:
                     await asyncio.sleep(max(0.5, self.book_every_s - (time.time() - t0)))
                 except asyncio.CancelledError:
                     break
+                except asyncio.TimeoutError:
+                    self.stats["errores"] += 1                # transient: counted, shown every 10 min
+                    await asyncio.sleep(5)
                 except Exception as e:
                     logger.warning(f"Limitless: {type(e).__name__}: {str(e)[:150]}")
                     await asyncio.sleep(10)

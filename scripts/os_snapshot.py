@@ -153,11 +153,13 @@ def git(*args: str, input_text: str = None, check: bool = True) -> str:
            "GIT_AUTHOR_EMAIL": os.environ.get("GIT_AUTHOR_EMAIL", "snapshot@quant-os.local"),
            "GIT_COMMITTER_NAME": os.environ.get("GIT_COMMITTER_NAME", "Quant OS snapshot"),
            "GIT_COMMITTER_EMAIL": os.environ.get("GIT_COMMITTER_EMAIL", "snapshot@quant-os.local")}
-    r = subprocess.run(["git", *args], cwd=ROOT, input=input_text, capture_output=True, text=True,
-                       encoding="utf-8", env=env)
+    # bytes, not text: on Windows text mode turns "\n" into "\r\n" on stdin, which corrupts mktree names
+    r = subprocess.run(["git", *args], cwd=ROOT, input=input_text.encode("utf-8") if input_text is not None else None,
+                       capture_output=True, env=env)
+    out, err = r.stdout.decode("utf-8", errors="replace"), r.stderr.decode("utf-8", errors="replace")
     if check and r.returncode != 0:
-        raise RuntimeError(f"git {args[0]} falló: {r.stderr.strip()[:300]}")
-    return r.stdout.strip()
+        raise RuntimeError(f"git {args[0]} falló: {err.strip()[:300]}")
+    return out.strip()
 
 
 def push(files: Dict[str, str]) -> str:

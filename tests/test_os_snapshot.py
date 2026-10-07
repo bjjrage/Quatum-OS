@@ -65,3 +65,19 @@ def test_push_creates_snapshots_branch_without_touching_worktree(tmp_path, monke
                                  text=True).stdout.strip()
     assert remote_head == c2 and show("rev-parse", f"{c2}^") == c1         # history kept, one commit per snapshot
     assert show("show", f"{c2}:latest.md") == "# two"
+    assert show("ls-tree", "--name-only", c2).split("\n") == ["latest.json", "latest.md"]   # no "\r" in names
+
+
+def test_git_stdin_is_bytes_so_windows_cannot_add_carriage_returns(monkeypatch):
+    seen = {}
+
+    def fake_run(cmd, **kw):
+        seen.update(kw)
+
+        class R:
+            returncode, stdout, stderr = 0, b"abc\n", b""
+        return R()
+
+    monkeypatch.setattr(S.subprocess, "run", fake_run)
+    assert S.git("mktree", input_text="100644 blob x\tlatest.md\n") == "abc"
+    assert isinstance(seen["input"], bytes) and b"\r" not in seen["input"] and not seen.get("text")
