@@ -102,3 +102,16 @@ def test_discover_score_counts_contract_posts_per_day():
     assert s["last_post_h"] == 0 and td.keep(s, 3, 24)
     assert not td.keep(td.score([(now - 90_000, f"CA {SOL}")], now), 0.1, 24)        # idle > 24 h
     assert td.score([], now)["ca_per_day"] == 0
+
+
+def test_promo_rows_match_storage_schemas():
+    import pyarrow as pa
+    from src.common.types import SCHEMAS
+    from src.collectors import dexscreener_watcher as d
+    w = DexScreenerWatcher(Sink())
+    rows = {"token_boosts": w.boost_rows([{"chainId": "solana", "tokenAddress": SOL, "amount": 1, "totalAmount": 2}], 5),
+            "token_profiles": w.profile_rows([{"chainId": "base", "tokenAddress": EVM}], 5),
+            "calls": call_rows(f"ca {SOL}", 1, 2, "c", -100, 3, None, False)}
+    for table, rs in rows.items():
+        t = pa.Table.from_pylist(rs, schema=SCHEMAS[table])
+        assert t.num_rows == 1 and set(rs[0]) == set(SCHEMAS[table].names)
