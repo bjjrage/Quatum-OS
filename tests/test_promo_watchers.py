@@ -115,3 +115,49 @@ def test_promo_rows_match_storage_schemas():
     for table, rs in rows.items():
         t = pa.Table.from_pylist(rs, schema=SCHEMAS[table])
         assert t.num_rows == 1 and set(rs[0]) == set(SCHEMAS[table].names)
+
+
+def test_price_rows_pick_most_liquid_pair_and_match_schema():
+    import pyarrow as pa
+    from src.collectors.dexscreener_watcher import price_rows
+    from src.common.types import SCHEMAS
+    pairs = [{"baseToken": {"address": SOL}, "pairAddress": "P1", "dexId": "pumpswap", "priceUsd": "0.001",
+              "liquidity": {"usd": 5000}, "volume": {"m5": 100, "h1": 900}, "txns": {"m5": {"buys": 7, "sells": 3}},
+              "fdv": 1e6, "marketCap": 1e6, "pairCreatedAt": 1791000000000},
+             {"baseToken": {"address": SOL}, "pairAddress": "P2", "dexId": "raydium", "priceUsd": "0.0011",
+              "liquidity": {"usd": 20000}, "volume": {}, "txns": {}},
+             {"baseToken": {"address": "other"}, "pairAddress": "P3", "liquidity": {"usd": 9e9}}]
+    rows = price_rows(pairs, [SOL], "solana", 123)
+    assert len(rows) == 1 and rows[0]["pair_address"] == "P2" and rows[0]["price_usd"] == 0.0011
+    assert price_rows(pairs, [SOL], "solana", 1)[0]["buys_m5"] == 0
+    rows = price_rows([pairs[0]], [SOL], "solana", 123)
+    assert (rows[0]["buys_m5"], rows[0]["sells_m5"], rows[0]["volume_h1"]) == (7, 3, 900)
+    assert pa.Table.from_pylist(rows, schema=SCHEMAS["token_prices"]).num_rows == 1
+    assert set(rows[0]) == set(SCHEMAS["token_prices"].names)
+    evm = "0xAbC0000000000000000000000000000000000001"
+    assert price_rows([{"baseToken": {"address": evm.lower()}, "liquidity": {"usd": 1}}], [evm], "base", 1)[0]["token_address"] == evm
+
+
+async def test_promoted_tokens_are_price_tracked_for_a_limited_time():
+    from src.collectors import dexscreener_watcher as d
+    toks = [f"T{i:02d}" + "x" * 30 for i in range(35)]
+    seen_urls = []
+
+    class H(Http):
+        def get(self, url, timeout=None):
+            seen_urls.append(url)
+            if url.startswith("https://api.dexscreener.com/tokens/v1/"):
+                addrs = url.rsplit("/", 1)[1].split(",")
+                return Resp(200, [{"baseToken": {"address": a}, "priceUsd": "1", "liquidity": {"usd": 1}} for a in addrs])
+            return super().get(url)
+
+    sink = Sink()
+    w = DexScreenerWatcher(sink, http=H({d.BOOSTS_URL: [{"chainId": "solana", "tokenAddress": t, "totalAmount": 1} for t in toks],
+                                         d.PROFILES_URL: []}), track_hours=1)
+    await w.poll_once()
+    assert len(w.tracked) == 35
+    now = time_now = min(w.tracked.values())
+    assert await w.prices_once(now + 60) == 35
+    price_calls = [u for u in seen_urls if "/tokens/v1/" in u]
+    assert len(price_calls) == 2 and price_calls[0].count(",") == 29          # batches of 30
+    assert await w.prices_once(time_now + 3601 + 60) == 0 and not w.tracked   # stops after track_hours
