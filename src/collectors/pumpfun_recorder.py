@@ -210,6 +210,9 @@ class PumpfunRecorder:
         if cfg.get("telegram_enabled", True):
             from src.collectors.telegram_watcher import TelegramWatcher
             self._extra_tasks.append(asyncio.create_task(TelegramWatcher(self.sink, self.root).run()))
+        if cfg.get("limitless_enabled", True):          # no es pump.fun: vive acá con los otros vigilantes livianos
+            from src.collectors.limitless_recorder import LimitlessRecorder
+            self._extra_tasks.append(asyncio.create_task(LimitlessRecorder(self.sink).run()))
         if cfg.get("funder_enabled", True):
             from src.collectors.funder_tracker import HELIUS_RPC, PUBLIC_RPC, FunderTracker
             from src.common.secret_loader import get_secret
