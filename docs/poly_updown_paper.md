@@ -1,4 +1,4 @@
-# Paper en vivo: Polymarket up/down (2026-10-07 04:37 UTC)
+# Paper en vivo: Polymarket up/down (2026-10-07 04:39 UTC)
 
 - Período: 0.1 días. Señales 35, llenadas 19, no llenadas 16 (46% de las señales).
 - Invertido: US$ 288.03. PnL con Binance al cierre: US$ -138.01 (13 liquidadas).
