@@ -18,7 +18,11 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
+from concurrent.futures import ThreadPoolExecutor
+
 from poly_trades_edge import GAMMA, get
+
+POOL = ThreadPoolExecutor(max_workers=8)
 
 CLOB_BOOK = "https://clob.polymarket.com/book"
 KALSHI = "https://api.elections.kalshi.com/trade-api/v2"
@@ -104,19 +108,28 @@ def main():
                         cache[key] = (toks[outs.index("up")], toks[outs.index("down")], kt,
                                       float(fs.get("rate", 0.07)), float(fs.get("exponent", 1)))
                     up_tok, dn_tok, kt, rate, exp = cache[key]
-                    qu, su = best_ask(get(CLOB_BOOK, {"token_id": up_tok}))
-                    qd, sd = best_ask(get(CLOB_BOOK, {"token_id": dn_tok}))
-                    ob = get(f"{KALSHI}/markets/{kt}/orderbook", {})
+                    # all books of this coin requested at the same time, so the pair compares prices of the same moment
+                    jobs = {"up": (CLOB_BOOK, {"token_id": up_tok}), "dn": (CLOB_BOOK, {"token_id": dn_tok}),
+                            "k": (f"{KALSHI}/markets/{kt}/orderbook", {})}
+                    if a.limitless and coin in LIM_COINS:
+                        jobs["l"] = (f"{LIMITLESS}/{coin}-up-or-down-15-min-{start}/orderbook", {})
+                    t_req = time.time()
+                    futs = {k: POOL.submit(get, *v) for k, v in jobs.items()}
+                    res = {k: f_.result() for k, f_ in futs.items()}
+                    spread_s = round(time.time() - t_req, 2)
+                    qu, su = best_ask(res["up"])
+                    qd, sd = best_ask(res["dn"])
+                    ob = res["k"]
                     yb, ys = kalshi_best(ob, "yes")
                     nb, ns = kalshi_best(ob, "no")
                     k_yes_ask = 1 - nb if nb is not None else None
                     k_no_ask = 1 - yb if yb is not None else None
-                    row = {"ts": round(t0, 2), "coin": coin, "start": start, "left_s": start + 900 - int(t0),
+                    row = {"ts": round(t0, 2), "fetch_s": spread_s, "coin": coin, "start": start, "left_s": start + 900 - int(t0),
                            "A_polyUp_kalshiNo": pair(qu, su, k_no_ask, ys, rate, exp),
                            "B_polyDown_kalshiYes": pair(qd, sd, k_yes_ask, ns, rate, exp),
                            "poly_up": qu, "poly_down": qd, "kalshi_yes_ask": k_yes_ask, "kalshi_no_ask": k_no_ask}
                     if a.limitless and coin in LIM_COINS:
-                        (la, las), (lb, lbs) = lim_best(get(f"{LIMITLESS}/{coin}-up-or-down-15-min-{start}/orderbook", {}))
+                        (la, las), (lb, lbs) = lim_best(res["l"])
                         l_no = 1 - lb if lb is not None else None
                         lf = lambda q: lim_fee(q, a.lim_fee_rate)  # noqa: E731
                         row.update({
