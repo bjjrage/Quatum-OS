@@ -122,3 +122,17 @@ async def test_ws_drop_clears_stale_book(tmp_path, monkeypatch):
     except asyncio.CancelledError:
         pass
     assert paper.quotes == {} and paper.stats["desconexiones_ws"] == 1
+
+
+def test_late_book_is_flagged_after_clock_offset():
+    import src.paper.poly_updown_paper as pp
+    quotes, clock = {}, pp.ClockOffset()
+    for lag in (2.1, 2.2, 2.15):                       # PC clock 2 s ahead, messages ~0.1 s late
+        clock.observe(lag, 1791370000.0)
+    ev = {"event_type": "best_bid_ask", "asset_id": "t", "best_bid": "0.4", "best_ask": "0.42",
+          "timestamp": str(int((1791370000.0 - 2.1) * 1000))}
+    pp.apply_book_event(quotes, ev, 1791370000.0, clock.offset)
+    assert abs(quotes["t"].lag_s) < 0.01
+    ev["timestamp"] = str(int((1791370000.0 - 6.1) * 1000))  # we are reading 4 s behind
+    pp.apply_book_event(quotes, ev, 1791370000.0, clock.offset)
+    assert quotes["t"].lag_s > pp.MAX_LAG_S

@@ -31,6 +31,7 @@ logger = setup_logger("poly_updown_paper")
 ROOT = Path(__file__).resolve().parents[2]
 OUT_DIR = ROOT / "data" / "paper" / "poly_updown"
 GAMMA = "https://gamma-api.polymarket.com/markets"
+MAX_LAG_S = 1.5        # libro que nos llega con más atraso que esto no se usa para apostar
 POLY_WS = "wss://ws-subscriptions-clob.polymarket.com/ws/market"
 BINANCE_WS = "wss://fstream.binance.com/public/stream"
 ASSETS = {"btc": "BTCUSDT", "eth": "ETHUSDT", "sol": "SOLUSDT"}
@@ -132,6 +133,34 @@ class Quote:
     ask: float = 0.0
     ask_size: float = 0.0
     ts: float = 0.0
+    lag_s: float = 0.0          # recibido − hora del servidor de Polymarket: si leemos atrasados, el precio es viejo
+
+
+class ClockOffset:
+    """Reloj de la PC vs servidor: el menor atraso visto en los últimos minutos es casi todo diferencia de reloj
+    (los mensajes más rápidos llegan en ~0,1 s), así un reloj de Windows corrido no hace rechazar todo."""
+    def __init__(self, window_s: float = 600.0):
+        self.window_s, self.buckets = window_s, {}
+
+    def observe(self, raw_lag: float, now: float) -> None:
+        if raw_lag == 0.0:
+            return
+        b = int(now // 60)
+        self.buckets[b] = min(self.buckets.get(b, raw_lag), raw_lag)
+        for k in [k for k in self.buckets if k < b - self.window_s / 60]:
+            del self.buckets[k]
+
+    @property
+    def offset(self) -> float:
+        return min(self.buckets.values()) if self.buckets else 0.0
+
+
+def _server_lag(ev: Dict[str, Any], now: float) -> float:
+    try:
+        v = float(ev.get("timestamp"))
+    except (TypeError, ValueError):
+        return 0.0
+    return now - (v / 1000 if v > 1e12 else v)
 
 
 def decide(p: float, up: Optional[Quote], down: Optional[Quote], threshold: float) -> Optional[Tuple[str, float, float]]:
@@ -153,9 +182,10 @@ def settle_pnl(bet: Dict[str, Any], up_won: bool) -> float:
     return bet["shares"] * (win - bet["price"] - bet["fee_per_share"])
 
 
-def apply_book_event(quotes: Dict[str, Quote], ev: Dict[str, Any], now: float) -> None:
+def apply_book_event(quotes: Dict[str, Quote], ev: Dict[str, Any], now: float, clock_offset: float = 0.0) -> None:
     """Actualiza el mejor bid/ask por token con eventos del WS de Polymarket (book, price_change, best_bid_ask)."""
     et = ev.get("event_type") or ev.get("type")
+    lag = _server_lag(ev, now) - clock_offset
     if et == "book":
         tok = str(ev.get("asset_id") or "")
         bids = sorted(((float(x["price"]), float(x["size"])) for x in ev.get("bids") or [] if float(x.get("size", 0)) > 0),
@@ -165,7 +195,7 @@ def apply_book_event(quotes: Dict[str, Quote], ev: Dict[str, Any], now: float) -
         q = quotes.setdefault(tok, Quote())
         q.bid, q.bid_size = bids[0] if bids else (0.0, 0.0)
         q.ask, q.ask_size = asks[0] if asks else (0.0, 0.0)
-        q.ts = now
+        q.ts, q.lag_s = now, lag
     elif et == "price_change":
         for ch in ev.get("price_changes") or []:
             tok = str(ch.get("asset_id") or ev.get("asset_id") or "")
@@ -178,7 +208,7 @@ def apply_book_event(quotes: Dict[str, Quote], ev: Dict[str, Any], now: float) -
                 q.bid_size = 0.0
             if ba != q.ask:
                 q.ask_size = 0.0
-            q.bid, q.ask, q.ts = bb, ba, now
+            q.bid, q.ask, q.ts, q.lag_s = bb, ba, now, lag
             if sd == "BUY" and abs(px - bb) < 1e-12:
                 q.bid_size = sz
             if sd == "SELL" and abs(px - ba) < 1e-12:
@@ -188,7 +218,7 @@ def apply_book_event(quotes: Dict[str, Quote], ev: Dict[str, Any], now: float) -
         bb, ba = float(ev.get("best_bid") or 0), float(ev.get("best_ask") or 0)
         if bb > 0 and ba > 0 and bb <= ba:
             q = quotes.setdefault(tok, Quote())
-            q.bid, q.ask, q.ts = bb, ba, now
+            q.bid, q.ask, q.ts, q.lag_s = bb, ba, now, lag
             q.bid_size, q.ask_size = float(ev.get("bid_size") or q.bid_size), float(ev.get("ask_size") or q.ask_size)
 
 
@@ -233,6 +263,7 @@ class PolyUpDownPaper:
         self.last_mid_t: Dict[str, float] = {}
         self.quotes: Dict[str, Quote] = {}
         self.resolve_errors: Dict[str, int] = {}
+        self.clock = ClockOffset()
         self.resolve_last: Optional[Dict[str, Any]] = None
         self.markets: Dict[str, Market] = {}
         self.started = time.time()
@@ -272,12 +303,16 @@ class PolyUpDownPaper:
             q = self.quotes.get(pd["token"])
             book_px = (1 - q.bid if pd["via_up_bid"] else q.ask) if q else 0.0
             book_sz = (q.bid_size if pd["via_up_bid"] else q.ask_size) if q else 0.0
-            if q and 0 < book_px <= pd["limit"] + 1e-9 and book_sz > 0:
+            if q and q.lag_s > MAX_LAG_S:
+                self.stats["rechazadas_por_atraso"] = self.stats.get("rechazadas_por_atraso", 0) + 1
+                self.log("late", slug=mk.slug, side=pd["side"], lag_s=round(q.lag_s, 2))
+                mk.bet = {"side": pd["side"], "missed": True}
+            elif q and 0 < book_px <= pd["limit"] + 1e-9 and book_sz > 0:
                 shares = min(self.cfg.max_usd / book_px, book_sz)
                 fps = fee_per_share(book_px, mk.fee)
                 mk.bet = {"side": pd["side"], "price": book_px, "shares": shares, "usd": shares * book_px,
                           "fee_per_share": fps, "p_model": pd["p"], "edge": pd["edge"], "t": now,
-                          "book_age_s": round(now - q.ts, 1)}
+                          "book_age_s": round(now - q.ts, 1), "lag_s": round(q.lag_s, 2)}
                 self.stats["llenadas"] += 1
                 self.stats["invertido_usd"] += shares * book_px
                 self.log("fill", slug=mk.slug, asset=mk.asset, minutes=mk.minutes, **mk.bet)
@@ -290,7 +325,9 @@ class PolyUpDownPaper:
                 and mk.start_s + self.cfg.trade_after_start_s <= sec <= mk.end_s - self.cfg.stop_before_end_s):
             sig = mids.sigma(sec, self.cfg.vol_window_s, self.cfg.min_vol_coverage)
             p = model_prob(mk.s0, mids.at(sec, max_gap=2), sig, mk.end_s - now)
-            d = decide(p, self.quotes.get(mk.up_token), self.quotes.get(mk.down_token), self.cfg.threshold)
+            uq, dq = self.quotes.get(mk.up_token), self.quotes.get(mk.down_token)
+            fresh = lambda q: q if q and q.lag_s <= MAX_LAG_S else None      # noqa: E731
+            d = decide(p, fresh(uq), fresh(dq), self.cfg.threshold)
             if d:
                 side, limit, _ = d
                 down_q = self.quotes.get(mk.down_token)
@@ -441,7 +478,9 @@ class PolyUpDownPaper:
                                 continue
                             for ev in data if isinstance(data, list) else [data]:
                                 if isinstance(ev, dict):
-                                    apply_book_event(self.quotes, ev, time.time())
+                                    now = time.time()
+                                    self.clock.observe(_server_lag(ev, now), now)
+                                    apply_book_event(self.quotes, ev, now, self.clock.offset)
                     finally:
                         pinger.cancel()
             except asyncio.CancelledError:
@@ -487,7 +526,8 @@ class PolyUpDownPaper:
                         logger.info(f"Paper up/down: señales {s['señales']}, llenadas {s['llenadas']}, no llenadas "
                                     f"{s['no_llenadas']}, PnL Binance US$ {s['pnl_usd']:.2f}, PnL oficial US$ "
                                     f"{s['pnl_oficial_usd']:.2f} ({s['oficiales']} resueltas) | desconexiones WS "
-                                    f"{s.get('desconexiones_ws', 0)} | errores Gamma {self.resolve_errors} | "
+                                    f"{s.get('desconexiones_ws', 0)} | rechazadas por atraso {s.get('rechazadas_por_atraso', 0)} | "
+                                    f"reloj PC−Polymarket {self.clock.offset:+.2f} s | errores Gamma {self.resolve_errors} | "
                                     f"última respuesta Gamma sin resolver {self.resolve_last}")
                     await asyncio.sleep(1.0 - (time.time() % 1.0))
             finally:
