@@ -87,3 +87,18 @@ def test_read_secret_handles_powershell_utf16_and_bom(tmp_path, monkeypatch):
     assert read_secret("TELEGRAM_API_ID", tmp_path) == "12345"
     (tmp_path / ".env").write_text("TELEGRAM_API_ID=777\n", encoding="utf-8-sig")
     assert read_secret("TELEGRAM_API_ID", tmp_path) == "777"
+
+
+def test_discover_score_counts_contract_posts_per_day():
+    import importlib.util
+    from pathlib import Path
+    spec = importlib.util.spec_from_file_location("td", Path(__file__).resolve().parents[1] / "scripts" / "telegram_discover.py")
+    td = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(td)
+    now = 1_000_000.0
+    msgs = [(now - 3600 * h, f"CA {SOL}" if h % 2 == 0 else "gm") for h in range(48)]   # 2 days, CA every 2 h
+    s = td.score(msgs, now)
+    assert s["ca_posts"] == 24 and abs(s["ca_per_day"] - 24 / (47 / 24)) < 1e-9 and s["solana_share"] == 1.0
+    assert s["last_post_h"] == 0 and td.keep(s, 3, 24)
+    assert not td.keep(td.score([(now - 90_000, f"CA {SOL}")], now), 0.1, 24)        # idle > 24 h
+    assert td.score([], now)["ca_per_day"] == 0
