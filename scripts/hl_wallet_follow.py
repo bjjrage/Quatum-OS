@@ -66,10 +66,11 @@ def universe(n, seed=5):
     return out[:n]
 
 
-def fetch_fills(addr, t0_ms):
+def fetch_fills(addr, t0_ms, max_pages=5):
+    """aggregateByTime merges the partial fills of one order: far fewer rows (and API weight) for active accounts."""
     out, t = [], t0_ms
-    while True:
-        page = post({"type": "userFillsByTime", "user": addr, "startTime": int(t)}, 20 + 100)
+    for _ in range(max_pages):
+        page = post({"type": "userFillsByTime", "user": addr, "startTime": int(t), "aggregateByTime": True}, 20 + 100)
         if not page:
             break
         out += page
