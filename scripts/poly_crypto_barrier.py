@@ -147,8 +147,8 @@ def tstat_cluster(items):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--cache", type=Path, default=Path("data/research/binance_vision/spot_1d"))
-    ap.add_argument("-o", "--output", type=Path, default=Path("docs/poly_crypto_barrier.md"))
+    ap.add_argument("--cache", type=Path, default=Path(__file__).resolve().parents[1] / "data" / "research" / "binance_vision" / "spot_1d")
+    ap.add_argument("-o", "--output", type=Path, default=Path(__file__).resolve().parents[1] / "docs" / "poly_crypto_barrier.md")
     a = ap.parse_args()
     mk, seen = [], set()
     for ps in ({"order": "volumeNum", "ascending": "false"},
