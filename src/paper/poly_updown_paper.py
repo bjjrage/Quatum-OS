@@ -481,3 +481,67 @@ class PolyUpDownPaper:
                 for t in tasks:
                     t.cancel()
                 self.save_state()
+
+
+# --------------------------------------------------------------------------- resumen (panel del OS y script)
+def _tstat(x: List[float]) -> Optional[float]:
+    n = len(x)
+    if n < 3:
+        return None
+    mu = sum(x) / n
+    sd = math.sqrt(sum((v - mu) ** 2 for v in x) / (n - 1))
+    return mu / (sd / math.sqrt(n)) if sd > 0 else None
+
+
+def summarize_events(events: List[Dict[str, Any]], recent: int = 15) -> Dict[str, Any]:
+    """Resumen del paper a partir de events.jsonl. Criterio para plata real fijado de antemano."""
+    fills = {e["slug"]: e for e in events if e.get("kind") == "fill"}
+    settles = {e["slug"]: e for e in events if e.get("kind") == "settle"}
+    res = {e["slug"]: e for e in events if e.get("kind") == "resolve"}
+    signals = sum(1 for e in events if e.get("kind") == "signal")
+    misses = sum(1 for e in events if e.get("kind") == "miss")
+    pnl_o = [res[s]["pnl_official"] for s in fills if s in res]
+    usd_o = sum(fills[s]["usd"] for s in fills if s in res)
+    windows: Dict[str, List[float]] = {}
+    for s in fills:
+        if s in res:
+            windows.setdefault(s.rsplit("-", 1)[-1], []).append(res[s]["pnl_official"])
+    t_win = _tstat([sum(v) / len(v) for v in windows.values()])
+    span_d = (events[-1]["ts"] - events[0]["ts"]) / 86400 if len(events) > 1 else 0.0
+    by: Dict[str, Dict[str, Any]] = {}
+    for key in ("minutes", "asset", "side"):
+        g: Dict[str, List[float]] = {}
+        for s, f in fills.items():
+            if s in res:
+                g.setdefault(str(f.get(key)), []).append(res[s]["pnl_official"])
+        by[key] = {k: {"n": len(v), "pnl": sum(v)} for k, v in sorted(g.items())}
+    last = []
+    for s, f in list(fills.items())[-recent:][::-1]:
+        last.append({"mercado": s, "lado": f["side"], "precio": f["price"], "usd": f["usd"], "edge": f.get("edge"),
+                     "pnl_binance": settles.get(s, {}).get("pnl"), "pnl_oficial": res.get(s, {}).get("pnl_official"),
+                     "t": f.get("t")})
+    criterio = len(pnl_o) >= 300 and sum(pnl_o) > 0 and (t_win or 0) > 2
+    return {"dias": span_d, "senales": signals, "llenadas": len(fills), "no_llenadas": misses,
+            "pct_no_llenadas": misses / signals * 100 if signals else None,
+            "invertido_usd": sum(f["usd"] for f in fills.values()),
+            "pnl_binance_usd": sum(settles[s]["pnl"] for s in fills if s in settles),
+            "resueltas": len(pnl_o), "pnl_oficial_usd": sum(pnl_o),
+            "pnl_por_usd_pct": sum(pnl_o) / usd_o * 100 if usd_o else None,
+            "pnl_por_dia_usd": sum(pnl_o) / span_d if span_d >= 0.5 else None,
+            "aciertos_pct": sum(1 for x in pnl_o if x > 0) / len(pnl_o) * 100 if pnl_o else None,
+            "t_por_ventana": t_win, "ventanas": len(windows), "por": by, "ultimas": last,
+            "criterio": {"cumple": criterio, "min_resueltas": 300, "texto":
+                         "≥300 apuestas resueltas, PnL oficial > 0 y t por ventana > 2"}}
+
+
+def load_events(path: Optional[Path] = None) -> List[Dict[str, Any]]:
+    path = path or OUT_DIR / "events.jsonl"
+    if not path.exists():
+        return []
+    out = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        try:
+            out.append(json.loads(line))
+        except ValueError:
+            continue
+    return out
