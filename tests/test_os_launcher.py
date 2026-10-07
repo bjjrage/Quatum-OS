@@ -12,3 +12,11 @@ def test_parse_netstat_only_returns_listening_pid_for_requested_port():
     assert parse_listen_pids(sample, 3000) == {1234}
     assert parse_listen_pids(sample, 8000) == {4321}
     assert parse_listen_pids(sample, 5000) == set()
+
+
+def test_poly_paper_is_a_recognised_owned_service():
+    from scripts import os_launcher as L
+    cmd = f'"C:\\Python\\python.exe" "{L.POLY_SCRIPT}"'
+    assert L._service_command_matches(cmd, "poly_paper")
+    assert not L._service_command_matches(cmd, "recorder")
+    assert not L._service_command_matches('python other_script.py', "poly_paper")
