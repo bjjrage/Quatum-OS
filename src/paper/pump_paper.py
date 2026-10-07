@@ -67,13 +67,29 @@ LADDER = {"take_at": 1.0, "take_frac": 0.5, "trail": 0.35, "sl": -0.5, "max_wait
 HOLD10 = {"take_at": 9.0, "take_frac": 1.0, "trail": None, "sl": -0.5, "max_wait_s": 7200, "max_hold_s": 7200}
 SIZE_FRAC, MIN_SIZE_SOL = 0.05, 0.05        # 5% del capital actual por entrada (interés compuesto)
 
+# Billeteras con habilidad (idea de Marcelo: "follow the money"). En la tabla de 4.658 tokens, los tokens donde >= 2
+# billeteras "buenas" (calculadas con el pasado) estaban entre los primeros 10 compradores llegaron a 2x el 35% de las
+# veces contra 21% del resto (fuera de muestra, p<0,01). Una "buena" tiene >= 5 tokens y >= 35% de aciertos a 2x.
+SKILL = {"k_buyers": 10, "min_tokens": 5, "min_hit": 0.35, "min_good": 2, "level": 2.0, "stop": 0.5,
+         "horizon_s": 7200, "first_seen_s": 120, "max_age_s": 1800}
+FIXED_SIZE_SOL = 0.5                          # tamaño fijo: el costo fijo (0,001 SOL por ida y vuelta) pesa ~0,2%, no 2%
+
 ACCOUNTS: Dict[str, Dict[str, Any]] = {
-    "grupo": {"desc": "Grupo acumulando: escalera + vende si el grupo vende", **LADDER, "group_exit": 0.30},
-    "grupo_nicho": {"desc": "Grupo + nicho caliente: escalera + vende si el grupo vende", **LADDER, "group_exit": 0.30},
+    "billeteras": {"desc": "Billeteras con habilidad (>= 2 entre los primeros 10 compradores): escalera",
+                   **LADDER, "capital": 20.0, "size_fixed": FIXED_SIZE_SOL, "max_open": 30},
+    "billeteras_2x": {"desc": "Mismas señales de billeteras, pero SALE COMPLETO al 2x (sin stop móvil)",
+                      **{**LADDER, "take_frac": 1.0}, "capital": 20.0, "size_fixed": FIXED_SIZE_SOL, "max_open": 30},
+    "billeteras_azar": {"desc": "CONTROL de billeteras: token joven al azar en el mismo momento",
+                        **LADDER, "capital": 20.0, "size_fixed": FIXED_SIZE_SOL, "max_open": 30},
     "nicho": {"desc": "Solo nicho caliente (token joven): escalera", **LADDER},
-    "grupo_aguantar": {"desc": "Grupo acumulando, pero AGUANTA al 10x (comparación)", **HOLD10},
-    "detector_tarde": {"desc": "Detector viejo (50 compradores en 5 min): escalera", **LADDER},
-    "azar": {"desc": "CONTROL: token joven al azar en el mismo momento: escalera", **LADDER},
+    "nicho_azar": {"desc": "CONTROL de nicho: otro token joven al azar en el mismo momento", **LADDER},
+    # --- archivadas: las reglas de grupo (billeteras unidas por comprar en el mismo bloque) eran casi todas bots ---
+    "grupo": {"desc": "[archivada] Grupo acumulando: escalera + vende si el grupo vende", **LADDER, "group_exit": 0.30,
+              "legacy": True},
+    "grupo_nicho": {"desc": "[archivada] Grupo + nicho caliente", **LADDER, "group_exit": 0.30, "legacy": True},
+    "grupo_aguantar": {"desc": "[archivada] Grupo acumulando, AGUANTA al 10x", **HOLD10, "legacy": True},
+    "detector_tarde": {"desc": "[archivada] Detector viejo (50 compradores en 5 min)", **LADDER, "legacy": True},
+    "azar": {"desc": "[archivada] CONTROL de grupo: token joven al azar", **LADDER, "legacy": True},
 }
 
 
@@ -174,6 +190,8 @@ class PumpAccount:
         return self.s["cash"] + sum(p["costo_restante"] for p in self.s["posiciones"].values())
 
     def entry_size(self) -> float:
+        if self.rules.get("size_fixed"):
+            return float(self.rules["size_fixed"])
         return max(MIN_SIZE_SOL, SIZE_FRAC * self.book_equity())
 
     def request_buy(self, mint: str, now: float, wallet: str = "", info: Optional[Dict[str, Any]] = None) -> bool:
@@ -284,6 +302,90 @@ class PumpAccount:
                                     for m in self.s["posiciones"] if m in curves)
 
 
+# --------------------------------------------------------------------------- billeteras con habilidad
+class SkillBook:
+    """Mide, token por token y solo con lo que ya pasó, si los primeros 10 compradores "acertaron".
+
+    Un token se etiqueta 1 si, desde el precio de su compra N°10, sube a 2x ANTES de caer a -50% (dentro de 2 h); 0 si
+    cae primero o pasan 2 h. Cada comprador de ese grupo temprano suma un token y, si el token fue 1, un acierto.
+    """
+
+    def __init__(self):
+        self.track: Dict[str, Dict[str, Any]] = {}             # token -> estado
+        self.stats: Dict[str, List[int]] = {}                  # billetera -> [tokens, aciertos]
+        self.labelled = 0
+        self.hits = 0
+        self.skipped: Set[str] = set()
+
+    def is_good(self, w: str) -> bool:
+        s = self.stats.get(w)
+        return bool(s) and s[0] >= SKILL["min_tokens"] and s[1] / s[0] >= SKILL["min_hit"]
+
+    def n_good(self) -> int:
+        return sum(1 for w in self.stats if self.is_good(w))
+
+    def _resolve(self, mint: str, label: int) -> None:
+        """Marca el resultado, pero se acredita a las billeteras recién cuando pasan las 2 h completas del token
+        (si no, los aciertos rápidos inflarían la tasa de acierto y se verían mejores de lo que son)."""
+        t = self.track.get(mint)
+        if not t or t.get("label") is not None:
+            return
+        t["label"] = label
+
+    def _credit(self, mint: str) -> None:
+        t = self.track.pop(mint, None)
+        if not t or t.get("label") is None:
+            return
+        for w in t["early"]:
+            s = self.stats.setdefault(w, [0, 0])
+            s[0] += 1
+            s[1] += t["label"]
+        self.labelled += 1
+        self.hits += t["label"]
+
+    def on_trade(self, mint: str, user: str, is_buy: bool, px: float, now: float, born: Optional[float]) -> Optional[int]:
+        """Devuelve la cantidad de billeteras buenas entre los primeros 10 compradores justo cuando se completa el N°10."""
+        t = self.track.get(mint)
+        if t is None:
+            if mint in self.skipped or born is None or px <= 0:
+                return None
+            if now - born > SKILL["first_seen_s"]:               # lo vimos tarde: los "primeros 10" no serían los reales
+                self.skipped.add(mint)
+                return None
+            t = self.track[mint] = {"early": [], "nbuy": 0, "ref": 0.0, "t_ref": 0.0, "born": born}
+        if t["ref"] == 0.0:
+            if not is_buy:
+                return None
+            t["nbuy"] += 1
+            if user not in t["early"]:
+                t["early"].append(user)
+            if t["nbuy"] >= SKILL["k_buyers"]:
+                if now - t["born"] > SKILL["max_age_s"]:
+                    self.track.pop(mint, None)
+                    self.skipped.add(mint)
+                    return None
+                t["ref"], t["t_ref"] = px, now
+                return sum(1 for w in set(t["early"]) if self.is_good(w))
+            return None
+        if px > 0 and t.get("label") is None:
+            m = px / t["ref"]
+            if m >= SKILL["level"]:
+                self._resolve(mint, 1)
+            elif m <= SKILL["stop"]:
+                self._resolve(mint, 0)
+        return None
+
+    def expire(self, now: float) -> None:
+        for mint in [m for m, t in self.track.items() if t["ref"] and now - t["t_ref"] > SKILL["horizon_s"]]:
+            if self.track[mint].get("label") is None:
+                self._resolve(mint, 0)
+            self._credit(mint)
+        for mint in [m for m, t in self.track.items() if not t["ref"] and now - t["born"] > 3 * 3600]:
+            self.track.pop(mint, None)
+        if len(self.skipped) > 50_000:
+            self.skipped.clear()
+
+
 # --------------------------------------------------------------------------- grupos coordinados
 class GroupGraph:
     """Une billeteras que compran los mismos tokens en el mismo segundo, repetidamente."""
@@ -357,7 +459,12 @@ class GroupGraph:
 
 # --------------------------------------------------------------------------- controlador
 class PumpPaper:
-    def __init__(self, root: Path = PAPER_ROOT, activity=None, rnd: Optional[random.Random] = None):
+    def __init__(self, root: Path = PAPER_ROOT, activity=None, rnd: Optional[random.Random] = None,
+                 legacy: bool = True):
+        self.legacy = legacy                                      # False: las cuentas de grupo/detector no corren
+        self.skill = SkillBook()
+        self._good_now: Optional[int] = None
+        self._last_data_ts = 0.0
         self.wallets = WalletBook()
         self.groups = GroupGraph()
         from src.research.niches import NicheHeat
@@ -365,7 +472,8 @@ class PumpPaper:
         self.niche_done: Set[str] = set()
         self.curves: Dict[str, List[float]] = {}                  # token -> [vsol, vtok, último ts]
         self.meta: Dict[str, Dict[str, Any]] = {}                 # token -> {creator, born, symbol}
-        self.accounts = {n: PumpAccount(n, r, root) for n, r in ACCOUNTS.items()}
+        self.accounts = {n: PumpAccount(n, r, root, capital=r.get("capital", 10.0), max_open=r.get("max_open", 20))
+                         for n, r in ACCOUNTS.items() if legacy or not r.get("legacy")}
         self.activity = activity                                  # TokenActivity del recorder (detector viejo)
         self.rnd = rnd or random.Random()
         self.root = Path(root)
@@ -379,7 +487,7 @@ class PumpPaper:
         self._last_close = self._last_save = time.time()
 
     # ---------------------------------------------------------------- precalentamiento con lo grabado
-    def warmup(self, base: Path, hours: float = 12.0) -> int:
+    def warmup(self, base: Path, hours: float = 48.0) -> int:
         """Repite lo grabado (sin operar) para armar grupos y fichas de billeteras."""
         import duckdb
         files = [p.as_posix() for p in Path(base).glob("pumpfun/table=pumpfun_trades/**/*.parquet")]
@@ -391,26 +499,49 @@ class PumpPaper:
         if cfiles:
             for m, cr, u, ts, sy, nm in con.execute(f"""SELECT mint, any_value(creator), any_value("user"),
                     min(ts_chain_s), any_value(symbol), any_value(name) FROM read_parquet({cfiles!r}, union_by_name=true)
-                    WHERE ts_chain_s >= {since - 3600} GROUP BY 1""").fetchall():
+                    WHERE ts_chain_s BETWEEN {since - 3600} AND {int(time.time()) + 300} GROUP BY 1""").fetchall():
                 self.meta[m] = {"creator": cr or u, "born": float(ts or 0), "symbol": sy or "", "name": nm or ""}
                 self.niches.register(m, nm or "", sy or "")
         cur = con.execute(f"""SELECT slot, ts_chain_s, mint, "user", is_buy, sol_amount, token_amount,
             virtual_sol_reserves, virtual_token_reserves FROM (
               SELECT DISTINCT ON (signature, mint, "user", is_buy, sol_amount, token_amount) *
-              FROM read_parquet({files!r}, union_by_name=true) WHERE ts_chain_s >= {since}) ORDER BY slot, ts_chain_s""")
+              FROM read_parquet({files!r}, union_by_name=true)
+              WHERE ts_chain_s BETWEEN {since} AND {int(time.time()) + 300}) ORDER BY slot, ts_chain_s""")
         n_rows = 0
+        # Posiciones que quedaron abiertas al apagarse el OS: se siguen con lo grabado DESPUÉS de su entrada, con las
+        # mismas reglas de salida que en vivo (2x, stops, tiempos), en vez de cerrarlas a ciegas al reanudar.
+        held = {m: min(a.s["posiciones"][m]["entrada_ts"] for a in self.accounts.values() if m in a.s["posiciones"])
+                for a in self.accounts.values() for m in a.s["posiciones"]}
+        last_tick = 0.0
         while True:
             chunk = cur.fetchmany(100_000)
             if not chunk:
                 break
             for sl, ts, m, u, b, sol, tok, vs, vt in chunk:
+                ts = float(ts)
                 self._ingest({"mint": m, "user": u, "is_buy": b, "sol_amount": sol, "token_amount": tok, "slot": sl,
-                              "virtual_sol_reserves": vs, "virtual_token_reserves": vt}, float(ts))
+                              "virtual_sol_reserves": vs, "virtual_token_reserves": vt}, ts)
+                if held:
+                    if m in held and ts >= held[m]:
+                        for a in self.accounts.values():
+                            if m in a.s["posiciones"] or m in a.pending_sell:
+                                a.on_trade(m, int(vs or 0), int(vt or 0), ts)
+                    if ts - last_tick >= 30:
+                        last_tick = ts
+                        for a in self.accounts.values():
+                            a.tick(ts, self.curves)
+                        held = {k: v for k, v in held.items()
+                                if any(k in a.s["posiciones"] or k in a.pending_sell for a in self.accounts.values())}
             n_rows += len(chunk)
         self.wallets.close_idle(time.time())
         self.groups.prune(set(self.wallets.mint_last))
         self.group_buys.clear()
         self.group_peak.clear()
+        t_now = time.time()
+        self.skill.expire(self._last_data_ts)   # acredita los tokens cuya ventana de 2 h quedó completa en lo grabado
+        # tokens cuya ventana de 2 h terminó en un hueco sin grabar (PC apagada): no se etiquetan
+        self.skill.track = {m: t for m, t in self.skill.track.items()
+                            if not t["ref"] or t_now - t["t_ref"] <= SKILL["horizon_s"]}
         self.warm = True
         g, n = self.groups.n_groups()
         logger.info(f"pump paper precalentado con {n_rows} operaciones: {g} grupos ({n} billeteras)")
@@ -438,10 +569,12 @@ class PumpPaper:
         vs, vt = int(ev.get("virtual_sol_reserves") or 0), int(ev.get("virtual_token_reserves") or 0)
         sol, tok = ev["sol_amount"] / LAMPORTS, ev["token_amount"] / TOKEN_UNITS
         self.curves[m] = [vs, vt, now]
+        self._last_data_ts = max(self._last_data_ts, now)
         self.wallets.update(u, m, buy, sol, tok, price_sol(vs, vt), now)
         if buy:
             self.groups.on_buy(m, u, int(ev.get("slot") or 0))
         self.niches.add_trade(m, sol, now)
+        self._good_now = self.skill.on_trade(m, u, buy, price_sol(vs, vt), now, (self.meta.get(m) or {}).get("born"))
         return m, u, buy
 
     def on_trade(self, ev: Dict[str, Any], now: float) -> None:
@@ -450,7 +583,9 @@ class PumpPaper:
         for a in self.accounts.values():
             a.on_trade(m, int(c[0]), int(c[1]), now)
         meta = self.meta.get(m) or {}
-        if buy and self.groups.is_member(u) and u != meta.get("creator"):
+        if self.warm and self._good_now is not None and self._good_now >= SKILL["min_good"]:
+            self._skill_signal(m, u, now, meta, self._good_now)
+        if self.legacy and buy and self.groups.is_member(u) and u != meta.get("creator"):
             gb = self.group_buys.setdefault(m, {})
             gb[u] = now
             self._check_signal(m, u, now, meta)
@@ -460,7 +595,8 @@ class PumpPaper:
             if hot:
                 self.niche_done.add(m)
                 self.accounts["nicho"].request_buy(m, now, u, {"symbol": meta.get("symbol", ""), "nichos": hot})
-        if m in self.group_buys:                                   # seguimiento de lo que tiene el grupo
+                self._random_buy("nicho_azar", m, now)
+        if self.legacy and m in self.group_buys:                                   # seguimiento de lo que tiene el grupo
             held = self._group_tokens(m)
             self.group_peak[m] = max(self.group_peak.get(m, 0.0), held)
             peak = self.group_peak[m]
@@ -468,6 +604,35 @@ class PumpPaper:
                 pos = self.accounts[name].s["posiciones"].get(m)
                 if pos and peak > 0 and held <= (1 - ACCOUNTS[name]["group_exit"]) * peak:
                     self.accounts[name].mark_sell(m, now, f"el grupo vendió {1 - held / peak:.0%}")
+
+    def _random_buy(self, account: str, m: str, now: float) -> None:
+        """Control: compra OTRO token joven (con poca gente) en el mismo momento que la señal."""
+        acc = self.accounts[account]
+        pool = [mm for mm, c in self.curves.items() if mm != m and now - c[2] <= 60
+                and now - (self.meta.get(mm) or {}).get("born", -1e18) <= SIGNAL["max_age_s"]
+                and len(self.wallets.mint_users.get(mm, ())) < SIGNAL["max_crowd"] and not acc.holds(mm)]
+        if pool:
+            mm = self.rnd.choice(sorted(pool))
+            acc.request_buy(mm, now, "", {"symbol": (self.meta.get(mm) or {}).get("symbol", "")})
+        else:
+            acc.s["senales"] += 1
+            acc.s["saltadas"] += 1
+
+    def _skill_signal(self, m: str, u: str, now: float, meta: Dict[str, Any], n_good: int) -> None:
+        if m in self.signaled:
+            return
+        self.signaled.add(m)
+        info = {"symbol": meta.get("symbol", ""), "buenas": n_good}
+        self.accounts["billeteras"].request_buy(m, now, u, info)
+        self.accounts["billeteras_2x"].request_buy(m, now, u, info)
+        self._random_buy("billeteras_azar", m, now)
+        self.x_queue.append(m)
+        self.signals_log.append({"ts": datetime.fromtimestamp(now, tz=timezone.utc).isoformat(), "mint": m,
+                                 "simbolo": meta.get("symbol", ""), "billeteras_grupo": n_good,
+                                 "gente_en_token": len(self.wallets.mint_users.get(m, ())),
+                                 "edad_min": round((now - meta.get("born", now)) / 60, 1), "nichos_calientes": [],
+                                 "tipo": "billeteras buenas"})
+        logger.info(f"Señal BILLETERAS: {meta.get('symbol', '')} ({m[:6]}…) {n_good} billeteras buenas entre los primeros 10")
 
     def _check_signal(self, m: str, u: str, now: float, meta: Dict[str, Any]) -> None:
         if m in self.signaled or "born" not in meta or now - meta["born"] > SIGNAL["max_age_s"]:
@@ -509,7 +674,7 @@ class PumpPaper:
                     f"{crowd} en el token, {round((now - meta['born']) / 60, 1)} min de vida")
 
     def _detector(self, now: float) -> None:
-        if self.activity is None:
+        if self.activity is None or not self.legacy:
             return
         for m in list(self.activity.trades):
             if m in self.detector_done or m not in self.activity.meta:
@@ -521,6 +686,7 @@ class PumpPaper:
 
     def tick(self, now: float) -> None:
         self._detector(now)
+        self.skill.expire(now)
         for a in self.accounts.values():
             a.tick(now, self.curves)
         if now - self._last_close >= 600:
@@ -553,6 +719,10 @@ class PumpPaper:
             a.s["actualizado"] = datetime.fromtimestamp(now, tz=timezone.utc).isoformat()
             a.s["grupos"], a.s["billeteras_en_grupos"] = g, n
             a.s["ultimas_senales"] = list(self.signals_log)[-15:]
+            a.s["billeteras_buenas"] = self.skill.n_good()
+            a.s["billeteras_medidas"] = len(self.skill.stats)
+            a.s["tokens_etiquetados"] = self.skill.labelled
+            a.s["tokens_etiquetados_2x"] = self.skill.hits
             a.s["nichos_ahora"] = top
             a.save()
 

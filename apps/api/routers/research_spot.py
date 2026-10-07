@@ -307,14 +307,12 @@ async def paper_flujo_live(cuenta: str = "flujo_v1"):
 
 @router.get("/pump_paper")
 def pump_paper_status():
-    """Canonical WALLET_SKILL_V1 forward paper plus read-only archived experiments."""
+    """Cuentas de paper de pump.fun (grupos + nichos) leídas de data/paper/pump_*/state.json."""
     import json as _json
-    from pathlib import Path
-    from src.paper.pump_paper import PUMP_FEE_MODEL
-    from src.paper.pump_wallet_skill_v1 import ACTIVE_ACCOUNTS, ARCHIVED_ACCOUNTS, PAPER_ROOT, RULES_VERSION
-
-    active = []
-    for name, desc in ACTIVE_ACCOUNTS.items():
+    from src.paper.pump_paper import ACCOUNTS, PAPER_ROOT
+    out = []
+    extra: Dict[str, Any] = {}
+    for name in ACCOUNTS:
         p = PAPER_ROOT / f"pump_{name}" / "state.json"
         if not p.exists():
             continue
@@ -322,70 +320,71 @@ def pump_paper_status():
             s = _json.loads(p.read_text(encoding="utf-8"))
         except Exception:
             continue
-        c0 = float(s.get("capital_inicial", 20.0))
-        eq = float(s.get("equity", s.get("cash", c0)))
-        n = int(s.get("n_cerradas", 0))
-        active.append({
-            "cuenta": name,
-            "descripcion": desc,
-            "strategy": s.get("strategy", RULES_VERSION),
-            "equity_sol": eq,
-            "resultado_pct": (eq / c0 - 1) * 100 if c0 else None,
-            "abiertas": len(s.get("posiciones", {})),
-            "cerradas": n,
-            "aciertos_pct": (s.get("ganadas", 0) / n * 100) if n else None,
-            "hit_2x": int(s.get("tomas_2x", 0)),
-            "resultado_cerradas_sol": s.get("resultado_sol", 0.0),
-            "comisiones_sol": s.get("comisiones_sol", 0.0),
-            "senales": s.get("senales", 0),
-            "saltadas": s.get("saltadas", 0),
-            "entry_sol": s.get("entry_sol", 0.5),
-            "capital_inicial": c0,
-            "good_wallets_current": s.get("good_wallets_current"),
-            "actualizado": s.get("actualizado"),
-            "ultimas_cerradas": (s.get("cerradas") or [])[-8:][::-1],
-        })
-
-    archived = []
-    for name, status in ARCHIVED_ACCOUNTS.items():
-        p = PAPER_ROOT / f"pump_{name}" / "state.json"
-        row = {"cuenta": name, "status": status, "read_only": True}
-        if p.exists():
-            try:
-                s = _json.loads(p.read_text(encoding="utf-8"))
-                c0 = float(s.get("capital_inicial", 10.0))
-                eq = float(s.get("equity", s.get("cash", c0)))
-                row.update({
-                    "descripcion": s.get("descripcion", ""),
-                    "resultado_pct": (eq / c0 - 1) * 100 if c0 else None,
-                    "cerradas": s.get("n_cerradas", 0),
-                    "senales": s.get("senales", 0),
-                    "actualizado": s.get("actualizado"),
-                })
-            except Exception:
-                row["state"] = "STATE_UNREADABLE"
-        archived.append(row)
-
-    skill = {}
-    sp = PAPER_ROOT / "pump_wallet_skill_v1" / "status.json"
-    if sp.exists():
-        try:
-            skill = _json.loads(sp.read_text(encoding="utf-8"))
-        except Exception:
-            skill = {"state": "STATE_UNREADABLE"}
-
+        c0 = s.get("capital_inicial", 10.0)
+        eq = s.get("equity", s.get("cash", c0))
+        n = s.get("n_cerradas", 0)
+        out.append({"cuenta": name, "descripcion": s.get("descripcion", ""), "equity_sol": eq,
+                    "resultado_pct": (eq / c0 - 1) * 100 if c0 else None, "abiertas": len(s.get("posiciones", {})),
+                    "cerradas": n, "aciertos_pct": (s.get("ganadas", 0) / n * 100) if n else None,
+                    "resultado_cerradas_sol": s.get("resultado_sol", 0.0), "comisiones_sol": s.get("comisiones_sol", 0.0),
+                    "senales": s.get("senales", 0), "saltadas": s.get("saltadas", 0), "tomas_2x": s.get("tomas_2x", 0),
+                    "ultimas_cerradas": (s.get("cerradas") or [])[-8:][::-1], "actualizado": s.get("actualizado")})
+        if "billeteras_buenas" in s or not extra:               # estado más nuevo (las archivadas no se actualizan)
+            extra = {"grupos": s.get("grupos"), "billeteras_en_grupos": s.get("billeteras_en_grupos"),
+                     "billeteras_buenas": s.get("billeteras_buenas"), "billeteras_medidas": s.get("billeteras_medidas"),
+                     "tokens_etiquetados": s.get("tokens_etiquetados"), "tokens_etiquetados_2x": s.get("tokens_etiquetados_2x"),
+                     "ultimas_senales": (s.get("ultimas_senales") or [])[::-1], "nichos_ahora": s.get("nichos_ahora") or []}
+    from pathlib import Path as _Path
     from src.common.runtime_health import runtime_health_snapshot
-    root = Path(__file__).resolve().parents[3]
-    runtime = runtime_health_snapshot(root)["components"]["pumpfun_paper"]
-    return {
-        "strategy": RULES_VERSION,
-        "research_status": "PAPER_FORWARD_UNVALIDATED",
-        "cuentas": active,
-        "archivadas": archived,
-        "wallet_skill": skill,
-        "runtime": runtime,
-        "fee_model": PUMP_FEE_MODEL,
-    }
+    from src.paper.pump_paper import PUMP_FEE_MODEL
+    runtime = runtime_health_snapshot(_Path(__file__).resolve().parents[3])["components"].get("pumpfun_paper", {})
+    return {"strategy": "BILLETERAS_SKILLBOOK", "research_status": "PAPER_FORWARD_UNVALIDATED",
+            "cuentas": out, "runtime": runtime, "fee_model": PUMP_FEE_MODEL, **extra}
+
+
+@router.post("/pump_compactar")
+def pump_compactar(por_dia: bool = False):
+    """Junta los miles de archivos grabados de pump.fun en pocos archivos (sin duplicados) para analizar.
+
+    por_dia=true: además escribe las operaciones en un archivo por día (UTC, por hora de cadena), sin la columna
+    signature, para poder copiarlas a la nube (cada archivo queda chico)."""
+    from pathlib import Path as _P
+    import duckdb
+    root = _P(__file__).resolve().parents[3]
+    base, out = root / "data" / "raw" / "pumpfun", root / "data" / "research" / "pump_compact"
+    out.mkdir(parents=True, exist_ok=True)
+    con = duckdb.connect()
+    res: Dict[str, Any] = {}
+    for tabla, dedup in (("pumpfun_trades", True), ("pumpfun_creates", False), ("pumpfun_completes", False),
+                         ("x_mentions", False)):
+        files = [p.as_posix() for p in base.glob(f"table={tabla}/**/*.parquet")]
+        if not files:
+            res[tabla] = 0
+            continue
+        dst = (out / f"{tabla}.parquet").as_posix()
+        src = f"read_parquet({files!r}, union_by_name=true)"
+        if dedup:
+            q = f"""SELECT DISTINCT ON (signature, mint, "user", is_buy, sol_amount, token_amount)
+                    slot, ts_chain_s, signature, mint, "user", is_buy, sol_amount, token_amount,
+                    virtual_sol_reserves, virtual_token_reserves FROM {src} ORDER BY signature, mint, "user", is_buy, sol_amount, token_amount"""
+        else:
+            q = f"SELECT * FROM {src}"
+        con.execute(f"COPY ({q}) TO '{dst}' (FORMAT PARQUET, COMPRESSION ZSTD)")
+        res[tabla] = con.execute(f"SELECT count(*) FROM read_parquet('{dst}')").fetchone()[0]
+    if por_dia and res.get("pumpfun_trades"):
+        full = (out / "pumpfun_trades.parquet").as_posix()
+        dias = [r[0] for r in con.execute(f"""SELECT DISTINCT CAST(to_timestamp(ts_chain_s) AT TIME ZONE 'UTC' AS DATE)
+                FROM read_parquet('{full}') WHERE ts_chain_s BETWEEN 1700000000 AND 1900000000 ORDER BY 1""").fetchall()]
+        res["dias"] = {}
+        for d in dias:
+            dst = (out / f"trades_{d:%Y%m%d}.parquet").as_posix()
+            con.execute(f"""COPY (SELECT slot, ts_chain_s, mint, "user", is_buy, sol_amount, token_amount,
+                    virtual_sol_reserves, virtual_token_reserves FROM read_parquet('{full}')
+                    WHERE ts_chain_s BETWEEN 1700000000 AND 1900000000
+                      AND CAST(to_timestamp(ts_chain_s) AT TIME ZONE 'UTC' AS DATE) = DATE '{d:%Y-%m-%d}'
+                    ORDER BY ts_chain_s, slot) TO '{dst}' (FORMAT PARQUET, COMPRESSION ZSTD)""")
+            res["dias"][f"{d:%Y-%m-%d}"] = con.execute(f"SELECT count(*) FROM read_parquet('{dst}')").fetchone()[0]
+    return {"filas": res, "carpeta": str(out)}
 
 
 @router.get("/lider_paper")

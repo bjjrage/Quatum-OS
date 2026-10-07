@@ -467,6 +467,97 @@ def study_poly(base: Path, s0: int, q: Dict[str, Tuple[array, array]], offset_ns
                      "(probabilidad - resultado)^2: más bajo es mejor.")}
 
 
+# --------------------------------------------------------------------------- estudio C: ¿Polymarket se adelanta?
+def study_poly_leads_core(mk: List[Dict[str, Any]], quotes: Dict[str, Dict[int, Tuple[float, float]]], s0: int,
+                          q: Dict[str, Tuple[array, array]], horizons: Sequence[int] = (15, 30, 60, 120),
+                          lag_s: int = 15, delay_s: int = 2) -> Dict[str, Any]:
+    """Polymarket al revés: ¿lo que se mueve el precio del 'Up' MÁS ALLÁ de lo que explica el precio de Binance
+    anticipa el precio de Binance en los segundos siguientes?
+
+    Señal (solo pasado, cada 5 s): x = (p_t - p_{t-15}) - (m_t - m_{t-15}), con p = punto medio del 'Up' en Polymarket y
+    m = probabilidad que da el precio de Binance (model_prob). Residuo en nivel: e = p_t - m_t.
+    Resultado: retorno de Binance desde t+2 s hasta t+h (log, en puntos básicos). Muestras sin superponer (cada h s).
+    """
+    res: Dict[str, Any] = {"mercados": 0, "por_horizonte": {}}
+    samples: Dict[int, List[Tuple[float, float, float]]] = {h: [] for h in horizons}
+    for m in mk:
+        qt = quotes.get(m["up_token"])
+        if not qt or m["asset"] not in q:
+            continue
+        b, a = q[m["asset"]]
+        res["mercados"] += 1
+        last_used = {h: -10**12 for h in horizons}
+        for t in range(m["start_s"] + 60, m["end_s"] - 30, 5):
+            qq, q0 = qt.get(t), qt.get(t - lag_s)
+            if not qq or not q0:
+                continue
+            p_t, p_0 = 0.5 * (qq[0] + qq[1]), 0.5 * (q0[0] + q0[1])
+            if qq[1] - qq[0] > 0.10:                              # libro demasiado ancho: precio poco informativo
+                continue
+            m_t = model_prob(b, a, s0, m["start_s"], t, m["end_s"])
+            m_0 = model_prob(b, a, s0, m["start_s"], t - lag_s, m["end_s"])
+            if m_t != m_t or m_0 != m_0:
+                continue
+            x = (p_t - p_0) - (m_t - m_0)
+            e = p_t - m_t
+            S1 = mid_at_or_before(b, a, t + delay_s - s0, 3)
+            for h in horizons:
+                if t - last_used[h] < h or t + h > m["end_s"]:
+                    continue
+                S2 = mid_at_or_before(b, a, t + h - s0, 3)
+                if not (S1 == S1 and S2 == S2 and S1 > 0):
+                    continue
+                samples[h].append((x, e, 1e4 * math.log(S2 / S1)))
+                last_used[h] = t
+
+    def corr_t(xs: List[float], ys: List[float]) -> Tuple[Optional[float], Optional[float]]:
+        n = len(xs)
+        if n < 30:
+            return None, None
+        mx, my = sum(xs) / n, sum(ys) / n
+        sxx = sum((v - mx) ** 2 for v in xs)
+        syy = sum((v - my) ** 2 for v in ys)
+        if sxx <= 0 or syy <= 0:
+            return None, None
+        r = sum((u - mx) * (v - my) for u, v in zip(xs, ys)) / math.sqrt(sxx * syy)
+        return r, r * math.sqrt((n - 2) / max(1e-12, 1 - r * r))
+
+    for h, v in samples.items():
+        if not v:
+            res["por_horizonte"][str(h)] = {"n": 0}
+            continue
+        xs, es, ys = [s[0] for s in v], [s[1] for s in v], [s[2] for s in v]
+        rx, tx = corr_t(xs, ys)
+        re_, te = corr_t(es, ys)
+        order = sorted(range(len(v)), key=lambda i: abs(xs[i]), reverse=True)
+        top = order[: max(1, len(order) // 10)]
+        aligned = [ys[i] * (1 if xs[i] > 0 else -1) for i in top if xs[i] != 0]
+        mu = sum(aligned) / len(aligned) if aligned else None
+        sd = math.sqrt(sum((u - mu) ** 2 for u in aligned) / (len(aligned) - 1)) if aligned and len(aligned) > 1 else None
+        res["por_horizonte"][str(h)] = {
+            "n": len(v), "corr_cambio_vs_btc": rx, "t_cambio": tx, "corr_nivel_vs_btc": re_, "t_nivel": te,
+            "top10_n": len(aligned), "top10_mov_btc_a_favor_bps": mu,
+            "top10_t": (mu / (sd / math.sqrt(len(aligned)))) if mu is not None and sd else None,
+            "top10_aciertos": (sum(1 for u in aligned if u > 0) / len(aligned)) if aligned else None,
+            "costo_ida_y_vuelta_binance_bps": 12.0}
+    res["nota"] = ("8 pruebas (4 horizontes x cambio/nivel): umbral t ~2,7. Para ser operable, el top 10% tiene que "
+                   "mover a favor más de 12 pb (comisión+deslizamiento de ida y vuelta en Binance).")
+    return res
+
+
+def study_poly_leads(base: Path, s0: int, q: Dict[str, Tuple[array, array]], offset_ns: int) -> Dict[str, Any]:
+    n = len(q[BTC][0])
+    s1 = s0 + n - 1
+    mk = [m for m in updown_markets(base) if m["asset"] in q and m["start_s"] - 1800 >= s0 and m["end_s"] + 130 <= s1]
+    if not mk:
+        return {"status": "SIN_MERCADOS"}
+    quotes = poly_quotes(base, [m["up_token"] for m in mk], offset_ns)
+    out = study_poly_leads_core(mk, quotes, s0, q)
+    out["status"] = "OK"
+    out["por_duracion_min"] = {str(k): sum(1 for m in mk if m["minutes"] == k) for k in sorted({m["minutes"] for m in mk})}
+    return out
+
+
 def run_recorder_studies(base: Path, say=lambda m: None) -> Dict[str, Any]:
     say("Leyendo precios de Binance segundo a segundo del recorder (puede tardar unos minutos)...")
     s0, q, off = binance_seconds(base)
@@ -477,8 +568,14 @@ def run_recorder_studies(base: Path, say=lambda m: None) -> Dict[str, Any]:
         b = study_poly(base, s0, q, off)
     except Exception as ex:
         b = {"status": "ERROR", "error": f"{type(ex).__name__}: {ex}"}
+    say("Estudio C: ¿Polymarket se adelanta a Binance?...")
+    try:
+        c = study_poly_leads(base, s0, q, off)
+    except Exception as ex:
+        c = {"status": "ERROR", "error": f"{type(ex).__name__}: {ex}"}
     iso = lambda s: datetime.fromtimestamp(s, tz=timezone.utc).isoformat()
     return {"desde": iso(s0), "hasta": iso(s0 + len(q[BTC][0]) - 1), "desfase_reloj_pc_seg": off / 1e9,
             "binance_bbo_provenance": bbo_source_counts(base),
             "huecos_binance_btc": gap_report(q, s0),
-            "simbolos_binance": len(q), "btc_vs_alts": a, "polymarket_vs_binance": b}
+            "simbolos_binance": len(q), "btc_vs_alts": a, "polymarket_vs_binance": b,
+            "polymarket_se_adelanta": c}

@@ -6,12 +6,12 @@ from src.research.niches import NicheHeat, meme_keys, sector_map
 VS0, VT0 = 30 * 10**9, 1_073_000_000 * 10**6          # reservas iniciales típicas de pump.fun
 
 
+
 def test_pump_fee_assumption_is_versioned_and_marked_unverified():
     assert FEE == 0.0125  # current paper assumption remains unchanged
     assert PUMP_FEE_MODEL["status"] == "ECONOMICS_UNVERIFIED"
     assert PUMP_FEE_MODEL["version"] == "PUMPFUN_FEE_SCHEDULE_2026-05"
     assert PUMP_FEE_MODEL["source_url"].startswith("https://pump.fun/")
-
 
 def test_curve_round_trip_loses_only_fees():
     tok = buy_tokens(1.0, VS0, VT0)
@@ -223,3 +223,122 @@ def test_niche_strategies_run_on_synthetic_panel():
         rows = backtest(g, fn, reb)
         assert rows, desc
         assert any(t > 0 for _, _, t in rows), desc          # alguna vez arma cartera
+
+
+# ---------------------------------------------------------------- billeteras con habilidad
+def _feed_token(p, mint, buyers, t0, final_mult, vs=VS0, vt=VT0, slot0=1000):
+    """Crea el token, hace compras de `buyers` y después lleva el precio a `final_mult` x el de la compra N°10."""
+    p.on_create({"mint": mint, "creator": "DEV", "user": "DEV", "symbol": mint, "name": mint}, t0)
+    for i, u in enumerate(buyers):
+        p.on_trade(_ev(mint, u, True, 0.1, slot0 + i, vs, vt), t0 + 1 + i)
+    return t0 + len(buyers) + 1
+
+
+def test_skillbook_labels_only_after_two_hours_and_flags_good_wallets():
+    from src.paper.pump_paper import SKILL, SkillBook
+    sb = SkillBook()
+    t = 1000.0
+    for k in range(6):                                    # 6 tokens: W acierta en 3 (50%), las demás no
+        m = f"T{k}"
+        sb.on_trade(m, "DEV", True, 1.0, t, t)            # visto al nacer
+        for i in range(SKILL["k_buyers"] - 1):                # la compra del creador es la N°1
+            g = sb.on_trade(m, "W" if i == 0 else f"X{k}_{i}", True, 1.0, t + 1 + i, t)
+        assert g == 0
+        sb.on_trade(m, "Z", True, 2.5 if k < 3 else 0.4, t + 30, t)     # 2,5x o -60%
+        assert sb.stats.get("W", [0, 0])[0] == 0           # todavía no se acredita
+        t += 5
+    sb.expire(t + 3 * 3600)
+    assert sb.stats["W"] == [6, 3] and sb.is_good("W")
+    assert sb.labelled == 6 and sb.hits == 3
+
+
+def test_skillbook_ignores_tokens_seen_late():
+    from src.paper.pump_paper import SkillBook
+    sb = SkillBook()
+    assert sb.on_trade("L", "A", True, 1.0, 5000.0, 1000.0) is None      # nació hace 4000 s
+    assert "L" not in sb.track
+
+
+def test_good_wallets_trigger_entry_and_control(tmp_path):
+    from src.paper.pump_paper import SKILL
+    p = PumpPaper(root=tmp_path, rnd=random.Random(0), legacy=False)
+    assert "grupo" not in p.accounts and "billeteras" in p.accounts
+    for w in ("G1", "G2"):
+        p.skill.stats[w] = [10, 5]                         # 50% de aciertos en 10 tokens
+    p.warm = True
+    now = 2_000_000.0
+    p.on_create({"mint": "OTHER", "creator": "D2", "user": "D2", "symbol": "ZZ", "name": "zz"}, now)
+    p.on_trade(_ev("OTHER", "R", True, 0.5, 5, VS0, VT0), now + 1)
+    buyers = ["G1", "G2"] + [f"U{i}" for i in range(SKILL["k_buyers"] - 2)]
+    _feed_token(p, "NEW", buyers, now + 2, 1.0)
+    assert "NEW" in p.accounts["billeteras"].pending_buy
+    assert p.accounts["billeteras"].pending_buy["NEW"]["size"] == 0.5          # tamaño fijo
+    assert "NEW" in p.accounts["billeteras_2x"].pending_buy                     # misma señal, salida completa al 2x
+    assert p.accounts["billeteras_2x"].rules["take_frac"] == 1.0
+    assert "OTHER" in p.accounts["billeteras_azar"].pending_buy
+
+
+def test_one_good_wallet_is_not_enough(tmp_path):
+    from src.paper.pump_paper import SKILL
+    p = PumpPaper(root=tmp_path, rnd=random.Random(0), legacy=False)
+    p.skill.stats["G1"] = [10, 5]
+    p.warm = True
+    now = 3_000_000.0
+    _feed_token(p, "NEW", ["G1"] + [f"U{i}" for i in range(SKILL["k_buyers"] - 1)], now, 1.0)
+    assert "NEW" not in p.accounts["billeteras"].pending_buy
+
+
+def _write_trades(base, rows):
+    import json
+    import duckdb
+    d = base / "pumpfun" / "table=pumpfun_trades"
+    d.mkdir(parents=True, exist_ok=True)
+    js = d / "rows.json"
+    js.write_text(json.dumps(rows), encoding="utf-8")
+    duckdb.connect().execute(f"COPY (SELECT * FROM read_json_auto('{js.as_posix()}')) TO '{(d / 'part-0.parquet').as_posix()}' (FORMAT PARQUET)")
+    js.unlink()
+
+
+def test_warmup_follows_positions_left_open_when_os_was_off(tmp_path):
+    """Una posición abierta antes de apagar el OS se sigue con lo grabado después de su entrada (mismas reglas)."""
+    import time
+    root = tmp_path / "paper"
+    t0 = time.time() - 3 * 3600
+    p = PumpPaper(root=root, legacy=False)
+    a = p.accounts["billeteras"]
+    assert a.request_buy("MINTX", t0)
+    a._fill_buy("MINTX", VS0, VT0, t0)
+    a.save()
+    rows = []
+    for i, f in enumerate([0.9, 0.7, 0.5, 0.4, 0.3]):          # el precio cae: debe saltar el stop de -50%
+        vs = int(VS0 * f ** 0.5)
+        rows.append({"slot": 10 + i, "ts_chain_s": int(t0 + 60 * (i + 1)), "signature": f"s{i}", "mint": "MINTX",
+                     "user": f"U{i}", "is_buy": False, "sol_amount": 10**8, "token_amount": 10**9,
+                     "virtual_sol_reserves": vs, "virtual_token_reserves": int(VS0 * VT0 / vs)})
+    _write_trades(tmp_path / "raw", rows)
+    p2 = PumpPaper(root=root, legacy=False)
+    assert "MINTX" in p2.accounts["billeteras"].s["posiciones"]
+    p2.warmup(tmp_path / "raw", hours=48)
+    s = p2.accounts["billeteras"].s
+    assert "MINTX" not in s["posiciones"]
+    assert s["n_cerradas"] == 1 and s["cerradas"][-1]["motivo"].startswith("stop")
+    assert s["cerradas"][-1]["multiplo"] < 0.6
+
+def test_warmup_ignores_rows_with_corrupt_chain_time(tmp_path):
+    """Hay filas grabadas con ts_chain_s basura (años en el futuro); en Windows hacen fallar las fechas (OSError 22)."""
+    import time
+    root = tmp_path / "paper"
+    t0 = time.time() - 3 * 3600
+    p = PumpPaper(root=root, legacy=False)
+    a = p.accounts["billeteras"]
+    assert a.request_buy("MINTY", t0)
+    a._fill_buy("MINTY", VS0, VT0, t0)
+    a.save()
+    rows = [{"slot": 11, "ts_chain_s": int(t0 + 60), "signature": "a", "mint": "MINTY", "user": "U1", "is_buy": True,
+             "sol_amount": 10**8, "token_amount": 10**9, "virtual_sol_reserves": VS0, "virtual_token_reserves": VT0},
+            {"slot": 12, "ts_chain_s": 10**12, "signature": "b", "mint": "MINTY", "user": "U2", "is_buy": False,
+             "sol_amount": 10**8, "token_amount": 10**9, "virtual_sol_reserves": VS0 // 4, "virtual_token_reserves": VT0 * 4}]
+    _write_trades(tmp_path / "raw", rows)
+    p2 = PumpPaper(root=root, legacy=False)
+    assert p2.warmup(tmp_path / "raw", hours=48) == 1
+    assert p2._last_data_ts < time.time() + 600

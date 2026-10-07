@@ -78,12 +78,12 @@ def start(months: int = 12) -> Dict[str, Any]:
     return {"ok": True, "state": "RUNNING", "message": "Descarga iniciada."}
 
 
-def _run_hourly(days: int) -> None:
+def _run_hourly(days: int, symbols=None) -> None:
     import httpx
     from config.settings import settings
     from src.data.binance_history import download_funding, download_hourly
     from src.research.pyr_like import analysis_symbols
-    symbols = analysis_symbols(settings.binance.initial_calibration_sample_v0)
+    symbols = list(symbols) if symbols else analysis_symbols(settings.binance.initial_calibration_sample_v0)
 
     def on_progress(p) -> None:
         with _lock:
@@ -112,10 +112,10 @@ def _run_hourly(days: int) -> None:
         (HIST_ROOT / "download_error.log").write_text(traceback.format_exc(), encoding="utf-8")
 
 
-def start_hourly(days: int = 1460) -> Dict[str, Any]:
+def start_hourly(days: int = 1460, symbols=None) -> Dict[str, Any]:
     with _lock:
         if _state["state"] == "RUNNING":
             return {"ok": False, "state": "RUNNING", "message": "Ya hay una descarga en curso."}
         _state.update(state="RUNNING", message="Arrancando la descarga de velas de 1 hora...", progress=None)
-    threading.Thread(target=_run_hourly, args=(days,), daemon=True).start()
+    threading.Thread(target=_run_hourly, args=(days, symbols), daemon=True).start()
     return {"ok": True, "state": "RUNNING", "message": "Descarga iniciada."}

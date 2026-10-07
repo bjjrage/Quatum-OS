@@ -24,7 +24,9 @@ def history_download(request: Request, months: int = 12):
 
 
 @router.post("/download_hourly")
-def history_download_hourly(request: Request, days: int = 1460):
+def history_download_hourly(request: Request, days: int = 1460, simbolos: str = ""):
+    """simbolos (opcional): lista separada por comas, p. ej. DOGEUSDT,WIFUSDT. Vacío = universo del laboratorio."""
     _local_only(request)
     from apps.api.services import history_runner
-    return history_runner.start_hourly(days=max(60, min(days, 2200)))
+    syms = [s.strip().upper() for s in simbolos.split(",") if s.strip()][:300]
+    return history_runner.start_hourly(days=max(60, min(days, 2200)), symbols=syms or None)
