@@ -72,10 +72,26 @@ def main():
     ap.add_argument("--move", type=float, default=0.15)
     ap.add_argument("-o", "--output", type=Path, default=Path("docs/poly_shocks.md"))
     a = ap.parse_args()
-    mk, off = [], 0
-    while len(mk) < a.markets and off < 20000:
-        page = get(GAMMA, {"closed": "true", "order": "volumeNum", "ascending": "false", "limit": 100, "offset": off})
-        if not page:
+    mk, seen = [], set()
+    # Gamma refuses large offsets (422): page through several orderings and de-duplicate
+    passes = [{"order": "volumeNum", "ascending": "false"},
+              {"order": "endDate", "ascending": "false", "volume_num_min": 50000},
+              {"order": "endDate", "ascending": "true", "volume_num_min": 50000},
+              {"order": "liquidityNum", "ascending": "false"}]
+    pages = []
+    for ps in passes:
+        off = 0
+        while off < 10000:
+            try:
+                page = get(GAMMA, {"closed": "true", "limit": 100, "offset": off, **ps})
+            except Exception:
+                break
+            if not page:
+                break
+            pages.append(page)
+            off += 100
+    for page in pages:
+        if len(mk) >= a.markets:
             break
         for m in page:
             slug = m.get("slug") or ""
@@ -89,8 +105,10 @@ def main():
             end = ts(m.get("closedTime") or m.get("endDate"))
             if len(pr) != 2 or max(pr) < 0.99 or not end or end > time.time():
                 continue
+            if toks[0] in seen:
+                continue
+            seen.add(toks[0])
             mk.append((m.get("question", "")[:80], toks[0], pr[0] >= 0.99, end))
-        off += 100
     mk = mk[:a.markets]
     print(f"{len(mk)} mercados; bajando precios por hora…", flush=True)
     with ThreadPoolExecutor(8) as ex:
