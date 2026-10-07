@@ -51,7 +51,7 @@ def main():
              f"({misses / max(signals, 1) * 100:.0f}% de las señales).",
              f"- Invertido: US$ {usd:,.2f}. PnL con Binance al cierre: US$ {sum(pnl_b):,.2f} ({len(pnl_b)} liquidadas).",
              f"- **PnL con la resolución oficial: US$ {sum(pnl_o):,.2f}** ({len(pnl_o)} resueltas); "
-             f"por US$ invertido: {sum(pnl_o) / max(sum(fills[s]['usd'] for s in fills if s in res), 1e-9) * 100:+.1f}%; "
+             f"por US$ invertido: {sum(pnl_o) / max(sum(fills[s]['usd'] for s in fills if s in res), 1e-9) * 100:+.1f}%; " +
              (f"por día: US$ {sum(pnl_o) / span_d:,.2f}." if span_d >= 0.5 else "por día: (menos de medio día de datos)."),
              f"- Aciertos: {sum(1 for x in pnl_o if x > 0) / max(len(pnl_o), 1) * 100:.0f}%. t por apuesta {tstat(pnl_o):.2f}; "
              f"t por ventana {tstat(cl):.2f} ({len(cl)} ventanas).",

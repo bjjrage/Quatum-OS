@@ -104,7 +104,7 @@ class FunderTracker:
                 raise RuntimeError(f"RPC {r.status}")
             data = await r.json(content_type=None)
         if data.get("error"):
-            raise RuntimeError(f"RPC error {data['error'].get('code')}")
+            raise RuntimeError(f"RPC error {data['error'].get('code')}: {str(data['error'].get('message'))[:70]}")
         return data.get("result")
 
     async def resolve(self, mint: str, creator: str) -> Dict[str, Any]:
@@ -148,9 +148,10 @@ class FunderTracker:
                             row = await self.resolve(mint, creator)
                         except Exception as e:
                             self.stats["errores_rpc"] += 1
-                            kind = str(e)[:40] if isinstance(e, RuntimeError) else type(e).__name__
+                            kind = str(e)[:110] if isinstance(e, RuntimeError) else type(e).__name__
                             self.error_types[kind] = self.error_types.get(kind, 0) + 1
-                            limited = "429" in kind or "-32429" in kind or "rate" in kind.lower()
+                            low = kind.lower()
+                            limited = "429" in kind or "rate limit" in low or "too many" in low
                             if limited and self.queue.maxlen is None:
                                 self.queue.appendleft((mint, creator))      # retry it after backing off
                             await asyncio.sleep(15 if limited else 2)
