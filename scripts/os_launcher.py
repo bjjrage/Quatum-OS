@@ -26,6 +26,8 @@ LAUNCHER_PID = RUNTIME / "os_launcher.pid"
 API_PID = RUNTIME / "api.pid"
 WEB_PID = RUNTIME / "web.pid"
 RECORDER_PID = RUNTIME / "recorder_supervisor.pid"
+POLY_PID = RUNTIME / "poly_paper.pid"
+POLY_SCRIPT = ROOT / "scripts" / "run_poly_updown_paper.py"
 API_URL = "http://127.0.0.1:8000"
 WEB_URL = "http://127.0.0.1:3000"
 IS_WINDOWS = os.name == "nt"
@@ -190,11 +192,13 @@ def _service_command_matches(command: str, kind: str) -> bool:
     if kind == "recorder":
         expected = str(ROOT / "scripts" / "run_recorder.py").casefold()
         return expected in value
+    if kind == "poly_paper":
+        return str(POLY_SCRIPT).casefold() in value
     return False
 
 
 def _owned_orphan_pids() -> Dict[str, int]:
-    paths = {"api": API_PID, "web": WEB_PID, "recorder": RECORDER_PID}
+    paths = {"api": API_PID, "web": WEB_PID, "recorder": RECORDER_PID, "poly_paper": POLY_PID}
     found = {}
     for kind, path in paths.items():
         try:
@@ -238,11 +242,11 @@ def _stop_orphaned_services(timeout_s: float = 90) -> bool:
             _terminate_process_tree(recorder_pid)
         update_health("supervisor", "STOPPED")
         RECORDER_PID.unlink(missing_ok=True)
-    for kind in ("web", "api"):
+    for kind in ("poly_paper", "web", "api"):
         pid = owned.get(kind)
         if pid and _terminate_process_tree(pid):
             update_health(kind, "STOPPED", owned_by_launcher=False)
-            (WEB_PID if kind == "web" else API_PID).unlink(missing_ok=True)
+            {"web": WEB_PID, "api": API_PID, "poly_paper": POLY_PID}[kind].unlink(missing_ok=True)
     STOP_RECORDER.unlink(missing_ok=True)
     return True
 
@@ -359,7 +363,8 @@ def start(allow_paid_x: bool = False) -> int:
 def _supervise(allow_paid_x: bool = False) -> int:
     env = os.environ.copy()
     env["QUANT_OS_NO_PAID_X"] = "0" if allow_paid_x else "1"
-    api = web = recorder = None
+    api = web = recorder = poly = None
+    poly_started_at = 0.0
     services: Dict[str, Dict[str, Any]] = {}
     update_health("os_launcher", "STARTING", started_by="scripts/os_launcher.py")
     write_pid(LAUNCHER_PID, os.getpid())
@@ -399,9 +404,15 @@ def _supervise(allow_paid_x: bool = False) -> int:
                 recorder.poll() is None and time.monotonic() < warmup_deadline:
             time.sleep(1)
             pump_paper = runtime_health_snapshot(ROOT)["components"]["pumpfun_paper"]
+        if POLY_SCRIPT.exists():                   # paper en vivo de Polymarket up/down (sin órdenes reales)
+            poly = _spawn([sys.executable, str(POLY_SCRIPT)], cwd=ROOT, env=env, log_name="poly_paper")
+            poly_started_at = time.monotonic()
+            write_pid(POLY_PID, poly.pid)
+            update_health("poly_paper", "RUNNING", pid=poly.pid, owned_by_launcher=True)
         update_health("os_launcher", "RUNNING", success=True, api_pid=api["pid"], web_pid=web["pid"],
                       recorder_pid=recorder.pid, no_paid_x=not allow_paid_x)
         print(f"OS listo. Web: {WEB_URL} | API: {API_URL}/docs", flush=True)
+        print(f"Paper Polymarket up/down: {'corriendo (PID %d)' % poly.pid if poly else 'no encontrado'}", flush=True)
         components = runtime_health_snapshot(ROOT)["components"]
         for name in ("api", "web", "os_launcher", "supervisor", "markets_recorder", "paper_runtime", "pumpfun_recorder", "pumpfun_paper", "leader_paper", "x_watcher"):
             row = components[name]
@@ -426,6 +437,12 @@ def _supervise(allow_paid_x: bool = False) -> int:
 
             if recorder.poll() is not None:
                 update_health("supervisor", "ERROR", error="Recorder supervisor process exited")
+            if poly is not None and poly.poll() is not None and time.monotonic() - poly_started_at >= 60:
+                update_health("poly_paper", "ERROR", error=f"exited with {poly.returncode}; restarting")
+                poly = _spawn([sys.executable, str(POLY_SCRIPT)], cwd=ROOT, env=env, log_name="poly_paper")
+                poly_started_at = time.monotonic()
+                write_pid(POLY_PID, poly.pid)
+                update_health("poly_paper", "RUNNING", pid=poly.pid, owned_by_launcher=True)
             update_health("os_launcher", "RUNNING", api_pid=api["pid"], web_pid=web["pid"],
                           recorder_pid=recorder.pid, no_paid_x=not allow_paid_x)
             time.sleep(5)
@@ -458,6 +475,10 @@ def _supervise(allow_paid_x: bool = False) -> int:
                 _stop_owned(recorder)
         return 1
     finally:
+        if poly is not None:
+            _stop_owned(poly)
+            update_health("poly_paper", "STOPPED", owned_by_launcher=False)
+            POLY_PID.unlink(missing_ok=True)
         if recorder is not None:
             update_health("supervisor", "STOPPED")
             RECORDER_PID.unlink(missing_ok=True)
