@@ -245,7 +245,8 @@ def _stop_orphaned_services(timeout_s: float = 90) -> bool:
     for kind in ("poly_paper", "web", "api"):
         pid = owned.get(kind)
         if pid and _terminate_process_tree(pid):
-            update_health(kind, "STOPPED", owned_by_launcher=False)
+            if kind != "poly_paper":  # Its panel reads state.json; it is not in RuntimeHealth.COMPONENTS.
+                update_health(kind, "STOPPED", owned_by_launcher=False)
             {"web": WEB_PID, "api": API_PID, "poly_paper": POLY_PID}[kind].unlink(missing_ok=True)
     STOP_RECORDER.unlink(missing_ok=True)
     return True
@@ -408,9 +409,8 @@ def _supervise(allow_paid_x: bool = False) -> int:
             poly = _spawn([sys.executable, str(POLY_SCRIPT)], cwd=ROOT, env=env, log_name="poly_paper")
             poly_started_at = time.monotonic()
             write_pid(POLY_PID, poly.pid)
-            update_health("poly_paper", "RUNNING", pid=poly.pid, owned_by_launcher=True)
         update_health("os_launcher", "RUNNING", success=True, api_pid=api["pid"], web_pid=web["pid"],
-                      recorder_pid=recorder.pid, no_paid_x=not allow_paid_x)
+                      recorder_pid=recorder.pid, poly_paper_pid=poly.pid if poly else None, no_paid_x=not allow_paid_x)
         print(f"OS listo. Web: {WEB_URL} | API: {API_URL}/docs", flush=True)
         print(f"Paper Polymarket up/down: {'corriendo (PID %d)' % poly.pid if poly else 'no encontrado'}", flush=True)
         components = runtime_health_snapshot(ROOT)["components"]
@@ -438,13 +438,12 @@ def _supervise(allow_paid_x: bool = False) -> int:
             if recorder.poll() is not None:
                 update_health("supervisor", "ERROR", error="Recorder supervisor process exited")
             if poly is not None and poly.poll() is not None and time.monotonic() - poly_started_at >= 60:
-                update_health("poly_paper", "ERROR", error=f"exited with {poly.returncode}; restarting")
+                print(f"Paper Polymarket terminó con código {poly.returncode}; reiniciando.", flush=True)
                 poly = _spawn([sys.executable, str(POLY_SCRIPT)], cwd=ROOT, env=env, log_name="poly_paper")
                 poly_started_at = time.monotonic()
                 write_pid(POLY_PID, poly.pid)
-                update_health("poly_paper", "RUNNING", pid=poly.pid, owned_by_launcher=True)
             update_health("os_launcher", "RUNNING", api_pid=api["pid"], web_pid=web["pid"],
-                          recorder_pid=recorder.pid, no_paid_x=not allow_paid_x)
+                          recorder_pid=recorder.pid, poly_paper_pid=poly.pid if poly else None, no_paid_x=not allow_paid_x)
             time.sleep(5)
         print("Apagado solicitado; esperando cierre ordenado de recorder y workers...", flush=True)
         STOP_RECORDER.write_text("requested_by_os_launcher", encoding="ascii")
@@ -477,7 +476,6 @@ def _supervise(allow_paid_x: bool = False) -> int:
     finally:
         if poly is not None:
             _stop_owned(poly)
-            update_health("poly_paper", "STOPPED", owned_by_launcher=False)
             POLY_PID.unlink(missing_ok=True)
         if recorder is not None:
             update_health("supervisor", "STOPPED")
