@@ -407,7 +407,7 @@ class PolyUpDownPaper:
                 mk.resolved = True
                 continue
             try:
-                async with http.get(GAMMA, params={"slug": mk.slug}, timeout=10) as r:
+                async with http.get(GAMMA, params={"slug": mk.slug, "closed": "true"}, timeout=10) as r:  # sin closed=true Gamma no devuelve mercados cerrados
                     payload = await r.json(content_type=None) if r.status == 200 else None
             except Exception as e:
                 self.resolve_errors[type(e).__name__] = self.resolve_errors.get(type(e).__name__, 0) + 1
