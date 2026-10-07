@@ -94,3 +94,31 @@ def test_engine_misses_when_price_moves_and_ignores_stale_binance(tmp_path):
     assert kinds[:2] == ["signal", "miss"] and eng.stats["llenadas"] == 0
     eng.tick(t0 + 10_000)                                       # Binance silent for hours: no fake mids written
     assert t0 + 10_000 not in eng.mids["ETHUSDT"].mids
+
+
+async def test_ws_drop_clears_stale_book(tmp_path, monkeypatch):
+    import asyncio
+    import sys
+    import types
+    import src.paper.poly_updown_paper as pp
+
+    paper = pp.PolyUpDownPaper(out_dir=tmp_path)
+    paper.quotes["tok"] = pp.Quote(bid=0.3, ask=0.31, ask_size=100, ts=1.0)
+    calls = {"n": 0}
+
+    def connect(*a, **k):
+        calls["n"] += 1
+        if calls["n"] > 1:
+            raise asyncio.CancelledError
+        raise ConnectionError("slow consumer")
+
+    monkeypatch.setitem(sys.modules, "websockets", types.SimpleNamespace(connect=connect))
+
+    async def no_sleep(_):
+        return None
+    monkeypatch.setattr(pp.asyncio, "sleep", no_sleep)
+    try:
+        await paper._poly_loop(None)
+    except asyncio.CancelledError:
+        pass
+    assert paper.quotes == {} and paper.stats["desconexiones_ws"] == 1

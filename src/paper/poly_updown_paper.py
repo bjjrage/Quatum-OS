@@ -232,6 +232,8 @@ class PolyUpDownPaper:
         self.last_mid: Dict[str, float] = {}
         self.last_mid_t: Dict[str, float] = {}
         self.quotes: Dict[str, Quote] = {}
+        self.resolve_errors: Dict[str, int] = {}
+        self.resolve_last: Optional[Dict[str, Any]] = None
         self.markets: Dict[str, Market] = {}
         self.started = time.time()
         self.stats = {"señales": 0, "llenadas": 0, "no_llenadas": 0, "liquidadas": 0, "pnl_usd": 0.0,
@@ -274,7 +276,8 @@ class PolyUpDownPaper:
                 shares = min(self.cfg.max_usd / book_px, book_sz)
                 fps = fee_per_share(book_px, mk.fee)
                 mk.bet = {"side": pd["side"], "price": book_px, "shares": shares, "usd": shares * book_px,
-                          "fee_per_share": fps, "p_model": pd["p"], "edge": pd["edge"], "t": now}
+                          "fee_per_share": fps, "p_model": pd["p"], "edge": pd["edge"], "t": now,
+                          "book_age_s": round(now - q.ts, 1)}
                 self.stats["llenadas"] += 1
                 self.stats["invertido_usd"] += shares * book_px
                 self.log("fill", slug=mk.slug, asset=mk.asset, minutes=mk.minutes, **mk.bet)
@@ -369,13 +372,17 @@ class PolyUpDownPaper:
             try:
                 async with http.get(GAMMA, params={"slug": mk.slug}, timeout=10) as r:
                     payload = await r.json(content_type=None) if r.status == 200 else None
-            except Exception:
+            except Exception as e:
+                self.resolve_errors[type(e).__name__] = self.resolve_errors.get(type(e).__name__, 0) + 1
                 continue
             items = payload if isinstance(payload, list) else [payload] if isinstance(payload, dict) else []
             for it in items:
                 won = official_up_won(it) if isinstance(it, dict) else None
                 if won is not None:
                     self.on_official(mk, won)
+                elif isinstance(it, dict):
+                    self.resolve_last = {k: it.get(k) for k in ("slug", "closed", "outcomes", "outcomePrices",
+                                                                 "umaResolutionStatus")}
 
     async def _binance_loop(self) -> None:
         import websockets
@@ -414,7 +421,8 @@ class PolyUpDownPaper:
                         await ws.send(json.dumps(msg))
 
                     self._ws_send = send
-                    await send([t for m in self.markets.values() for t in (m.up_token, m.down_token)])
+                    self.quotes.clear()                         # solo vale lo que llegue por esta conexión
+                    await send([t for m in self.markets.values() if not m.settled for t in (m.up_token, m.down_token)])
                     logger.info("Polymarket conectado.")
 
                     async def ping():
@@ -441,6 +449,9 @@ class PolyUpDownPaper:
             except Exception as e:
                 logger.warning(f"Polymarket WS: {type(e).__name__}: {str(e)[:120]}; reconecto en 3 s")
                 self._ws_send = None
+                # sin conexión el libro guardado queda viejo: borrarlo para no "comprar" a precios que ya no existen
+                self.quotes.clear()
+                self.stats["desconexiones_ws"] = self.stats.get("desconexiones_ws", 0) + 1
                 await asyncio.sleep(3)
 
     async def run(self) -> None:
@@ -475,7 +486,9 @@ class PolyUpDownPaper:
                         s = self.stats
                         logger.info(f"Paper up/down: señales {s['señales']}, llenadas {s['llenadas']}, no llenadas "
                                     f"{s['no_llenadas']}, PnL Binance US$ {s['pnl_usd']:.2f}, PnL oficial US$ "
-                                    f"{s['pnl_oficial_usd']:.2f} ({s['oficiales']} resueltas)")
+                                    f"{s['pnl_oficial_usd']:.2f} ({s['oficiales']} resueltas) | desconexiones WS "
+                                    f"{s.get('desconexiones_ws', 0)} | errores Gamma {self.resolve_errors} | "
+                                    f"última respuesta Gamma sin resolver {self.resolve_last}")
                     await asyncio.sleep(1.0 - (time.time() % 1.0))
             finally:
                 for t in tasks:
