@@ -26,6 +26,10 @@ import pandas as pd
 from recordings_summary import is_valid_parquet
 
 FEE = 0.0125
+SLIP = 0.005                      # extra cost per side for the bonding-curve price impact of a small order
+TPS = (1.5, 2.0, 3.0)             # take-profit multiples tested
+SLS = (0.7, 0.5)                  # stop-loss multiples tested
+HOLD_S = 3600                     # time stop
 VISIBLE_S = 7200
 
 
@@ -83,7 +87,13 @@ def main() -> None:
             MIN(t.ts) FILTER (WHERE t.px >= 2 * e.p_in) AS t2x,
             MIN(t.ts) FILTER (WHERE t.px <= 0.5 * e.p_in) AS t50,
             arg_max(t.px, t.ts) FILTER (WHERE t.ts <= e.t_in + 900) AS p15,
-            arg_max(t.px, t.ts) FILTER (WHERE t.ts <= e.t_in + 3600) AS p60
+            arg_max(t.px, t.ts) FILTER (WHERE t.ts <= e.t_in + 3600) AS p60""" + "".join(
+        f""",
+            MIN(t.ts) FILTER (WHERE t.px >= {tp} * e.p_in) AS ttp{int(tp * 100)},
+            arg_min(t.px, t.ts) FILTER (WHERE t.px >= {tp} * e.p_in) AS ptp{int(tp * 100)}""" for tp in TPS) + "".join(
+        f""",
+            MIN(t.ts) FILTER (WHERE t.px <= {sl} * e.p_in) AS tsl{int(sl * 100)},
+            arg_min(t.px, t.ts) FILTER (WHERE t.px <= {sl} * e.p_in) AS psl{int(sl * 100)}""" for sl in SLS) + f"""
         FROM e JOIN t ON t.mint = e.mint AND t.ts >= e.t_in AND t.ts <= e.t_in + {VISIBLE_S}
         GROUP BY e.mint""")
     # 2 h outcome of every token (for the creator history), whether or not we could enter it
@@ -98,7 +108,9 @@ def main() -> None:
             SUM(hit2x::INT) OVER w AS prior_2x
         FROM out2h WINDOW w AS (PARTITION BY creator ORDER BY born
                                 RANGE BETWEEN UNBOUNDED PRECEDING AND {VISIBLE_S} PRECEDING)""")
-    df = con.execute("""SELECT e.*, o.max_mult, o.t2x, o.t50, o.p15, o.p60, h.n_prior, h.prior_grads, h.prior_2x,
+    ocols = "".join(f", o.ttp{int(tp * 100)}, o.ptp{int(tp * 100)}" for tp in TPS) + "".join(
+        f", o.tsl{int(sl * 100)}, o.psl{int(sl * 100)}" for sl in SLS)
+    df = con.execute(f"""SELECT e.*, o.max_mult, o.t2x, o.t50, o.p15, o.p60{ocols}, h.n_prior, h.prior_grads, h.prior_2x,
             (g.gt IS NOT NULL AND g.gt <= e.born + 7200) AS grad
         FROM e JOIN o USING (mint) JOIN hist h USING (mint) LEFT JOIN g USING (mint)""").df()
     per_creator = con.execute("SELECT COUNT(*) AS n FROM c GROUP BY creator").df().n
@@ -143,6 +155,56 @@ def main() -> None:
     for h in ("H1", "H2"):
         for b in ("serial_malo", "con_exitos", "nuevo"):
             out.append(line(f"{h} · {b}", df[(df.half == h) & (df.bucket == b)]))
+    # ---- exit rules: enter at the entry trade, take profit / stop at the first trade that crosses, else exit at +60 min
+    df["volatil"] = (n >= 5) & (x2 / n.where(n > 0, 1) >= 0.12)
+    cost = FEE + SLIP
+    rules = [(tp, sl) for tp in TPS for sl in SLS]
+
+    def rule_net(d, tp, sl):
+        ttp, tsl = d[f"ttp{int(tp * 100)}"], d[f"tsl{int(sl * 100)}"]
+        hz = d.t_in + HOLD_S
+        tp_ok = ttp.notna() & (ttp <= hz)
+        sl_ok = tsl.notna() & (tsl <= hz)
+        use_tp = tp_ok & (~sl_ok | (ttp < tsl))
+        use_sl = sl_ok & ~use_tp
+        px = np.where(use_tp, d[f"ptp{int(tp * 100)}"], np.where(use_sl, d[f"psl{int(sl * 100)}"], d.p60))
+        return px * (1 - cost) / (d.p_in * (1 + cost)) - 1
+
+    rule_cols = [f"TP +{int((tp - 1) * 100)}% / SL -{int((1 - sl) * 100)}%" for tp, sl in rules]
+    groups = [("todos", df), ("nuevo", df[df.bucket == "nuevo"]), ("serial_malo", df[df.bucket == "serial_malo"]),
+              ("con_exitos", df[df.bucket == "con_exitos"]), ("volátil (≥5 previos, ≥12% con 2x)", df[df.volatil]),
+              ("todos menos serial_malo", df[df.bucket != "serial_malo"])]
+    out += ["", f"## Reglas de salida simuladas (entrada al trade de {args.entry_s:.0f} s, stop/toma al primer trade que cruza, "
+            f"si no sale a los {HOLD_S // 60} min; costo {cost * 100:.2f}% por lado)", "",
+            "Cada celda: retorno neto medio por operación (n). Positivo en negrita.", "",
+            "| grupo | " + " | ".join(rule_cols) + " |", "|---|" + "---|" * len(rules)]
+    nets = {}
+    for name, d in groups:
+        cells = []
+        for (tp, sl), col in zip(rules, rule_cols):
+            if len(d) < 30:
+                cells.append("(pocos)")
+                continue
+            r = rule_net(d, tp, sl)
+            nets[(name, col)] = r
+            m = r.mean() * 100
+            cells.append(f"**{m:+.2f}%** ({len(d):,})" if m > 0 else f"{m:+.2f}% ({len(d):,})")
+        out.append(f"| {name} | " + " | ".join(cells) + " |")
+    pos = [(name, col) for (name, col), r in nets.items() if r.mean() > 0]
+    if pos:
+        out += ["", "### Combinaciones con resultado medio positivo, por mitades y por día (para ver si es racha)", "",
+                "| grupo | regla | n | medio | 1ª mitad | 2ª mitad | aciertos | mejor día / peor día |", "|---|---|---|---|---|---|---|---|"]
+        for name, col in pos:
+            d = dict(groups)[name]
+            r = nets[(name, col)]
+            hh = d.half.values
+            day = pd.Series(r.values).groupby((d.born.values // 86400).astype(int)).mean() * 100
+            out.append(f"| {name} | {col} | {len(d):,} | {r.mean() * 100:+.2f}% | {r[hh == 'H1'].mean() * 100:+.2f}% | "
+                       f"{r[hh == 'H2'].mean() * 100:+.2f}% | {(r > 0).mean() * 100:.0f}% | {day.max():+.1f}% / {day.min():+.1f}% |")
+    else:
+        out += ["", "Ninguna combinación de grupo y regla da resultado medio positivo."]
+    out += ["", f"Probé {len(groups) * len(rules)} combinaciones: alguna positiva puede ser azar; sirve solo si es positiva en las dos mitades "
+            "y en la mayoría de los días."]
     if args.key == "funder":
         g = df.groupby("creator")
         tab = g.agg(n=("mint", "count"), win2x=("win2x", "mean"), loss50=("loss50", "mean"), grad=("grad", "mean"),
