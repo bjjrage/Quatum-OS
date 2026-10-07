@@ -86,7 +86,8 @@ def collect(mk, q, s0, quotes, thr, delay):
             fee = fee_per_share(price, params)
             bets.append({"t": t, "exec_t": t + delay, "start": m["start_s"], "min": m["minutes"], "asset": m["asset"],
                          "token": m["up_token"], "side": side, "price": price, "gross": gross, "net": gross - fee,
-                         "fee": fee, "edge": (p - ask) if side == "up" else (bid - p)})
+                         "fee": fee, "fee_params": params, "win": win,
+                         "edge": (p - ask) if side == "up" else (bid - p)})
             break
     return bets
 
@@ -120,7 +121,7 @@ def depth(base: Path, bets, offset_ns: int):
     con = duckdb.connect()
     con.execute("CREATE TEMP TABLE bt(i INTEGER, token VARCHAR, ts BIGINT)")
     con.executemany("INSERT INTO bt VALUES (?, ?, ?)",
-                    [(i, b["token"], int(b["exec_t"] * 1e9 + offset_ns + 5e9)) for i, b in enumerate(bets)])
+                    [(i, b["token"], int(b["exec_t"]) * 10**9 + int(offset_ns) + 5 * 10**9 - 1) for i, b in enumerate(bets)])
     rows = con.execute(f"""
         WITH l2 AS (SELECT symbol, ts_received_utc_ns AS ts, asks_price, asks_size, bids_price, bids_size
                     FROM read_parquet({f!r}, union_by_name=true) WHERE symbol IN (SELECT DISTINCT token FROM bt))
@@ -130,11 +131,15 @@ def depth(base: Path, bets, offset_ns: int):
         FROM bt ASOF JOIN l2 ON bt.token = l2.symbol AND bt.ts >= l2.ts""").fetchall()
     out = {}
     for i, ts, ba, asz, bb, bsz in rows:
+        ba, asz, bb, bsz = (None if v is None else float(v) for v in (ba, asz, bb, bsz))
         b = bets[i]
+        age = (int(b["exec_t"]) * 10**9 + int(offset_ns) + 5 * 10**9 - 1 - ts) / 1e9
         if b["side"] == "up":
-            out[i] = (asz or 0.0) * (ba or 0.0), (b["exec_t"] * 1e9 + offset_ns + 5e9 - ts) / 1e9
+            px = ba if ba is not None and 0 < ba < 1 else None
+            out[i] = (asz or 0.0) * (ba or 0.0), age, px
         else:  # buying "down" = selling "up" into the bid
-            out[i] = (bsz or 0.0) * (1 - (bb or 1.0)), (b["exec_t"] * 1e9 + offset_ns + 5e9 - ts) / 1e9
+            px = 1 - bb if bb is not None and 0 < bb < 1 else None
+            out[i] = (bsz or 0.0) * (1 - (bb or 1.0)), age, px
     return out
 
 
@@ -189,6 +194,23 @@ def main() -> None:
                         f"- Antigüedad del snapshot L2 usado: mediana {age[len(age) // 2]:.0f} s (el libro se graba por snapshots).",
                         f"- Ganancia neta tomando solo el mejor nivel (tope US$ 1.000 por apuesta): US$ {pnl_cap:,.0f} en "
                         f"{days:.1f} días (≈ US$ {pnl_cap / max(days, 1e-9):,.0f}/día). Cota optimista: supone que nadie se lo llevó antes."]
+                pnl_100 = sum(base_bets[i]["net"] / base_bets[i]["price"] * min(v[0], 100) for i, v in dp.items())
+                out.append(f"- Con tope US$ 100 por apuesta (más realista para empezar): US$ {pnl_100:,.0f} "
+                           f"(≈ US$ {pnl_100 / max(days, 1e-9):,.0f}/día).")
+                # cross-check: the recorded BBO had an ordering bug; re-price every bet with the L2 book
+                l2 = [(i, v[2]) for i, v in dp.items() if v[2] is not None and v[1] <= 30]
+                if l2:
+                    agree = sum(1 for i, px in l2 if abs(px - base_bets[i]["price"]) <= 0.01) / len(l2)
+                    re = []
+                    for i, px in l2:
+                        b = base_bets[i]
+                        re.append({**b, "price": px, "net": b["win"] - px - fee_per_share(px, b["fee_params"])})
+                    out += ["", "## Control del BBO grabado (bug de orden en el recorder)", "",
+                            f"- Apuestas con snapshot L2 de ≤30 s: {len(l2)}. Precio del BBO = mejor nivel L2 (±1 centavo) "
+                            f"en el {agree * 100:.0f}% de los casos.",
+                            "- Si el edge es real, tiene que sobrevivir usando el precio del libro L2:", "", head, sep,
+                            fmt("con precio BBO (original)", summarize([base_bets[i] for i, _ in l2])),
+                            fmt("con precio L2 (control)", summarize(re))]
         except Exception as ex:
             out += ["", f"No se pudo medir el libro: `{type(ex).__name__}: {ex}`"]
     out += ["", "## Cómo leerlo", "",
