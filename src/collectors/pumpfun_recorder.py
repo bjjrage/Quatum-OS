@@ -180,6 +180,8 @@ class PumpfunRecorder:
         self.funder = None                               # src/collectors/funder_tracker.py
         self.paper = None                         # canonical WALLET_SKILL_V1 forward paper
         self._paper_tasks: List[asyncio.Task] = []
+        self._paper_bootstrapping = False                # live events go to this buffer while the paper catches up
+        self._paper_pending_events: List[Tuple[str, Dict[str, Any], float]] = []
 
     async def start(self) -> None:
         cfg = load_source_config(self.root)
@@ -223,31 +225,56 @@ class PumpfunRecorder:
             self._extra_tasks.append(asyncio.create_task(self.funder.run()))
 
     async def _start_paper(self) -> None:
+        """Paper is visible at once; live events are buffered while its state catches up (snapshot + only the
+        trades after it, or the full history the first time) and then delivered in order."""
         from src.common.runtime_health import RuntimeHealth
         health = RuntimeHealth("pumpfun_paper", self.root)
         health.update("STARTING", started=True)
         try:
             from src.paper.pump_wallet_skill_v1 import WalletSkillPaper
-            paper = WalletSkillPaper(root=self.root / "data" / "paper")
-            n = await asyncio.to_thread(paper.warmup, self.root / "data" / "raw")
-            logger.info(f"WALLET_SKILL_V1 paper listo ({n} operaciones repasadas).")
+            paper = WalletSkillPaper(root=self.root / "data" / "paper", restore=False)
+            self._paper_pending_events = []
+            self._paper_bootstrapping = True
             self.paper = paper
+            try:
+                await asyncio.to_thread(paper.load_bootstrap_snapshot, paper.snapshot_path)
+                logger.info("WALLET_SKILL_V1: snapshot cargado; se repasa solo lo posterior.")
+            except ValueError as exc:
+                logger.info(f"WALLET_SKILL_V1: sin snapshot válido ({exc}); reconstrucción completa.")
+            n = await asyncio.to_thread(paper.bootstrap, self.root / "data" / "raw")
+            buffered = self._paper_pending_events
+            self._paper_pending_events = []
+            for kind, ev, now in buffered:
+                self._deliver_to_paper(kind, ev, now)
+            self._paper_bootstrapping = False
+            logger.info(f"WALLET_SKILL_V1 paper listo ({n} operaciones repasadas, {len(buffered)} en vivo del buffer).")
             health.update("RUNNING", success=True)
             self._paper_tasks.append(asyncio.create_task(paper.run_ticks()))
         except asyncio.CancelledError:
             health.update("STOPPED")
-            pass
         except Exception as e:
+            self.paper, self._paper_bootstrapping = None, False
             health.update("ERROR", error=e)
             logger.warning(f"pump paper no arrancó: {type(e).__name__}: {str(e)[:200]}")
+
+    def _deliver_to_paper(self, kind: str, ev: Dict[str, Any], now: float) -> None:
+        try:
+            if kind == "trade":
+                self.paper.on_trade(ev, now)
+            elif kind == "create":
+                self.paper.on_create(ev, now)
+            else:
+                self.paper.on_complete(ev, now)
+        except Exception as e:
+            logger.warning(f"pump paper: {type(e).__name__}: {str(e)[:150]}")
 
     async def stop(self) -> None:
         self._running = False
         for t in self._paper_tasks:
             t.cancel()
-        if self.paper is not None:
+        if self.paper is not None and not self._paper_bootstrapping:   # mid-bootstrap state is not consistent yet
             try:
-                self.paper.save()
+                self.paper.save(snapshot=True)
             except Exception:
                 pass
         if self._task:
@@ -292,15 +319,11 @@ class PumpfunRecorder:
                 if self.funder is not None:
                     self.funder.on_create(ev, now)
             if self.paper is not None:
-                try:
-                    if kind == "trade":
-                        self.paper.on_trade({**ev, "slot": slot}, now)
-                    elif kind == "create":
-                        self.paper.on_create(ev, now)
-                    else:
-                        self.paper.on_complete(ev, now)
-                except Exception as e:
-                    logger.warning(f"pump paper: {type(e).__name__}: {str(e)[:150]}")
+                pev = {**ev, "slot": slot} if kind == "trade" else ev
+                if self._paper_bootstrapping:                 # state still catching up: keep order, deliver later
+                    self._paper_pending_events.append((kind, pev, now))
+                else:
+                    self._deliver_to_paper(kind, pev, now)
             n += 1
         return n
 

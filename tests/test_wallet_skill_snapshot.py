@@ -47,6 +47,8 @@ def test_recorder_buffers_live_events_while_historical_bootstrap_runs():
     assert "buffer" in source.lower() or "pending_events" in source.lower(), (
         "Recorder has no live event buffer to bridge the bootstrap cutoff."
     )
-    assert start.find("self.paper = paper") < start.find("paper.warmup"), (
+    # The paper must be visible (live events buffered) before the history catch-up runs. The catch-up entry
+    # point is `paper.bootstrap` because the startup must not call `paper.warmup` (see the test above).
+    assert -1 < start.find("self.paper = paper") < start.find("paper.bootstrap"), (
         "Paper becomes visible only after warmup, leaving trades unconsumed during bootstrap."
     )

@@ -48,6 +48,10 @@ TAKE_FRAC = 0.50
 TRAIL = 0.35
 MAX_WAIT_S = 2 * 3600
 MAX_HOLD_S = 6 * 3600
+SNAPSHOT_FORMAT = 1
+SNAPSHOT_EVERY_S = 600            # the full wallet state is large: persist it every 10 min and on shutdown
+CATCHUP_OVERLAP_S = 300           # replay a little before the snapshot cutoff; replays are idempotent
+MATURED_MEMORY_S = 24 * 3600      # how long a matured (wallet, token) key is remembered to reject replays
 
 ACTIVE_ACCOUNTS = {
     "wallet_ladder_v1": "WALLET_SKILL_V1 — 2 good wallets in first 10; ladder exit",
@@ -71,6 +75,24 @@ class WalletSkillBook:
         self.stats: Dict[str, Dict[str, int]] = {}
         self.pending: Dict[Tuple[str, str], Dict[str, float]] = {}
         self.pending_by_mint: Dict[str, Set[Tuple[str, str]]] = {}
+        self.matured_keys: Dict[Tuple[str, str], float] = {}   # key -> matured at; rejects replayed observations
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {"stats": {w: [s.get("matured", 0), s.get("wins", 0)] for w, s in self.stats.items()},
+                "pending": [[w, m, o["entry_ts"], o["entry_price"], o["matures_at"], o["peak_multiple"]]
+                            for (w, m), o in self.pending.items()],
+                "matured_keys": [[w, m, t] for (w, m), t in self.matured_keys.items()]}
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "WalletSkillBook":
+        b = cls()
+        b.stats = {w: {"matured": int(v[0]), "wins": int(v[1])} for w, v in (d.get("stats") or {}).items()}
+        for w, m, entry_ts, entry_price, matures_at, peak in d.get("pending") or []:
+            b.pending[(w, m)] = {"entry_ts": float(entry_ts), "entry_price": float(entry_price),
+                                 "matures_at": float(matures_at), "peak_multiple": float(peak)}
+            b.pending_by_mint.setdefault(m, set()).add((w, m))
+        b.matured_keys = {(w, m): float(t) for w, m, t in d.get("matured_keys") or []}
+        return b
 
     def is_good(self, wallet: str) -> bool:
         s = self.stats.get(wallet) or {}
@@ -96,6 +118,7 @@ class WalletSkillBook:
         for key in keys:
             o = self.pending.pop(key)
             wallet, mint = key
+            self.matured_keys[key] = now
             s = self.stats.setdefault(wallet, {"matured": 0, "wins": 0})
             s["matured"] += 1
             if o["peak_multiple"] >= 2.0:
@@ -105,6 +128,9 @@ class WalletSkillBook:
                 bucket.discard(key)
                 if not bucket:
                     self.pending_by_mint.pop(mint, None)
+        if len(self.matured_keys) > 50_000 and keys:
+            cut = now - MATURED_MEMORY_S
+            self.matured_keys = {k: t for k, t in self.matured_keys.items() if t >= cut}
         return len(keys)
 
     def on_trade(self, wallet: str, mint: str, is_buy: bool, px: float, now: float) -> None:
@@ -116,7 +142,7 @@ class WalletSkillBook:
                     o["peak_multiple"] = max(o["peak_multiple"], px / o["entry_price"])
         if is_buy and px > 0:
             key = (wallet, mint)
-            if key not in self.pending:
+            if key not in self.pending and key not in self.matured_keys:
                 self.pending[key] = {
                     "entry_ts": now,
                     "entry_price": px,
@@ -306,7 +332,7 @@ class FixedPumpAccount:
 
 
 class WalletSkillPaper:
-    def __init__(self, root: Path = PAPER_ROOT, rnd: Optional[random.Random] = None):
+    def __init__(self, root: Path = PAPER_ROOT, rnd: Optional[random.Random] = None, restore: bool = True):
         self.root = Path(root)
         self.skill = WalletSkillBook()
         self.accounts = {n: FixedPumpAccount(n, self.root) for n in ACTIVE_ACCOUNTS}
@@ -320,6 +346,59 @@ class WalletSkillPaper:
         self.x_queue: Deque[str] = deque(maxlen=50)
         self.rnd = rnd or random.Random(7)
         self._last_save = time.time()
+        self._last_snapshot = float("-inf")
+        self.last_event_ts = 0.0                 # newest event ingested (snapshot cutoff)
+        self.snapshot_cutoff: Optional[float] = None
+        self.snapshot_path = self.root / "pump_wallet_skill_v1" / "bootstrap_snapshot.json"
+        if restore and self.snapshot_path.exists():
+            try:
+                self.load_bootstrap_snapshot(self.snapshot_path)
+            except ValueError as exc:
+                logger.warning("%s; the next bootstrap rebuilds from history", exc)
+
+    def load_bootstrap_snapshot(self, path: Path) -> float:
+        """Restore the canonical wallet state. Raises ValueError('SNAPSHOT_INVALID: ...') on a corrupt or
+        incompatible file instead of silently starting from a partial state. Returns the snapshot cutoff."""
+        try:
+            d = json.loads(Path(path).read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            raise ValueError(f"SNAPSHOT_INVALID: unreadable ({type(exc).__name__})") from exc
+        if not isinstance(d, dict) or d.get("format") != SNAPSHOT_FORMAT or d.get("rules") != RULES_VERSION:
+            raise ValueError("SNAPSHOT_INVALID: incompatible format or rules version")
+        try:
+            skill = WalletSkillBook.from_dict(d["skill"])
+            buyers = {m: list(ws) for m, ws in (d.get("buyers") or {}).items()}
+            cutoff = float(d["cutoff_ts"])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError(f"SNAPSHOT_INVALID: malformed ({type(exc).__name__})") from exc
+        self.skill = skill
+        self.buyers = buyers
+        self.buyer_sets = {m: set(ws) for m, ws in buyers.items()}
+        self.signaled = set(d.get("signaled") or [])
+        self.meta = dict(d.get("meta") or {})
+        self.curves = {m: list(c) for m, c in (d.get("curves") or {}).items()}
+        self.last_trade = {m: float(t) for m, t in (d.get("last_trade") or {}).items()}
+        self.last_event_ts = self.snapshot_cutoff = cutoff
+        return cutoff
+
+    def save_bootstrap_snapshot(self, now: float) -> None:
+        active = set(self.buyers) | set(self.curves)
+        payload = {"format": SNAPSHOT_FORMAT, "rules": RULES_VERSION, "saved_at": now,
+                   "cutoff_ts": self.last_event_ts, "skill": self.skill.to_dict(), "buyers": self.buyers,
+                   "signaled": sorted(self.signaled & active), "meta": self.meta, "curves": self.curves,
+                   "last_trade": self.last_trade}
+        self.snapshot_path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = self.snapshot_path.with_suffix(".tmp")
+        tmp.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
+        tmp.replace(self.snapshot_path)
+        self._last_snapshot = now
+
+    def bootstrap(self, base: Path) -> int:
+        """Bring the state up to date: replay only what came after the snapshot, or the full history if there is
+        no valid snapshot. Runs before live events are delivered (the recorder buffers them meanwhile)."""
+        if self.snapshot_cutoff is not None:
+            return self.warmup(base, since_ts=self.snapshot_cutoff - CATCHUP_OVERLAP_S)
+        return self.warmup(base)
 
     def on_create(self, ev: Dict[str, Any], now: float) -> None:
         self.meta[ev["mint"]] = {
@@ -393,6 +472,7 @@ class WalletSkillPaper:
         mint, wallet, is_buy = ev["mint"], ev["user"], bool(ev["is_buy"])
         vsol, vtok = int(ev.get("virtual_sol_reserves") or 0), int(ev.get("virtual_token_reserves") or 0)
         px = price_sol(vsol, vtok)
+        self.last_event_ts = max(self.last_event_ts, now)
         self.curves[mint] = [vsol, vtok, now]
         self.last_trade[mint] = now
         self.skill.on_trade(wallet, mint, is_buy, px, now)
@@ -418,8 +498,9 @@ class WalletSkillPaper:
         for a in self.accounts.values():
             a.force_close(mint, curve, now, "se graduo")
 
-    def warmup(self, base: Path) -> int:
-        """Rebuild point-in-time wallet skill from raw history without paper trading."""
+    def warmup(self, base: Path, since_ts: Optional[float] = None) -> int:
+        """Rebuild point-in-time wallet skill from raw history without paper trading (only after `since_ts` if
+        given: incremental catch-up from a snapshot)."""
         import duckdb
 
         files = [p.as_posix() for p in Path(base).glob("pumpfun/table=pumpfun_trades/**/*.parquet")]
@@ -428,6 +509,7 @@ class WalletSkillPaper:
             return 0
         now = time.time()
         recent_cut = now - 3 * 3600
+        lo = int(since_ts) if since_ts is not None else 1577836800
         con = duckdb.connect()
         if creates:
             q = f"""SELECT mint, any_value(creator), any_value("user"), min(ts_chain_s),
@@ -447,7 +529,7 @@ class WalletSkillPaper:
                 FROM (
                   SELECT DISTINCT ON (signature, mint, "user", is_buy, sol_amount, token_amount) *
                   FROM read_parquet({files!r}, union_by_name=true)
-                  WHERE ts_chain_s BETWEEN 1577836800 AND {int(now + 300)}
+                  WHERE ts_chain_s BETWEEN {lo} AND {int(now + 300)}
                 )
                 ORDER BY ts_chain_s, slot"""
         cur = con.execute(q)
@@ -490,8 +572,10 @@ class WalletSkillPaper:
             self._last_save = now
             self.save(now)
 
-    def save(self, now: Optional[float] = None) -> None:
+    def save(self, now: Optional[float] = None, snapshot: Optional[bool] = None) -> None:
         now = now or time.time()
+        if snapshot or (snapshot is None and now - self._last_snapshot >= SNAPSHOT_EVERY_S):
+            self.save_bootstrap_snapshot(now)
         for a in self.accounts.values():
             a.s["equity"] = a.equity(self.curves)
             a.s["actualizado"] = datetime.fromtimestamp(now, tz=timezone.utc).isoformat()
