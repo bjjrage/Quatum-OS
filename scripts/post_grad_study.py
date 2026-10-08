@@ -68,6 +68,60 @@ def graduates(data: Path, days: float):
     return rows
 
 
+DEX = "https://api.dexscreener.com/tokens/v1/solana/"
+_gap = [4.0]                      # adaptive pause between GeckoTerminal calls (its real limit is well below the advertised 30/min)
+
+
+def pools_by_dexscreener(mints):
+    """Best AMM pool per mint, 30 mints per DexScreener call (its limit is ~300/min): saves half of the GeckoTerminal calls."""
+    out = {}
+    for i in range(0, len(mints), 30):
+        chunk = mints[i:i + 30]
+        for k in range(4):
+            try:
+                req = urllib.request.Request(DEX + ",".join(chunk), headers={"User-Agent": "quant-os", "Accept": "application/json"})
+                with urllib.request.urlopen(req, timeout=30) as r:
+                    pairs = json.loads(r.read())
+                break
+            except Exception:
+                pairs = None
+                time.sleep(3 + 3 * k)
+        if pairs is None:
+            raise ApiError("dexscreener")
+        for x in pairs:
+            m = (x.get("baseToken") or {}).get("address")
+            if m in chunk and x.get("dexId") in AMM:
+                liq = float((x.get("liquidity") or {}).get("usd") or 0)
+                if m not in out or liq > out[m][1]:
+                    out[m] = (x["pairAddress"], liq)
+        time.sleep(0.3)
+    return {m: v[0] for m, v in out.items()}
+
+
+def candles_for(pool, t):
+    """One GeckoTerminal call; the pause adapts: slower after a 429, slowly faster after successes."""
+    for i in range(6):
+        wait = _gap[0] - (time.time() - _last[0])
+        if wait > 0:
+            time.sleep(wait)
+        _last[0] = time.time()
+        try:
+            req = urllib.request.Request(f"{G}/pools/{pool}/ohlcv/minute?aggregate=1&limit=1000&before_timestamp={int(t + 4 * 3600)}",
+                                         headers={"Accept": "application/json", "User-Agent": "quant-os"})
+            with urllib.request.urlopen(req, timeout=30) as r:
+                d = json.loads(r.read())
+            _gap[0] = max(3.5, _gap[0] * 0.97)
+            return sorted(((d.get("data") or {}).get("attributes") or {}).get("ohlcv_list") or [])
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                return []
+            _gap[0] = min(20.0, _gap[0] * 1.5)
+            time.sleep(10 if e.code == 429 else 3 + 3 * i)
+        except Exception:
+            time.sleep(3 + 3 * i)
+    raise ApiError(pool)
+
+
 def cmd_fetch(a):
     BASE.mkdir(parents=True, exist_ok=True)
     if a.retry_empty:                    # entries cached as empty by an older version that mistook rate limits for 'no pool'
@@ -81,30 +135,34 @@ def cmd_fetch(a):
                 f.unlink()
         print(f"--retry-empty: {n_del} entradas sin velas borradas para reintentarlas.", flush=True)
     todo = [(m, t) for m, t in graduates(a.data, a.days) if not (BASE / f"{m}.json").exists()]
-    print(f"{len(todo):,} graduados por consultar (~{len(todo) * 2 * 2.6 / 3600:.1f} h).", flush=True)
+    if a.max_tokens:
+        todo = todo[:a.max_tokens]
+    print(f"{len(todo):,} graduados por consultar (~{len(todo) * 4 / 3600:.1f} h a ~15 por minuto; el ritmo real lo marca "
+          f"GeckoTerminal). Más nuevos primero: un corte parcial sirve.", flush=True)
     n = ok = fails = 0
-    for m, t in todo:
-        out = {"mint": m, "grad_t": t, "pool": None, "candles": []}
+    for i in range(0, len(todo), 30):
+        chunk = todo[i:i + 30]
         try:
-            d = call(f"/tokens/{m}/pools", {"page": 1})
-            pools = [p for p in ((d or {}).get("data") or []) if p["relationships"]["dex"]["data"]["id"] in AMM]
-            if pools:
-                p = max(pools, key=lambda p: float(p["attributes"].get("reserve_in_usd") or 0))
-                out["pool"] = p["attributes"]["address"]
-                o = call(f"/pools/{out['pool']}/ohlcv/minute", {"aggregate": 1, "limit": 1000,
-                                                                  "before_timestamp": int(t + 4 * 3600)})
-                l = (((o or {}).get("data") or {}).get("attributes") or {}).get("ohlcv_list") or []
-                out["candles"] = sorted(l)             # [ts, o, h, l, c, v]
-                ok += bool(out["candles"])
+            pools = pools_by_dexscreener([m for m, _ in chunk])
         except ApiError:
-            fails += 1
-            print(f"  fallo de la API en {m[:8]}… (no se guarda; se reintenta en la próxima corrida). Fallos: {fails}", flush=True)
+            print("  DexScreener no respondió; reintento en 60 s", flush=True)
             time.sleep(60)
             continue
-        (BASE / f"{m}.json").write_text(json.dumps(out))
-        n += 1
-        if n % 25 == 0:
-            print(f"  {n:,}/{len(todo):,} consultados, {ok} con velas, {fails} fallos", flush=True)
+        for m, t in chunk:
+            out = {"mint": m, "grad_t": t, "pool": pools.get(m), "candles": []}
+            if out["pool"]:
+                try:
+                    out["candles"] = candles_for(out["pool"], t)
+                except ApiError:
+                    fails += 1
+                    print(f"  fallo de la API en {m[:8]}… (no se guarda; se reintenta en la próxima corrida). Fallos: {fails}", flush=True)
+                    time.sleep(60)
+                    continue
+                ok += bool(out["candles"])
+            (BASE / f"{m}.json").write_text(json.dumps(out))
+            n += 1
+            if n % 25 == 0:
+                print(f"  {n:,}/{len(todo):,} consultados, {ok} con velas, {fails} fallos, pausa actual {_gap[0]:.1f} s", flush=True)
     print(f"Listo: {n:,} consultados, {ok} con velas, {fails} fallos (relanzar para reintentarlos).")
 
 
@@ -333,6 +391,7 @@ def main():
     ap.add_argument("--data", type=Path, default=ROOT / "data" / "raw")
     ap.add_argument("--days", type=float, default=5)
     ap.add_argument("--cost", type=float, default=0.005)
+    ap.add_argument("--max-tokens", type=int, default=0, help="fetch: only the N most recent graduates")
     ap.add_argument("--retry-empty", action="store_true", help="fetch: re-query entries saved without candles")
     ap.add_argument("--min-tokens", type=int, default=50)
     ap.add_argument("--min-group", type=int, default=30)
