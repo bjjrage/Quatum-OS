@@ -100,7 +100,7 @@ def main() -> None:
     if prf:
         promos.append(f"SELECT token_address AS mint, ts_polled_utc_ns/1e9 AS t, 'perfil' AS kind, NULL::DOUBLE AS amt FROM {prf} WHERE chain_id='solana'")
     watcher_promos = list(promos)
-    n_ord, delay_line = 0, None
+    n_ord, delay_line, queried = 0, None, set()
     if args.orders.exists():
         rows = []
         for ln in args.orders.read_text(encoding="utf-8").splitlines():
@@ -108,6 +108,7 @@ def main() -> None:
                 j = json.loads(ln)
             except ValueError:
                 continue
+            queried.add(j["mint"])
             for o in j.get("orders") or []:
                 if o.get("status") not in (None, "approved") or not o.get("paymentTimestamp"):
                     continue
@@ -161,7 +162,8 @@ def main() -> None:
         age = e.t - e.born
         cands = con.execute(f"""SELECT a.mint FROM act a JOIN born b USING (mint)
             WHERE a.b10 = {int((e.t - 1) // 600)} AND b.born BETWEEN {e.t - age * 1.5} AND {e.t - age * 0.5}""").df().mint
-        cands = [m for m in cands if m not in promoted and m != e.mint]
+        # with the paid-orders backfill a token we never queried could be promoted without us knowing: controls only from queried ones
+        cands = [m for m in cands if m not in promoted and m != e.mint and (not queried or m in queried)]
         rnd.shuffle(cands)
         arr = arrays([e.mint] + cands[:6])
         for role, m in [("push", e.mint)] + [("control", c) for c in cands[:6]]:

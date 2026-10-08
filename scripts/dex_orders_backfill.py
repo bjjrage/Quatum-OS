@@ -44,8 +44,11 @@ def candidates(data: Path, min_buyers: int):
     rows = con.execute(f"""SELECT b.mint FROM born b JOIN (
             SELECT t.mint, COUNT(DISTINCT t."user") AS buyers FROM {trs} t JOIN born b2 USING (mint)
             WHERE t.is_buy AND t.ts_received_utc_ns/1e9 <= b2.born + 600 GROUP BY 1) x USING (mint)
-        WHERE x.buyers >= {min_buyers} ORDER BY b.born DESC""").fetchall()
+        WHERE x.buyers >= {min_buyers} ORDER BY x.buyers DESC, b.born DESC""").fetchall()
     return [r[0] for r in rows]
+
+
+_gap = [1.3]            # adaptive pause between calls (AIMD): the endpoint is slower than its advertised 60/min
 
 
 def fetch(mint: str):
@@ -53,14 +56,14 @@ def fetch(mint: str):
         try:
             req = urllib.request.Request(URL.format(mint=mint), headers={"User-Agent": "quant-os"})
             with urllib.request.urlopen(req, timeout=20) as r:
-                return json.loads(r.read())
+                out = json.loads(r.read())
+            _gap[0] = max(1.2, _gap[0] * 0.95)
+            return out
         except urllib.error.HTTPError as e:
-            if e.code == 429:
-                time.sleep(15 * (i + 1))
-            elif e.code == 404:
+            if e.code == 404:
                 return {"orders": [], "boosts": []}
-            else:
-                time.sleep(2 + i)
+            _gap[0] = min(8.0, _gap[0] * 1.3)
+            time.sleep(15 * (i + 1) if e.code == 429 else 2 + i)
         except Exception:
             time.sleep(2 + i)
     return None
@@ -70,7 +73,8 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--data", type=Path, default=ROOT / "data" / "raw")
     ap.add_argument("--out", type=Path, default=ROOT / "data" / "research" / "dex_orders.jsonl")
-    ap.add_argument("--min-buyers", type=int, default=15)
+    ap.add_argument("--min-buyers", type=int, default=40,
+                    help="promoted tokens are hot ones (median 122 buyers in the 10 min before the push); most traction first")
     ap.add_argument("--rpm", type=float, default=50.0)
     ap.add_argument("--limit", type=int, default=0, help="stop after N queries (test)")
     a = ap.parse_args()
@@ -85,9 +89,10 @@ def main() -> None:
     todo = [m for m in candidates(a.data, a.min_buyers) if m not in done]
     if a.limit:
         todo = todo[:a.limit]
-    print(f"{len(todo):,} tokens por consultar ({len(done):,} ya hechos). ~{len(todo) / a.rpm / 60:.1f} h a {a.rpm:g}/min.",
+    print(f"{len(todo):,} tokens por consultar ({len(done):,} ya hechos), los de más tracción primero: un corte parcial sirve. "
+          f"Ritmo real esperado 8-20/min.",
           flush=True)
-    gap, n, with_orders, t0 = 60.0 / a.rpm, 0, 0, time.time()
+    n, with_orders, t0 = 0, 0, time.time()
     with a.out.open("a", encoding="utf-8") as fh:
         for m in todo:
             t_req = time.time()
@@ -101,8 +106,8 @@ def main() -> None:
             with_orders += bool(orders or boosts)
             if n % 200 == 0:
                 print(f"  {n:,}/{len(todo):,} consultados, {with_orders} con promoción paga, "
-                      f"{(time.time() - t0) / 60:.0f} min", flush=True)
-            time.sleep(max(0.0, gap - (time.time() - t_req)))
+                      f"{(time.time() - t0) / 60:.0f} min, pausa {_gap[0]:.1f} s", flush=True)
+            time.sleep(max(0.0, max(_gap[0], 60.0 / a.rpm) - (time.time() - t_req)))
     print(f"Listo: {n:,} consultados, {with_orders} con promoción paga. Archivo: {a.out}")
 
 

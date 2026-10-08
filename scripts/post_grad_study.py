@@ -110,12 +110,12 @@ def candles_for(pool, t):
                                          headers={"Accept": "application/json", "User-Agent": "quant-os"})
             with urllib.request.urlopen(req, timeout=30) as r:
                 d = json.loads(r.read())
-            _gap[0] = max(3.5, _gap[0] * 0.97)
+            _gap[0] = max(3.5, _gap[0] * 0.9)
             return sorted(((d.get("data") or {}).get("attributes") or {}).get("ohlcv_list") or [])
         except urllib.error.HTTPError as e:
             if e.code == 404:
                 return []
-            _gap[0] = min(20.0, _gap[0] * 1.5)
+            _gap[0] = min(15.0, _gap[0] * 1.25)
             time.sleep(10 if e.code == 429 else 3 + 3 * i)
         except Exception:
             time.sleep(3 + 3 * i)
