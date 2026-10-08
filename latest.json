@@ -1,5 +1,5 @@
 {
- "generado_utc": "2026-10-08 00:51 UTC",
+ "generado_utc": "2026-10-08 01:51 UTC",
  "polymarket": {
   "dias": 0.8010826856201445,
   "senales": 425,
@@ -633,7 +633,7 @@
  },
  "papers": {
   "baja_vol": {
-   "actualizado_hace_min": 46.4,
+   "actualizado_hace_min": 106.4,
    "estado": {
     "capital_inicial": 10000.0,
     "cash": 10376.436075659465,
@@ -995,7 +995,7 @@
    }
   },
   "btc_tendencia": {
-   "actualizado_hace_min": 43.1,
+   "actualizado_hace_min": 103.1,
    "estado": {
     "capital_inicial": 10000.0,
     "cash": -5.668616935139029,
@@ -1284,7 +1284,7 @@
    }
   },
   "carry_funding": {
-   "actualizado_hace_min": 46.4,
+   "actualizado_hace_min": 106.4,
    "estado": {
     "capital_inicial": 10000.0,
     "cash": 9997.06780850215,
@@ -1642,7 +1642,7 @@
    }
   },
   "combinada": {
-   "actualizado_hace_min": 46.4,
+   "actualizado_hace_min": 106.4,
    "estado": {
     "capital_inicial": 10000.0,
     "cash": 10181.767185190714,
@@ -2079,7 +2079,7 @@
    }
   },
   "examen_2x": {
-   "actualizado_hace_min": 46.4,
+   "actualizado_hace_min": 106.4,
    "estado": {
     "capital_inicial": 10000.0,
     "cash": 9989.726416884845,
@@ -2458,7 +2458,7 @@
    }
   },
   "flujo_7d": {
-   "actualizado_hace_min": 46.4,
+   "actualizado_hace_min": 106.4,
    "estado": {
     "capital_inicial": 10000.0,
     "cash": 9997.739836868046,
@@ -2816,7 +2816,7 @@
    }
   },
   "flujo_v1": {
-   "actualizado_hace_min": 46.4,
+   "actualizado_hace_min": 106.4,
    "estado": {
     "capital_inicial": 10000.0,
     "cash": 9994.863208442457,
@@ -3416,7 +3416,7 @@
    }
   },
   "lider_azar": {
-   "actualizado_hace_min": 46.4,
+   "actualizado_hace_min": 106.4,
    "estado": {
     "capital_inicial": 10000.0,
     "cash": 10000.0,
@@ -3690,7 +3690,7 @@
    }
   },
   "lider_corto": {
-   "actualizado_hace_min": 46.4,
+   "actualizado_hace_min": 106.4,
    "estado": {
     "capital_inicial": 10000.0,
     "cash": 10000.0,
@@ -3964,7 +3964,7 @@
    }
   },
   "lider_sin_x": {
-   "actualizado_hace_min": 46.4,
+   "actualizado_hace_min": 106.4,
    "estado": {
     "capital_inicial": 10000.0,
     "cash": 10000.0,
@@ -4238,7 +4238,7 @@
    }
   },
   "lider_x": {
-   "actualizado_hace_min": 46.4,
+   "actualizado_hace_min": 106.4,
    "estado": {
     "capital_inicial": 10000.0,
     "cash": 10000.0,
@@ -4512,7 +4512,7 @@
    }
   },
   "poly_updown": {
-   "actualizado_hace_min": 526.8,
+   "actualizado_hace_min": 586.8,
    "estado": {
     "stats": {
      "señales": 396,
@@ -4545,7 +4545,7 @@
    }
   },
   "pump_azar": {
-   "actualizado_hace_min": 1406.9,
+   "actualizado_hace_min": 1466.9,
    "estado": {
     "capital_inicial": 10.0,
     "cash": 0.15795662725739001,
@@ -5180,7 +5180,7 @@
    }
   },
   "pump_billeteras": {
-   "actualizado_hace_min": 1406.9,
+   "actualizado_hace_min": 1467.0,
    "estado": {
     "capital_inicial": 20.0,
     "cash": 1.2548495564723106,
@@ -5591,7 +5591,7 @@
    }
   },
   "pump_billeteras_2x": {
-   "actualizado_hace_min": 1406.9,
+   "actualizado_hace_min": 1467.0,
    "estado": {
     "capital_inicial": 20.0,
     "cash": 0.22755023797735716,
@@ -5988,7 +5988,7 @@
    }
   },
   "pump_billeteras_azar": {
-   "actualizado_hace_min": 1406.9,
+   "actualizado_hace_min": 1467.0,
    "estado": {
     "capital_inicial": 20.0,
     "cash": 1.0517567131934347,
@@ -6539,7 +6539,7 @@
    }
   },
   "pump_detector_tarde": {
-   "actualizado_hace_min": 1406.9,
+   "actualizado_hace_min": 1466.9,
    "estado": {
     "capital_inicial": 10.0,
     "cash": 0.013077699903251055,
@@ -6992,7 +6992,7 @@
    }
   },
   "pump_grupo": {
-   "actualizado_hace_min": 1406.9,
+   "actualizado_hace_min": 1466.9,
    "estado": {
     "capital_inicial": 10.0,
     "cash": 0.04993204146983314,
@@ -7359,7 +7359,7 @@
    }
   },
   "pump_grupo_aguantar": {
-   "actualizado_hace_min": 1406.9,
+   "actualizado_hace_min": 1466.9,
    "estado": {
     "capital_inicial": 10.0,
     "cash": 0.3010845207557028,
@@ -8008,7 +8008,7 @@
    }
   },
   "pump_grupo_nicho": {
-   "actualizado_hace_min": 1406.9,
+   "actualizado_hace_min": 1466.9,
    "estado": {
     "capital_inicial": 10.0,
     "cash": 0.04762408816456871,
@@ -8375,7 +8375,7 @@
    }
   },
   "pump_nicho": {
-   "actualizado_hace_min": 1406.9,
+   "actualizado_hace_min": 1467.0,
    "estado": {
     "capital_inicial": 10.0,
     "cash": 0.57015869744045,
@@ -8982,7 +8982,7 @@
    }
   },
   "pump_nicho_azar": {
-   "actualizado_hace_min": 1406.9,
+   "actualizado_hace_min": 1466.9,
    "estado": {
     "capital_inicial": 10.0,
     "cash": 0.03123495968936449,
@@ -9673,104 +9673,104 @@
  },
  "recorders": {
   "binance_perp/bbo_ticks": {
-   "archivos_ultima_hora": 130,
-   "ultima_escritura_hace_min": 43.2
+   "archivos_ultima_hora": 0,
+   "ultima_escritura_hace_min": 103.2
   },
   "binance_perp/depth_snapshots": {
-   "archivos_ultima_hora": 4,
-   "ultima_escritura_hace_min": 49.2
+   "archivos_ultima_hora": 0,
+   "ultima_escritura_hace_min": 109.2
   },
   "binance_perp/forced_liquidations": {
-   "archivos_ultima_hora": 14,
-   "ultima_escritura_hace_min": 43.2
+   "archivos_ultima_hora": 0,
+   "ultima_escritura_hace_min": 103.2
   },
   "binance_perp/futures_market_metrics": {
-   "archivos_ultima_hora": 16,
-   "ultima_escritura_hace_min": 43.2
+   "archivos_ultima_hora": 0,
+   "ultima_escritura_hace_min": 103.2
   },
   "binance_perp/futures_open_interest": {
-   "archivos_ultima_hora": 17,
-   "ultima_escritura_hace_min": 43.2
+   "archivos_ultima_hora": 0,
+   "ultima_escritura_hace_min": 103.2
   },
   "binance_perp/orderbook_l2_depth": {
-   "archivos_ultima_hora": 28,
-   "ultima_escritura_hace_min": 43.2
+   "archivos_ultima_hora": 0,
+   "ultima_escritura_hace_min": 103.2
   },
   "binance_perp/trade_ticks": {
-   "archivos_ultima_hora": 16,
-   "ultima_escritura_hace_min": 43.2
+   "archivos_ultima_hora": 0,
+   "ultima_escritura_hace_min": 103.2
   },
   "deribit/bbo_ticks": {
-   "archivos_ultima_hora": 17,
-   "ultima_escritura_hace_min": 43.2
+   "archivos_ultima_hora": 0,
+   "ultima_escritura_hace_min": 103.2
   },
   "deribit/deribit_metrics": {
-   "archivos_ultima_hora": 17,
-   "ultima_escritura_hace_min": 43.2
+   "archivos_ultima_hora": 0,
+   "ultima_escritura_hace_min": 103.2
   },
   "deribit/trade_ticks": {
-   "archivos_ultima_hora": 10,
-   "ultima_escritura_hace_min": 43.2
+   "archivos_ultima_hora": 0,
+   "ultima_escritura_hace_min": 103.2
   },
   "dexscreener/token_boosts": {
-   "archivos_ultima_hora": 2,
-   "ultima_escritura_hace_min": 43.3
+   "archivos_ultima_hora": 0,
+   "ultima_escritura_hace_min": 103.3
   },
   "dexscreener/token_prices": {
-   "archivos_ultima_hora": 16,
-   "ultima_escritura_hace_min": 43.3
+   "archivos_ultima_hora": 0,
+   "ultima_escritura_hace_min": 103.3
   },
   "dexscreener/token_profiles": {
-   "archivos_ultima_hora": 3,
-   "ultima_escritura_hace_min": 43.3
+   "archivos_ultima_hora": 0,
+   "ultima_escritura_hace_min": 103.3
   },
   "limitless/limitless_book": {
-   "archivos_ultima_hora": 17,
-   "ultima_escritura_hace_min": 43.3
+   "archivos_ultima_hora": 0,
+   "ultima_escritura_hace_min": 103.3
   },
   "limitless/limitless_markets": {
-   "archivos_ultima_hora": 4,
-   "ultima_escritura_hace_min": 45.3
+   "archivos_ultima_hora": 0,
+   "ultima_escritura_hace_min": 105.3
   },
   "polymarket/bbo_ticks": {
-   "archivos_ultima_hora": 121,
-   "ultima_escritura_hace_min": 43.2
+   "archivos_ultima_hora": 0,
+   "ultima_escritura_hace_min": 103.2
   },
   "polymarket/orderbook_l2_depth": {
-   "archivos_ultima_hora": 17,
-   "ultima_escritura_hace_min": 43.2
+   "archivos_ultima_hora": 0,
+   "ultima_escritura_hace_min": 103.2
   },
   "polymarket/polymarket_metadata_history": {
-   "archivos_ultima_hora": 4,
-   "ultima_escritura_hace_min": 44.2
+   "archivos_ultima_hora": 0,
+   "ultima_escritura_hace_min": 104.2
   },
   "polymarket/trade_ticks": {
-   "archivos_ultima_hora": 12,
-   "ultima_escritura_hace_min": 43.2
+   "archivos_ultima_hora": 0,
+   "ultima_escritura_hace_min": 103.2
   },
   "pumpfun/creator_funding": {
-   "archivos_ultima_hora": 17,
-   "ultima_escritura_hace_min": 43.3
+   "archivos_ultima_hora": 0,
+   "ultima_escritura_hace_min": 103.3
   },
   "pumpfun/pumpfun_completes": {
-   "archivos_ultima_hora": 12,
-   "ultima_escritura_hace_min": 43.3
+   "archivos_ultima_hora": 0,
+   "ultima_escritura_hace_min": 103.3
   },
   "pumpfun/pumpfun_creates": {
-   "archivos_ultima_hora": 17,
-   "ultima_escritura_hace_min": 43.3
+   "archivos_ultima_hora": 0,
+   "ultima_escritura_hace_min": 103.3
   },
   "pumpfun/pumpfun_trades": {
-   "archivos_ultima_hora": 17,
-   "ultima_escritura_hace_min": 43.3
+   "archivos_ultima_hora": 0,
+   "ultima_escritura_hace_min": 103.3
   },
   "pumpfun/x_mentions": {
    "archivos_ultima_hora": 0,
-   "ultima_escritura_hace_min": 1406.9
+   "ultima_escritura_hace_min": 1466.9
   },
   "telegram/calls": {
-   "archivos_ultima_hora": 3,
-   "ultima_escritura_hace_min": 44.3
+   "archivos_ultima_hora": 0,
+   "ultima_escritura_hace_min": 104.3
   }
  },
  "logs": {
