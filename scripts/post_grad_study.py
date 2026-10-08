@@ -282,7 +282,7 @@ def cmd_analyze(a):
     for f in BASE.glob("*.json"):
         d = json.loads(f.read_text())
         c = fill_minutes([x for x in d["candles"] if x[4] > 0])
-        if len(c) >= 40:
+        if len(c) >= 40 and (not a.since or d["grad_t"] >= a.since) and (not a.until or d["grad_t"] < a.until):
             toks.append((d["mint"], d["grad_t"], c))
     out = ["# Memecoins después de graduarse (AMM): ¿hay una regla que pague con comisiones bajas?", "",
            f"{len(toks):,} graduados con velas de 1 minuto (de {len(list(BASE.glob('*.json'))):,} consultados). "
@@ -391,6 +391,9 @@ def main():
     ap.add_argument("--data", type=Path, default=ROOT / "data" / "raw")
     ap.add_argument("--days", type=float, default=5)
     ap.add_argument("--cost", type=float, default=0.005)
+    ap.add_argument("--since", type=float, default=0,
+                    help="analyze: only graduations at or after this unix time (out-of-sample validation of a frozen rule)")
+    ap.add_argument("--until", type=float, default=0, help="analyze: only graduations before this unix time")
     ap.add_argument("--max-tokens", type=int, default=0, help="fetch: only the N most recent graduates")
     ap.add_argument("--retry-empty", action="store_true", help="fetch: re-query entries saved without candles")
     ap.add_argument("--min-tokens", type=int, default=50)
