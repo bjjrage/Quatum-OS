@@ -29,7 +29,11 @@ AMM = ("pumpswap", "raydium", "raydium-clmm", "raydium-cp")
 _last = [0.0]
 
 
-def call(path, params=None, gap=2.2, tries=6):
+class ApiError(RuntimeError):
+    """Rate limit / network failure: NOT the same as 'this token has no pool' (404), so it must not be cached as empty."""
+
+
+def call(path, params=None, gap=2.6, tries=5):
     q = "?" + "&".join(f"{k}={v}" for k, v in (params or {}).items()) if params else ""
     for i in range(tries):
         wait = gap - (time.time() - _last[0])
@@ -46,7 +50,7 @@ def call(path, params=None, gap=2.2, tries=6):
             time.sleep(30 * (i + 1) if e.code == 429 else 3 + 3 * i)
         except Exception:
             time.sleep(3 + 3 * i)
-    return None
+    raise ApiError(path)
 
 
 def graduates(data: Path, days: float):
@@ -66,26 +70,42 @@ def graduates(data: Path, days: float):
 
 def cmd_fetch(a):
     BASE.mkdir(parents=True, exist_ok=True)
+    if a.retry_empty:                    # entries cached as empty by an older version that mistook rate limits for 'no pool'
+        n_del = 0
+        for f in BASE.glob("*.json"):
+            try:
+                if not json.loads(f.read_text()).get("candles"):
+                    f.unlink()
+                    n_del += 1
+            except ValueError:
+                f.unlink()
+        print(f"--retry-empty: {n_del} entradas sin velas borradas para reintentarlas.", flush=True)
     todo = [(m, t) for m, t in graduates(a.data, a.days) if not (BASE / f"{m}.json").exists()]
-    print(f"{len(todo):,} graduados por consultar (~{len(todo) * 2 * 2.2 / 3600:.1f} h).", flush=True)
-    n = ok = 0
+    print(f"{len(todo):,} graduados por consultar (~{len(todo) * 2 * 2.6 / 3600:.1f} h).", flush=True)
+    n = ok = fails = 0
     for m, t in todo:
         out = {"mint": m, "grad_t": t, "pool": None, "candles": []}
-        d = call(f"/tokens/{m}/pools", {"page": 1})
-        pools = [p for p in ((d or {}).get("data") or []) if p["relationships"]["dex"]["data"]["id"] in AMM]
-        if pools:
-            p = max(pools, key=lambda p: float(p["attributes"].get("reserve_in_usd") or 0))
-            out["pool"] = p["attributes"]["address"]
-            o = call(f"/pools/{out['pool']}/ohlcv/minute", {"aggregate": 1, "limit": 1000,
-                                                              "before_timestamp": int(t + 4 * 3600)})
-            l = (((o or {}).get("data") or {}).get("attributes") or {}).get("ohlcv_list") or []
-            out["candles"] = sorted(l)             # [ts, o, h, l, c, v]
-            ok += bool(out["candles"])
+        try:
+            d = call(f"/tokens/{m}/pools", {"page": 1})
+            pools = [p for p in ((d or {}).get("data") or []) if p["relationships"]["dex"]["data"]["id"] in AMM]
+            if pools:
+                p = max(pools, key=lambda p: float(p["attributes"].get("reserve_in_usd") or 0))
+                out["pool"] = p["attributes"]["address"]
+                o = call(f"/pools/{out['pool']}/ohlcv/minute", {"aggregate": 1, "limit": 1000,
+                                                                  "before_timestamp": int(t + 4 * 3600)})
+                l = (((o or {}).get("data") or {}).get("attributes") or {}).get("ohlcv_list") or []
+                out["candles"] = sorted(l)             # [ts, o, h, l, c, v]
+                ok += bool(out["candles"])
+        except ApiError:
+            fails += 1
+            print(f"  fallo de la API en {m[:8]}… (no se guarda; se reintenta en la próxima corrida). Fallos: {fails}", flush=True)
+            time.sleep(60)
+            continue
         (BASE / f"{m}.json").write_text(json.dumps(out))
         n += 1
-        if n % 50 == 0:
-            print(f"  {n:,}/{len(todo):,} consultados, {ok} con velas", flush=True)
-    print(f"Listo: {n:,} consultados, {ok} con velas.")
+        if n % 25 == 0:
+            print(f"  {n:,}/{len(todo):,} consultados, {ok} con velas, {fails} fallos", flush=True)
+    print(f"Listo: {n:,} consultados, {ok} con velas, {fails} fallos (relanzar para reintentarlos).")
 
 
 def fill_minutes(c):
@@ -313,6 +333,7 @@ def main():
     ap.add_argument("--data", type=Path, default=ROOT / "data" / "raw")
     ap.add_argument("--days", type=float, default=5)
     ap.add_argument("--cost", type=float, default=0.005)
+    ap.add_argument("--retry-empty", action="store_true", help="fetch: re-query entries saved without candles")
     ap.add_argument("--min-tokens", type=int, default=50)
     ap.add_argument("--min-group", type=int, default=30)
     a = ap.parse_args()
