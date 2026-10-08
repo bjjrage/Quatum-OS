@@ -132,6 +132,73 @@ def tstat(x):
     return m / (sd / math.sqrt(n)) if sd > 0 else float("nan")
 
 
+def curve_features(data: Path, mints):
+    """What happened on the bonding curve, per graduated mint, using ONLY events before the graduation:
+    minutes to graduate, distinct buyers, SOL bought, share of the bought supply still held by the early wallets (those that
+    bought in the first 5 min), creator's earlier graduations, and whether a paid push / Telegram call came before it."""
+    import duckdb
+    import pandas as pd
+    from recordings_summary import is_valid_parquet
+
+    def src(venue, table):
+        d = data / venue / f"table={table}"
+        fs = [str(f).replace("\\", "/") for f in d.rglob("*.parquet") if is_valid_parquet(f)] if d.exists() else []
+        return "read_parquet([" + ",".join(f"'{x}'" for x in fs) + "], union_by_name=true)" if fs else None
+    trs, crs, cps = src("pumpfun", "pumpfun_trades"), src("pumpfun", "pumpfun_creates"), src("pumpfun", "pumpfun_completes")
+    if not (trs and crs and cps):
+        return {}
+    con = duckdb.connect()
+    con.execute("PRAGMA temp_directory='.duckdb_tmp'")
+    con.register("want", pd.DataFrame({"mint": list(mints)}))
+    con.execute(f"""CREATE TABLE g AS SELECT mint, MIN(ts_received_utc_ns)/1e9 AS gt FROM {cps}
+        WHERE mint IN (SELECT mint FROM want) GROUP BY 1""")
+    con.execute(f"""CREATE TABLE b AS SELECT mint, MIN(ts_received_utc_ns)/1e9 AS born, arg_min(creator, ts_received_utc_ns) AS creator
+        FROM {crs} WHERE mint IN (SELECT mint FROM want) GROUP BY 1""")
+    con.execute(f"""CREATE TABLE tf AS SELECT DISTINCT t.signature, t.mint, t.ts_received_utc_ns/1e9 AS ts, t."user" AS u, t.is_buy,
+        t.sol_amount::DOUBLE/1e9 AS sol, t.token_amount::DOUBLE AS tok
+        FROM {trs} t JOIN g USING (mint) WHERE t.ts_received_utc_ns/1e9 <= g.gt""")
+    con.execute("""CREATE TABLE f1 AS SELECT tf.mint, COUNT(DISTINCT u) FILTER (WHERE is_buy) AS buyers_curve,
+        SUM(sol) FILTER (WHERE is_buy) AS sol_curve FROM tf GROUP BY 1""")
+    con.execute("""CREATE TABLE early AS SELECT DISTINCT tf.mint, tf.u FROM tf JOIN b USING (mint)
+        WHERE tf.is_buy AND tf.ts <= b.born + 300""")
+    con.execute("""CREATE TABLE pos AS SELECT mint, u, SUM(CASE WHEN is_buy THEN tok ELSE -tok END) AS net FROM tf GROUP BY 1, 2""")
+    con.execute("""CREATE TABLE f2 AS SELECT pos.mint, SUM(GREATEST(net, 0)) FILTER (WHERE (pos.mint, pos.u) IN
+        (SELECT mint, u FROM early)) / NULLIF(SUM(GREATEST(net, 0)), 0) AS early_share FROM pos GROUP BY 1""")
+    # earlier graduations of the same creator (graduated before this token was born: nothing from the future)
+    con.execute(f"""CREATE TABLE cg AS SELECT c.creator, MIN(cp.ts_received_utc_ns)/1e9 AS gt FROM {crs} c JOIN {cps} cp USING (mint)
+        GROUP BY c.creator, c.mint""")
+    con.execute("""CREATE TABLE f3 AS SELECT b.mint, COUNT(cg.gt) AS creator_prior_grads FROM b LEFT JOIN cg
+        ON cg.creator = b.creator AND cg.gt < b.born GROUP BY 1""")
+    push = []
+    for tbl, col in (("token_boosts", "token_address"), ("token_profiles", "token_address")):
+        sp = src("dexscreener", tbl)
+        if sp:
+            push.append(f"SELECT {col} AS mint, ts_polled_utc_ns/1e9 AS t FROM {sp}")
+    orders = ROOT / "data" / "research" / "dex_orders.jsonl"
+    if orders.exists():
+        rows = []
+        for ln in orders.read_text(encoding="utf-8").splitlines():
+            try:
+                j = json.loads(ln)
+            except ValueError:
+                continue
+            for o in j.get("orders") or []:
+                if o.get("paymentTimestamp"):
+                    rows.append((j["mint"], o["paymentTimestamp"] / 1000.0))
+        if rows:
+            con.register("ordf", pd.DataFrame(rows, columns=["mint", "t"]))
+            push.append("SELECT mint, t FROM ordf")
+    con.execute("CREATE TABLE f4 AS SELECT g.mint, " + ("COUNT(p.t) > 0" if push else "FALSE") + " AS push_before FROM g " +
+                (f"LEFT JOIN ({' UNION ALL '.join(push)}) p ON p.mint = g.mint AND p.t < g.gt " if push else "") + "GROUP BY 1")
+    calls = src("telegram", "calls")
+    con.execute("CREATE TABLE f5 AS SELECT g.mint, " + ("COUNT(c.ts_received_utc_ns) > 0" if calls else "FALSE") + " AS call_before FROM g " +
+                (f"LEFT JOIN {calls} c ON c.token_address = g.mint AND c.ts_received_utc_ns/1e9 < g.gt " if calls else "") + "GROUP BY 1")
+    df = con.execute("""SELECT g.mint, (g.gt - b.born) / 60 AS min_to_grad, f1.buyers_curve, f1.sol_curve, f2.early_share,
+        f3.creator_prior_grads, f4.push_before, f5.call_before FROM g JOIN b USING (mint) LEFT JOIN f1 USING (mint)
+        LEFT JOIN f2 USING (mint) LEFT JOIN f3 USING (mint) LEFT JOIN f4 USING (mint) LEFT JOIN f5 USING (mint)""").df()
+    return {r.mint: r for r in df.itertuples()}
+
+
 def cmd_analyze(a):
     toks = []
     for f in BASE.glob("*.json"):
@@ -149,6 +216,20 @@ def cmd_analyze(a):
         print("\n".join(out))
         return
     cut = sorted(t for _, t, _ in toks)[len(toks) // 2]
+    feats = {}
+    if a.data and a.data.exists():
+        try:
+            feats = curve_features(a.data, [m for m, _, _ in toks])
+        except Exception as e:                                   # keep the candle-only study working
+            out.append(f"(No pude calcular los datos de la curva: {type(e).__name__}: {str(e)[:120]})")
+    fv = lambda m, k: getattr(feats.get(m), k, None) if feats else None   # noqa: E731
+    mtg = sorted(v for m, _, _ in toks if (v := fv(m, "min_to_grad")) is not None)
+    bcv = sorted(v for m, _, _ in toks if (v := fv(m, "buyers_curve")) is not None)
+    q_fast = mtg[len(mtg) // 2] if mtg else None
+    q_buy = bcv[len(bcv) // 2] if bcv else None
+    if feats:
+        out += [f"Datos de la curva cruzados por token (solo eventos antes de graduarse): {len(feats):,}. "
+                f"Mediana: {q_fast:.0f} min hasta graduarse, {q_buy:.0f} compradores distintos.", ""]
     rules = [(1.3, 0.85), (1.5, 0.8), (2.0, 0.7)]
     for K in (3, 10, 30):
         rows = []
@@ -158,12 +239,30 @@ def cmd_analyze(a):
             p0, hi = c[0][4], max(x[4] for x in c[:K + 1])
             px = c[K][4]
             vol = sum(x[5] for x in c[:K + 1])
-            rows.append({"m": m, "t": t, "i": K, "c": c, "ret": px / p0 - 1, "dd": px / hi - 1, "vol": vol})
+            rows.append({"m": m, "t": t, "i": K, "c": c, "ret": px / p0 - 1, "dd": px / hi - 1, "vol": vol,
+                         "fast": (fv(m, "min_to_grad") or 1e9) <= (q_fast or -1), "buyers": fv(m, "buyers_curve") or 0,
+                         "early": fv(m, "early_share"), "cprior": fv(m, "creator_prior_grads") or 0,
+                         "push": bool(fv(m, "push_before")), "call": bool(fv(m, "call_before"))})
         medv = sorted(r["vol"] for r in rows)[len(rows) // 2]
         groups = [("todos", rows), ("dump: cayó ≥ 30% desde el máximo", [r for r in rows if r["dd"] <= -0.30]),
                   ("momentum: subió ≥ 50% desde el primer precio", [r for r in rows if r["ret"] >= 0.50]),
                   ("volumen ≥ mediana", [r for r in rows if r["vol"] >= medv]),
                   ("dump y volumen ≥ mediana", [r for r in rows if r["dd"] <= -0.30 and r["vol"] >= medv])]
+        if feats:
+            med_early = sorted(r["early"] for r in rows if r["early"] is not None)
+            med_early = med_early[len(med_early) // 2] if med_early else None
+            groups += [("curva: se graduó rápido (≤ mediana)", [r for r in rows if r["fast"]]),
+                       ("curva: se graduó lento", [r for r in rows if not r["fast"]]),
+                       ("curva: compradores ≥ mediana", [r for r in rows if r["buyers"] >= q_buy]),
+                       ("curva: tempranas aún tienen ≥ mediana", [r for r in rows if med_early is not None and
+                                                                    r["early"] is not None and r["early"] >= med_early]),
+                       ("curva: tempranas ya vendieron", [r for r in rows if med_early is not None and
+                                                           r["early"] is not None and r["early"] < med_early]),
+                       ("creador con graduados previos", [r for r in rows if r["cprior"] >= 1]),
+                       ("con push pago antes de graduarse", [r for r in rows if r["push"]]),
+                       ("con call de Telegram antes", [r for r in rows if r["call"]]),
+                       ("rápido y compradores ≥ mediana", [r for r in rows if r["fast"] and r["buyers"] >= q_buy]),
+                       ("rápido, compradores ≥ mediana y dump", [r for r in rows if r["fast"] and r["buyers"] >= q_buy and r["dd"] <= -0.30])]
         out += [f"## Entrada al minuto {K} después de abrir el pool", "",
                 "| grupo | " + " | ".join(f"TP +{int((tp - 1) * 100)}% / SL -{int((1 - sl) * 100)}%" for tp, sl in rules) + " |",
                 "|---|" + "---|" * len(rules)]
@@ -202,7 +301,7 @@ def cmd_analyze(a):
                            f"{sum(h1) / max(len(h1), 1) * 100:+.2f}% | {sum(h2) / max(len(h2), 1) * 100:+.2f}% | {hit:.0f}% | "
                            f"{max(dm):+.1f}% / {min(dm):+.1f}% | {sum(res2) / len(res2) * 100:+.2f}% | {tstat(res):.1f} |")
             out.append("")
-    out += ["Probé 3 minutos de entrada × 5 grupos × 3 reglas = 45 combinaciones: alguna positiva puede ser azar. "
+    out += [f"Probé 3 minutos de entrada × {len(groups)} grupos × 3 reglas = {3 * len(groups) * 3} combinaciones: alguna positiva puede ser azar. "
             "Sirve solo si es positiva en las dos mitades, sobrevive al costo ×2 y no depende de un solo día."]
     Path(ROOT / "docs" / "post_grad_study.md").write_text("\n".join(out), encoding="utf-8")
     print("\n".join(out))
