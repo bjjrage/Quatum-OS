@@ -39,6 +39,8 @@ def test_poly_paper_start_restart_and_shutdown_use_valid_health_components(tmp_p
                            ("POLY_PID", "poly_paper.pid"), ("STOP_OS", "STOP_OS"),
                            ("STOP_RECORDER", "STOP_RECORDER")):
         monkeypatch.setattr(L, name, runtime / filename)
+    (tmp_path / "config").mkdir()
+    (tmp_path / "config" / "os_launcher.json").write_text('{"poly_paper": true}', encoding="utf-8")
     script = tmp_path / "run_poly_updown_paper.py"
     script.touch()
     monkeypatch.setattr(L, "POLY_SCRIPT", script)
@@ -96,3 +98,14 @@ def test_stop_orphaned_poly_paper_does_not_abort_api_cleanup(tmp_path, monkeypat
     assert stopped == [101, 102]
     assert not L.POLY_PID.exists() and not L.API_PID.exists()
     assert L.read_health("api")["status"] == "STOPPED"
+
+
+def test_poly_paper_is_off_by_default(tmp_path, monkeypatch):
+    from scripts import os_launcher as L
+    monkeypatch.setattr(L, "ROOT", tmp_path)
+    assert L._poly_enabled() is False
+    (tmp_path / "config").mkdir()
+    (tmp_path / "config" / "os_launcher.json").write_text('{"poly_paper": true}', encoding="utf-8")
+    assert L._poly_enabled() is True
+    (tmp_path / "config" / "os_launcher.json").write_text("not json", encoding="utf-8")
+    assert L._poly_enabled() is False

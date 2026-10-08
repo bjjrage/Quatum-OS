@@ -35,6 +35,15 @@ DETACHED = getattr(subprocess, "DETACHED_PROCESS", 0x00000008) if IS_WINDOWS els
 CREATE_NEW_GROUP = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0x00000200) if IS_WINDOWS else 0
 
 
+def _poly_enabled() -> bool:
+    """The Polymarket up/down paper is OFF unless config/os_launcher.json says {"poly_paper": true}: the strategy was
+    discarded against real trades, and it only burns CPU/network on the recording PC."""
+    try:
+        return bool(json.loads((ROOT / "config" / "os_launcher.json").read_text(encoding="utf-8")).get("poly_paper", False))
+    except (OSError, ValueError):
+        return False
+
+
 def parse_listen_pids(netstat_output: str, port: int) -> set[int]:
     """Extract only LISTENING PIDs for a TCP local port from netstat output."""
     found: set[int] = set()
@@ -405,14 +414,14 @@ def _supervise(allow_paid_x: bool = False) -> int:
                 recorder.poll() is None and time.monotonic() < warmup_deadline:
             time.sleep(1)
             pump_paper = runtime_health_snapshot(ROOT)["components"]["pumpfun_paper"]
-        if POLY_SCRIPT.exists():                   # paper en vivo de Polymarket up/down (sin órdenes reales)
+        if POLY_SCRIPT.exists() and _poly_enabled():   # paper en vivo de Polymarket up/down (sin órdenes reales)
             poly = _spawn([sys.executable, str(POLY_SCRIPT)], cwd=ROOT, env=env, log_name="poly_paper")
             poly_started_at = time.monotonic()
             write_pid(POLY_PID, poly.pid)
         update_health("os_launcher", "RUNNING", success=True, api_pid=api["pid"], web_pid=web["pid"],
                       recorder_pid=recorder.pid, poly_paper_pid=poly.pid if poly else None, no_paid_x=not allow_paid_x)
         print(f"OS listo. Web: {WEB_URL} | API: {API_URL}/docs", flush=True)
-        print(f"Paper Polymarket up/down: {'corriendo (PID %d)' % poly.pid if poly else 'no encontrado'}", flush=True)
+        print(f"Paper Polymarket up/down: {'corriendo (PID %d)' % poly.pid if poly else 'apagado (config/os_launcher.json)'}", flush=True)
         components = runtime_health_snapshot(ROOT)["components"]
         for name in ("api", "web", "os_launcher", "supervisor", "markets_recorder", "paper_runtime", "pumpfun_recorder", "pumpfun_paper", "leader_paper", "x_watcher"):
             row = components[name]

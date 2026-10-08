@@ -120,7 +120,7 @@ def runtime_health_snapshot(root: Path = ROOT, stale_after_s: int = 120) -> Dict
         cfg = {}
     enabled = {name: True for name in COMPONENTS}
     enabled["pumpfun_recorder"] = bool(cfg.get("enabled", True))
-    enabled["pumpfun_paper"] = bool(cfg.get("enabled", True) and cfg.get("paper_enabled", True))
+    enabled["pumpfun_paper"] = bool(cfg.get("enabled", True) and cfg.get("paper_enabled", False))
     enabled["x_watcher"] = bool(cfg.get("enabled", True) and cfg.get("x_enabled", True))
     no_paid_x = os.environ.get("QUANT_OS_NO_PAID_X") == "1"
     x_has_key = False

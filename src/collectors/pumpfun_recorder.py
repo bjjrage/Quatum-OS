@@ -190,7 +190,7 @@ class PumpfunRecorder:
             return
         self._running = True
         self._task = asyncio.create_task(self._loop())
-        if cfg.get("paper_enabled", True):
+        if cfg.get("paper_enabled", False):   # WALLET_SKILL_V1 paper: off by default (full-history rebuild saturates the PC)
             self._paper_tasks.append(asyncio.create_task(self._start_paper()))
         if cfg.get("x_enabled", True):
             if os.environ.get("QUANT_OS_NO_PAID_X") == "1":

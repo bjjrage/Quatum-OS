@@ -15,6 +15,7 @@ analyze: at minute K after the pool opened (K = 3, 10, 30) decide ONLY with what
 """
 import argparse
 import json
+import random
 import sys
 import time
 import urllib.request
@@ -168,21 +169,22 @@ def cmd_fetch(a):
 
 def fill_minutes(c):
     """GeckoTerminal leaves out the minutes without trades: rebuild a candle for EVERY minute (flat at the last close, zero
-    volume) so that 'minute K' and 'hold 120 candles' really mean minutes. Capped at 4 h from the first trade."""
+    volume) so that 'minute K' and 'hold 120 candles' really mean minutes. Always 240 minutes from the first trade: a pool
+    that stops trading is NOT dropped (dropping tokens that died early would select on the future and inflate every result)."""
     if not c:
         return []
     c = sorted(c)
     t0, out, j, last = int(c[0][0]) // 60 * 60, [], 0, c[0][4]
     for k in range(240):
         t = t0 + 60 * k
+        while j < len(c) and int(c[j][0]) // 60 * 60 < t:
+            j += 1
         if j < len(c) and int(c[j][0]) // 60 * 60 == t:
             out.append(list(c[j]))
             last = c[j][4]
             j += 1
         else:
             out.append([t, last, last, last, last, 0.0])
-        if j >= len(c) and t > c[-1][0]:
-            break
     return out
 
 
@@ -236,7 +238,7 @@ def curve_features(data: Path, mints):
         t.sol_amount::DOUBLE/1e9 AS sol, t.token_amount::DOUBLE AS tok
         FROM {trs} t JOIN g USING (mint) WHERE t.ts_received_utc_ns/1e9 <= g.gt""")
     con.execute("""CREATE TABLE f1 AS SELECT tf.mint, COUNT(DISTINCT u) FILTER (WHERE is_buy) AS buyers_curve,
-        SUM(sol) FILTER (WHERE is_buy) AS sol_curve FROM tf GROUP BY 1""")
+        SUM(sol) FILTER (WHERE is_buy) AS sol_curve, COUNT(*) AS n_trades_curve FROM tf GROUP BY 1""")
     con.execute("""CREATE TABLE early AS SELECT DISTINCT tf.mint, tf.u FROM tf JOIN b USING (mint)
         WHERE tf.is_buy AND tf.ts <= b.born + 300""")
     con.execute("""CREATE TABLE pos AS SELECT mint, u, SUM(CASE WHEN is_buy THEN tok ELSE -tok END) AS net FROM tf GROUP BY 1, 2""")
@@ -271,21 +273,30 @@ def curve_features(data: Path, mints):
     calls = src("telegram", "calls")
     con.execute("CREATE TABLE f5 AS SELECT g.mint, " + ("COUNT(c.ts_received_utc_ns) > 0" if calls else "FALSE") + " AS call_before FROM g " +
                 (f"LEFT JOIN {calls} c ON c.token_address = g.mint AND c.ts_received_utc_ns/1e9 < g.gt " if calls else "") + "GROUP BY 1")
-    df = con.execute("""SELECT g.mint, (g.gt - b.born) / 60 AS min_to_grad, f1.buyers_curve, f1.sol_curve, f2.early_share,
+    df = con.execute("""SELECT g.mint, (g.gt - b.born) / 60 AS min_to_grad, f1.buyers_curve, f1.sol_curve, f1.n_trades_curve, f2.early_share,
         f3.creator_prior_grads, f4.push_before, f5.call_before FROM g JOIN b USING (mint) LEFT JOIN f1 USING (mint)
         LEFT JOIN f2 USING (mint) LEFT JOIN f3 USING (mint) LEFT JOIN f4 USING (mint) LEFT JOIN f5 USING (mint)""").df()
     return {r.mint: r for r in df.itertuples()}
 
 
 def cmd_analyze(a):
-    toks = []
+    toks, n_files, no_pool, no_candles = [], 0, 0, 0
     for f in BASE.glob("*.json"):
         d = json.loads(f.read_text())
+        if (a.since and d["grad_t"] < a.since) or (a.until and d["grad_t"] >= a.until):
+            continue
+        n_files += 1
+        if not d.get("pool"):
+            no_pool += 1
+            continue
         c = fill_minutes([x for x in d["candles"] if x[4] > 0])
-        if len(c) >= 40 and (not a.since or d["grad_t"] >= a.since) and (not a.until or d["grad_t"] < a.until):
-            toks.append((d["mint"], d["grad_t"], c))
+        if not c:
+            no_candles += 1
+            continue
+        toks.append((d["mint"], d["grad_t"], c))
     out = ["# Memecoins después de graduarse (AMM): ¿hay una regla que pague con comisiones bajas?", "",
-           f"{len(toks):,} graduados con velas de 1 minuto (de {len(list(BASE.glob('*.json'))):,} consultados). "
+           f"{len(toks):,} graduados con velas de 1 minuto (de {n_files:,} consultados; sin pool AMM en DexScreener: {no_pool}; "
+           f"con pool pero sin velas: {no_candles}). Los que dejan de operar NO se descartan: la grilla sigue plana hasta los 240 min. "
            f"Costo {a.cost * 100:.2f}% por lado (mitad comisión del AMM, mitad deslizamiento). Se decide solo con lo conocido "
            "hasta el minuto K y se compra al cierre de esa vela.", ""]
     if len(toks) < a.min_tokens:
@@ -306,14 +317,19 @@ def cmd_analyze(a):
     q_fast = mtg[len(mtg) // 2] if mtg else None
     q_buy = bcv[len(bcv) // 2] if bcv else None
     if feats:
+        qs = lambda v, q: v[min(len(v) - 1, int(len(v) * q))]   # noqa: E731
         out += [f"Datos de la curva cruzados por token (solo eventos antes de graduarse): {len(feats):,}. "
-                f"Mediana: {q_fast:.0f} min hasta graduarse, {q_buy:.0f} compradores distintos.", ""]
+                f"Minutos desde que nació hasta graduarse: p10 {qs(mtg, .1):.1f}, mediana {q_fast:.1f}, p90 {qs(mtg, .9):.1f}; "
+                f"compradores distintos: p10 {qs(bcv, .1):.0f}, mediana {q_buy:.0f}, p90 {qs(bcv, .9):.0f}. "
+                f"Si la mediana de minutos es casi 0, hay que revisar la medición (graduaciones instantáneas no son normales).", "",
+                "Ejemplos (6 al azar): mint | minutos hasta graduarse | trades en la curva | compradores", ""]
+        for r in random.Random(3).sample(list(feats.values()), min(6, len(feats))):
+            out.append(f"- `{r.mint[:8]}…` | {r.min_to_grad:.1f} | {getattr(r, 'n_trades_curve', 0)} | {r.buyers_curve}")
+        out.append("")
     rules = [(1.3, 0.85), (1.5, 0.8), (2.0, 0.7)]
     for K in (3, 10, 30):
         rows = []
         for m, t, c in toks:
-            if len(c) <= K + 5:
-                continue
             p0, hi = c[0][4], max(x[4] for x in c[:K + 1])
             px = c[K][4]
             vol = sum(x[5] for x in c[:K + 1])
