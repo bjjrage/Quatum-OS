@@ -1,4 +1,4 @@
-# Snapshot Quant OS — 2026-10-12 21:51 UTC
+# Snapshot Quant OS — 2026-10-12 22:51 UTC
 
 ## Polymarket up/down (paper)
 
@@ -21,52 +21,52 @@
 
 ## Papers (state.json)
 
-- baja_vol: actualizado hace 0.7 min
-- btc_tendencia: actualizado hace 0.7 min
-- carry_funding: actualizado hace 0.7 min
-- combinada: actualizado hace 0.7 min
-- examen_2x: actualizado hace 0.7 min
-- flujo_7d: actualizado hace 0.7 min
-- flujo_reg200: actualizado hace 0.7 min
-- flujo_sectorial: actualizado hace 0.7 min
-- flujo_v1: actualizado hace 0.7 min
-- lider_azar: actualizado hace 0.7 min
-- lider_corto: actualizado hace 0.7 min
-- lider_sin_x: actualizado hace 0.7 min
-- lider_x: actualizado hace 0.7 min
-- mezcla_flujo_carry: actualizado hace 0.7 min
-- poly_updown: actualizado hace 7546.8 min
+- baja_vol: actualizado hace 0.1 min
+- btc_tendencia: actualizado hace 0.1 min
+- carry_funding: actualizado hace 0.1 min
+- combinada: actualizado hace 0.1 min
+- examen_2x: actualizado hace 0.1 min
+- flujo_7d: actualizado hace 0.1 min
+- flujo_reg200: actualizado hace 0.1 min
+- flujo_sectorial: actualizado hace 0.1 min
+- flujo_v1: actualizado hace 0.1 min
+- lider_azar: actualizado hace 0.1 min
+- lider_corto: actualizado hace 0.1 min
+- lider_sin_x: actualizado hace 0.1 min
+- lider_x: actualizado hace 0.1 min
+- mezcla_flujo_carry: actualizado hace 0.1 min
+- poly_updown: actualizado hace 7606.8 min
 
 ## Recorders (última hora)
 
 | tabla | archivos | última escritura (min) |
 |---|---|---|
-| binance_perp/bbo_ticks | 982 | -0.4 |
-| binance_perp/depth_snapshots | 20 | 3.8 |
-| binance_perp/forced_liquidations | 60 | -0.5 |
-| binance_perp/futures_market_metrics | 61 | -0.5 |
-| binance_perp/futures_open_interest | 61 | -0.5 |
-| binance_perp/futures_positioning | 61 | -0.2 |
-| binance_perp/orderbook_l2_depth | 135 | -0.5 |
-| binance_perp/trade_ticks | 86 | -0.5 |
-| deribit/bbo_ticks | 61 | -0.5 |
-| deribit/deribit_metrics | 61 | -0.5 |
-| deribit/trade_ticks | 43 | -0.5 |
-| dexscreener/token_boosts | 3 | 7.7 |
-| dexscreener/token_prices | 60 | -0.3 |
-| dexscreener/token_profiles | 24 | -0.3 |
-| limitless/limitless_book | 61 | -0.3 |
-| limitless/limitless_markets | 13 | -0.3 |
-| polymarket/bbo_ticks | 666 | -1.1 |
-| polymarket/orderbook_l2_depth | 61 | -0.5 |
-| polymarket/polymarket_metadata_history | 17 | -0.5 |
-| polymarket/trade_ticks | 54 | -0.5 |
-| pumpfun/creator_funding | 61 | -0.3 |
-| pumpfun/pumpfun_completes | 35 | -0.3 |
-| pumpfun/pumpfun_creates | 61 | -0.3 |
-| pumpfun/pumpfun_trades | 64 | -0.3 |
-| pumpfun/x_mentions | 0 | 8426.9 |
-| telegram/calls | 15 | 7.7 |
+| binance_perp/bbo_ticks | 1357 | -1.7 |
+| binance_perp/depth_snapshots | 17 | -1.2 |
+| binance_perp/forced_liquidations | 61 | -1.1 |
+| binance_perp/futures_market_metrics | 62 | -2.1 |
+| binance_perp/futures_open_interest | 62 | -2.1 |
+| binance_perp/futures_positioning | 62 | -2.2 |
+| binance_perp/orderbook_l2_depth | 158 | -2.1 |
+| binance_perp/trade_ticks | 78 | -2.1 |
+| deribit/bbo_ticks | 62 | -2.1 |
+| deribit/deribit_metrics | 62 | -2.1 |
+| deribit/trade_ticks | 44 | -2.1 |
+| dexscreener/token_boosts | 3 | 0.5 |
+| dexscreener/token_prices | 59 | -1.5 |
+| dexscreener/token_profiles | 19 | -0.5 |
+| limitless/limitless_book | 63 | -2.5 |
+| limitless/limitless_markets | 13 | -0.5 |
+| polymarket/bbo_ticks | 714 | -3.4 |
+| polymarket/orderbook_l2_depth | 63 | -3.1 |
+| polymarket/polymarket_metadata_history | 17 | -0.1 |
+| polymarket/trade_ticks | 62 | -3.1 |
+| pumpfun/creator_funding | 64 | -3.5 |
+| pumpfun/pumpfun_completes | 41 | -2.5 |
+| pumpfun/pumpfun_creates | 64 | -3.5 |
+| pumpfun/pumpfun_trades | 68 | -3.5 |
+| pumpfun/x_mentions | 0 | 8486.9 |
+| telegram/calls | 18 | 7.5 |
 
 ## Problemas en logs (últimos)
 
@@ -87,14 +87,14 @@ Traceback (most recent call last):
 ```
 ### recorder.log
 ```
-{"timestamp_utc": "2026-10-12T21:46:11Z", "level": "WARNING", "logger": "binance_recorder", "message": "Binance PUBLIC WS disconnected: no close frame received or sent. Reconnecting in 1.0s..."}
-{"timestamp_utc": "2026-10-12T21:46:15Z", "level": "WARNING", "logger": "binance_recorder", "message": "Binance PUBLIC WS disconnected: no close frame received or sent. Reconnecting in 1.0s..."}
-{"timestamp_utc": "2026-10-12T21:46:19Z", "level": "WARNING", "logger": "binance_recorder", "message": "Binance PUBLIC WS disconnected: no close frame received or sent. Reconnecting in 1.0s..."}
-{"timestamp_utc": "2026-10-12T21:46:23Z", "level": "WARNING", "logger": "binance_recorder", "message": "Binance PUBLIC WS disconnected: no close frame received or sent. Reconnecting in 1.0s..."}
-{"timestamp_utc": "2026-10-12T21:47:09Z", "level": "WARNING", "logger": "binance_recorder", "message": "Binance PUBLIC WS disconnected: no close frame received or sent. Reconnecting in 1.0s..."}
-{"timestamp_utc": "2026-10-12T21:47:13Z", "level": "WARNING", "logger": "binance_recorder", "message": "Binance PUBLIC WS disconnected: no close frame received or sent. Reconnecting in 1.0s..."}
-{"timestamp_utc": "2026-10-12T21:47:21Z", "level": "WARNING", "logger": "binance_recorder", "message": "Binance PUBLIC WS disconnected: no close frame received or sent. Reconnecting in 1.0s..."}
-{"timestamp_utc": "2026-10-12T21:47:31Z", "level": "WARNING", "logger": "binance_recorder", "message": "Binance PUBLIC WS disconnected: no close frame received or sent. Reconnecting in 1.0s..."}
+{"timestamp_utc": "2026-10-12T22:18:37Z", "level": "WARNING", "logger": "binance_recorder", "message": "Binance PUBLIC WS disconnected: no close frame received or sent. Reconnecting in 1.0s..."}
+{"timestamp_utc": "2026-10-12T22:18:48Z", "level": "WARNING", "logger": "binance_recorder", "message": "Binance PUBLIC WS disconnected: no close frame received or sent. Reconnecting in 1.0s..."}
+{"timestamp_utc": "2026-10-12T22:33:06Z", "level": "WARNING", "logger": "polymarket_recorder", "message": "Polymarket WS disconnected: received 1013 (try again later) slow consumer: send buffer full; then sent 1013 (try again later) slow consumer: send buffer full. Reconnecting in 1.0s..."}
+{"timestamp_utc": "2026-10-12T22:45:34Z", "level": "WARNING", "logger": "polymarket_recorder", "message": "Polymarket WS disconnected: received 1013 (try again later) slow consumer: send buffer full; then sent 1013 (try again later) slow consumer: send buffer full. Reconnecting in 1.0s..."}
+{"timestamp_utc": "2026-10-12T22:54:14Z", "level": "WARNING", "logger": "binance_recorder", "message": "Binance PUBLIC WS disconnected: no close frame received or sent. Reconnecting in 1.0s..."}
+{"timestamp_utc": "2026-10-12T22:54:17Z", "level": "WARNING", "logger": "binance_recorder", "message": "Binance REST fallback ON: WebSocket de precios ca\u00eddo, se piden precios por REST."}
+{"timestamp_utc": "2026-10-12T22:54:35Z", "level": "WARNING", "logger": "binance_recorder", "message": "Binance PUBLIC WS disconnected: timed out during opening handshake. Reconnecting in 1.5s..."}
+{"timestamp_utc": "2026-10-12T22:54:51Z", "level": "WARNING", "logger": "binance_recorder", "message": "Binance MARKET WS disconnected: sent 1011 (internal error) keepalive ping timeout; no close frame received. Reconnecting in 1.0s..."}
 ```
 
 Detalle completo en latest.json.
