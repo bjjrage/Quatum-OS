@@ -1,5 +1,5 @@
 {
- "generado_utc": "2026-10-15 12:51 UTC",
+ "generado_utc": "2026-10-15 13:51 UTC",
  "polymarket": {
   "dias": 0.8010826856201445,
   "senales": 425,
@@ -633,7 +633,7 @@
  },
  "papers": {
   "baja_vol": {
-   "actualizado_hace_min": 2164.4,
+   "actualizado_hace_min": 2224.4,
    "estado": {
     "capital_inicial": 10000.0,
     "cash": 10544.818340823631,
@@ -1055,7 +1055,7 @@
    }
   },
   "btc_tendencia": {
-   "actualizado_hace_min": 2164.3,
+   "actualizado_hace_min": 2224.4,
    "estado": {
     "capital_inicial": 10000.0,
     "cash": -9.119595592577781,
@@ -1368,7 +1368,7 @@
    }
   },
   "carry_funding": {
-   "actualizado_hace_min": 2164.4,
+   "actualizado_hace_min": 2224.4,
    "estado": {
     "capital_inicial": 10000.0,
     "cash": 10362.131180794493,
@@ -1784,7 +1784,7 @@
    }
   },
   "combinada": {
-   "actualizado_hace_min": 2164.4,
+   "actualizado_hace_min": 2224.4,
    "estado": {
     "capital_inicial": 10000.0,
     "cash": 10474.691702879803,
@@ -2288,7 +2288,7 @@
    }
   },
   "examen_2x": {
-   "actualizado_hace_min": 2365.3,
+   "actualizado_hace_min": 2425.3,
    "estado": {
     "capital_inicial": 10000.0,
     "cash": 10002.213792456614,
@@ -2762,7 +2762,7 @@
    }
   },
   "flujo_7d": {
-   "actualizado_hace_min": 2164.4,
+   "actualizado_hace_min": 2224.4,
    "estado": {
     "capital_inicial": 10000.0,
     "cash": 9776.606526331268,
@@ -3178,7 +3178,7 @@
    }
   },
   "flujo_reg200": {
-   "actualizado_hace_min": 2164.3,
+   "actualizado_hace_min": 2224.4,
    "estado": {
     "capital_inicial": 10000.0,
     "cash": 10006.059107861109,
@@ -3542,7 +3542,7 @@
    }
   },
   "flujo_sectorial": {
-   "actualizado_hace_min": 2164.3,
+   "actualizado_hace_min": 2224.4,
    "estado": {
     "capital_inicial": 10000.0,
     "cash": 9993.908956721962,
@@ -3880,7 +3880,7 @@
    }
   },
   "flujo_v1": {
-   "actualizado_hace_min": 2164.4,
+   "actualizado_hace_min": 2224.4,
    "estado": {
     "capital_inicial": 10000.0,
     "cash": 10073.206119531933,
@@ -4780,7 +4780,7 @@
    }
   },
   "lider_azar": {
-   "actualizado_hace_min": 2164.3,
+   "actualizado_hace_min": 2224.4,
    "estado": {
     "capital_inicial": 10000.0,
     "cash": 7998.354424079232,
@@ -5239,7 +5239,7 @@
    }
   },
   "lider_corto": {
-   "actualizado_hace_min": 2164.3,
+   "actualizado_hace_min": 2224.4,
    "estado": {
     "capital_inicial": 10000.0,
     "cash": 11987.779330625366,
@@ -5565,7 +5565,7 @@
    }
   },
   "lider_sin_x": {
-   "actualizado_hace_min": 2164.3,
+   "actualizado_hace_min": 2224.4,
    "estado": {
     "capital_inicial": 10000.0,
     "cash": 7998.732899186488,
@@ -6024,7 +6024,7 @@
    }
   },
   "lider_x": {
-   "actualizado_hace_min": 2164.4,
+   "actualizado_hace_min": 2224.4,
    "estado": {
     "capital_inicial": 10000.0,
     "cash": 10000.0,
@@ -6322,7 +6322,7 @@
    }
   },
   "mezcla_flujo_carry": {
-   "actualizado_hace_min": 2164.4,
+   "actualizado_hace_min": 2224.4,
    "estado": {
     "capital_inicial": 10000.0,
     "cash": 10003.83138986402,
@@ -6719,7 +6719,7 @@
    }
   },
   "poly_updown": {
-   "actualizado_hace_min": 11326.8,
+   "actualizado_hace_min": 11386.9,
    "estado": {
     "stats": {
      "señales": 396,
@@ -6752,7 +6752,7 @@
    }
   },
   "unlock_short_v1": {
-   "actualizado_hace_min": 2205.3,
+   "actualizado_hace_min": 2265.3,
    "estado": {
     "accounts": {
      "unlock_c50": {
@@ -6932,107 +6932,107 @@
  "recorders": {
   "binance_perp/bbo_ticks": {
    "archivos_ultima_hora": 0,
-   "ultima_escritura_hace_min": 2163.5
+   "ultima_escritura_hace_min": 2223.5
   },
   "binance_perp/depth_snapshots": {
    "archivos_ultima_hora": 0,
-   "ultima_escritura_hace_min": 2164.6
+   "ultima_escritura_hace_min": 2224.6
   },
   "binance_perp/forced_liquidations": {
    "archivos_ultima_hora": 0,
-   "ultima_escritura_hace_min": 2164.0
+   "ultima_escritura_hace_min": 2224.0
   },
   "binance_perp/futures_market_metrics": {
    "archivos_ultima_hora": 0,
-   "ultima_escritura_hace_min": 2164.0
+   "ultima_escritura_hace_min": 2224.0
   },
   "binance_perp/futures_open_interest": {
    "archivos_ultima_hora": 0,
-   "ultima_escritura_hace_min": 2164.0
+   "ultima_escritura_hace_min": 2224.0
   },
   "binance_perp/futures_positioning": {
    "archivos_ultima_hora": 0,
-   "ultima_escritura_hace_min": 2163.6
+   "ultima_escritura_hace_min": 2223.6
   },
   "binance_perp/orderbook_l2_depth": {
    "archivos_ultima_hora": 0,
-   "ultima_escritura_hace_min": 2164.0
+   "ultima_escritura_hace_min": 2224.0
   },
   "binance_perp/trade_ticks": {
    "archivos_ultima_hora": 0,
-   "ultima_escritura_hace_min": 2164.0
+   "ultima_escritura_hace_min": 2224.0
   },
   "deribit/bbo_ticks": {
    "archivos_ultima_hora": 0,
-   "ultima_escritura_hace_min": 2364.7
+   "ultima_escritura_hace_min": 2424.8
   },
   "deribit/deribit_metrics": {
    "archivos_ultima_hora": 0,
-   "ultima_escritura_hace_min": 2364.7
+   "ultima_escritura_hace_min": 2424.8
   },
   "deribit/trade_ticks": {
    "archivos_ultima_hora": 0,
-   "ultima_escritura_hace_min": 2365.7
+   "ultima_escritura_hace_min": 2425.8
   },
   "dexscreener/token_boosts": {
    "archivos_ultima_hora": 0,
-   "ultima_escritura_hace_min": 2371.9
+   "ultima_escritura_hace_min": 2431.9
   },
   "dexscreener/token_prices": {
    "archivos_ultima_hora": 0,
-   "ultima_escritura_hace_min": 2364.9
+   "ultima_escritura_hace_min": 2424.9
   },
   "dexscreener/token_profiles": {
    "archivos_ultima_hora": 0,
-   "ultima_escritura_hace_min": 2366.9
+   "ultima_escritura_hace_min": 2426.9
   },
   "limitless/limitless_book": {
    "archivos_ultima_hora": 0,
-   "ultima_escritura_hace_min": 2364.9
+   "ultima_escritura_hace_min": 2424.9
   },
   "limitless/limitless_markets": {
    "archivos_ultima_hora": 0,
-   "ultima_escritura_hace_min": 2364.9
+   "ultima_escritura_hace_min": 2424.9
   },
   "polymarket/bbo_ticks": {
    "archivos_ultima_hora": 0,
-   "ultima_escritura_hace_min": 2364.7
+   "ultima_escritura_hace_min": 2424.8
   },
   "polymarket/orderbook_l2_depth": {
    "archivos_ultima_hora": 0,
-   "ultima_escritura_hace_min": 2364.7
+   "ultima_escritura_hace_min": 2424.8
   },
   "polymarket/polymarket_metadata_history": {
    "archivos_ultima_hora": 0,
-   "ultima_escritura_hace_min": 2365.8
+   "ultima_escritura_hace_min": 2425.8
   },
   "polymarket/trade_ticks": {
    "archivos_ultima_hora": 0,
-   "ultima_escritura_hace_min": 2364.7
+   "ultima_escritura_hace_min": 2424.8
   },
   "pumpfun/creator_funding": {
    "archivos_ultima_hora": 0,
-   "ultima_escritura_hace_min": 2364.9
+   "ultima_escritura_hace_min": 2424.9
   },
   "pumpfun/pumpfun_completes": {
    "archivos_ultima_hora": 0,
-   "ultima_escritura_hace_min": 2364.9
+   "ultima_escritura_hace_min": 2424.9
   },
   "pumpfun/pumpfun_creates": {
    "archivos_ultima_hora": 0,
-   "ultima_escritura_hace_min": 2364.9
+   "ultima_escritura_hace_min": 2424.9
   },
   "pumpfun/pumpfun_trades": {
    "archivos_ultima_hora": 0,
-   "ultima_escritura_hace_min": 2364.9
+   "ultima_escritura_hace_min": 2424.9
   },
   "pumpfun/x_mentions": {
    "archivos_ultima_hora": 0,
-   "ultima_escritura_hace_min": 12206.9
+   "ultima_escritura_hace_min": 12267.0
   },
   "telegram/calls": {
    "archivos_ultima_hora": 0,
-   "ultima_escritura_hace_min": 2365.9
+   "ultima_escritura_hace_min": 2425.9
   }
  },
  "logs": {
