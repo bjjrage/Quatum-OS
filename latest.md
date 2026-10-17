@@ -1,4 +1,4 @@
-# Snapshot Quant OS — 2026-10-17 03:51 UTC
+# Snapshot Quant OS — 2026-10-17 04:51 UTC
 
 ## Polymarket up/down (paper)
 
@@ -25,7 +25,7 @@
 - btc_tendencia: actualizado hace 0.9 min
 - carry_funding: actualizado hace 0.9 min
 - combinada: actualizado hace 0.9 min
-- examen_2x: actualizado hace 4705.3 min
+- examen_2x: actualizado hace 4765.3 min
 - flujo_7d: actualizado hace 0.9 min
 - flujo_reg200: actualizado hace 0.9 min
 - flujo_sectorial: actualizado hace 0.9 min
@@ -35,39 +35,39 @@
 - lider_sin_x: actualizado hace 0.9 min
 - lider_x: actualizado hace 0.9 min
 - mezcla_flujo_carry: actualizado hace 0.9 min
-- poly_updown: actualizado hace 13666.9 min
+- poly_updown: actualizado hace 13726.9 min
 - unlock_short_v1: actualizado hace 45.1 min
 
 ## Recorders (última hora)
 
 | tabla | archivos | última escritura (min) |
 |---|---|---|
-| binance_perp/bbo_ticks | 774 | -3.1 |
-| binance_perp/depth_snapshots | 19 | 1.7 |
-| binance_perp/forced_liquidations | 62 | -3.1 |
-| binance_perp/futures_market_metrics | 64 | -4.1 |
-| binance_perp/futures_open_interest | 65 | -5.1 |
-| binance_perp/futures_positioning | 66 | -5.4 |
-| binance_perp/orderbook_l2_depth | 137 | -5.7 |
-| binance_perp/trade_ticks | 71 | -5.1 |
-| deribit/bbo_ticks | 0 | 4704.7 |
-| deribit/deribit_metrics | 0 | 4704.7 |
-| deribit/trade_ticks | 0 | 4705.7 |
-| dexscreener/token_boosts | 0 | 4711.9 |
-| dexscreener/token_prices | 0 | 4704.9 |
-| dexscreener/token_profiles | 0 | 4706.9 |
-| limitless/limitless_book | 0 | 4704.9 |
-| limitless/limitless_markets | 0 | 4704.9 |
-| polymarket/bbo_ticks | 0 | 4704.7 |
-| polymarket/orderbook_l2_depth | 0 | 4704.7 |
-| polymarket/polymarket_metadata_history | 0 | 4705.8 |
-| polymarket/trade_ticks | 0 | 4704.7 |
-| pumpfun/creator_funding | 0 | 4704.9 |
-| pumpfun/pumpfun_completes | 0 | 4704.9 |
-| pumpfun/pumpfun_creates | 0 | 4704.9 |
-| pumpfun/pumpfun_trades | 0 | 4704.9 |
-| pumpfun/x_mentions | 0 | 14547.0 |
-| telegram/calls | 0 | 4705.9 |
+| binance_perp/bbo_ticks | 674 | -3.3 |
+| binance_perp/depth_snapshots | 19 | -3.4 |
+| binance_perp/forced_liquidations | 63 | -3.4 |
+| binance_perp/futures_market_metrics | 64 | -3.4 |
+| binance_perp/futures_open_interest | 65 | -4.4 |
+| binance_perp/futures_positioning | 65 | -4.4 |
+| binance_perp/orderbook_l2_depth | 133 | -5.0 |
+| binance_perp/trade_ticks | 66 | -5.4 |
+| deribit/bbo_ticks | 0 | 4764.8 |
+| deribit/deribit_metrics | 0 | 4764.8 |
+| deribit/trade_ticks | 0 | 4765.8 |
+| dexscreener/token_boosts | 0 | 4771.9 |
+| dexscreener/token_prices | 0 | 4764.9 |
+| dexscreener/token_profiles | 0 | 4766.9 |
+| limitless/limitless_book | 0 | 4764.9 |
+| limitless/limitless_markets | 0 | 4764.9 |
+| polymarket/bbo_ticks | 0 | 4764.8 |
+| polymarket/orderbook_l2_depth | 0 | 4764.8 |
+| polymarket/polymarket_metadata_history | 0 | 4765.8 |
+| polymarket/trade_ticks | 0 | 4764.8 |
+| pumpfun/creator_funding | 0 | 4764.9 |
+| pumpfun/pumpfun_completes | 0 | 4764.9 |
+| pumpfun/pumpfun_creates | 0 | 4764.9 |
+| pumpfun/pumpfun_trades | 0 | 4764.9 |
+| pumpfun/x_mentions | 0 | 14607.0 |
+| telegram/calls | 0 | 4765.9 |
 
 ## Problemas en logs (últimos)
 
@@ -88,7 +88,6 @@ Traceback (most recent call last):
 ```
 ### recorder.log
 ```
-{"timestamp_utc": "2026-10-17T01:55:17Z", "level": "WARNING", "logger": "binance_recorder", "message": "Binance PUBLIC WS disconnected: no close frame received or sent. Reconnecting in 1.0s..."}
 {"timestamp_utc": "2026-10-17T02:54:24Z", "level": "WARNING", "logger": "binance_recorder", "message": "Binance PUBLIC WS disconnected: no close frame received or sent. Reconnecting in 1.0s..."}
 {"timestamp_utc": "2026-10-17T02:54:28Z", "level": "WARNING", "logger": "binance_recorder", "message": "Binance REST fallback ON: WebSocket de precios ca\u00eddo, se piden precios por REST."}
 {"timestamp_utc": "2026-10-17T02:54:31Z", "level": "WARNING", "logger": "binance_recorder", "message": "Binance MARKET WS disconnected: no close frame received or sent. Reconnecting in 1.0s..."}
@@ -96,6 +95,7 @@ Traceback (most recent call last):
 {"timestamp_utc": "2026-10-17T02:54:52Z", "level": "WARNING", "logger": "binance_recorder", "message": "Binance MARKET WS disconnected: timed out during opening handshake. Reconnecting in 1.5s..."}
 {"timestamp_utc": "2026-10-17T02:55:07Z", "level": "WARNING", "logger": "binance_recorder", "message": "Binance PUBLIC WS disconnected: timed out during opening handshake. Reconnecting in 2.2s..."}
 {"timestamp_utc": "2026-10-17T02:55:13Z", "level": "WARNING", "logger": "binance_recorder", "message": "Binance MARKET WS disconnected: timed out during opening handshake. Reconnecting in 2.2s..."}
+{"timestamp_utc": "2026-10-17T04:59:55Z", "level": "WARNING", "logger": "binance_recorder", "message": "Binance MARKET WS disconnected: no close frame received or sent. Reconnecting in 1.0s..."}
 ```
 
 Detalle completo en latest.json.
