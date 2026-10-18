@@ -1,4 +1,4 @@
-# Snapshot Quant OS — 2026-10-18 04:51 UTC
+# Snapshot Quant OS — 2026-10-18 15:51 UTC
 
 ## Polymarket up/down (paper)
 
@@ -8,66 +8,66 @@
 
 ## Salud
 
-- api: RUNNING
-- web: RUNNING
-- os_launcher: RUNNING
-- supervisor: RUNNING
-- markets_recorder: RUNNING
-- paper_runtime: RUNNING
+- api: STOPPED
+- web: STOPPED
+- os_launcher: STOPPED
+- supervisor: STOPPED
+- markets_recorder: STOPPED
+- paper_runtime: STOPPED
 - pumpfun_recorder: DISABLED
 - pumpfun_paper: DISABLED
-- leader_paper: RUNNING
+- leader_paper: STOPPED
 - x_watcher: DISABLED
 
 ## Papers (state.json)
 
-- baja_vol: actualizado hace 0.4 min
-- btc_tendencia: actualizado hace 0.4 min
-- carry_funding: actualizado hace 0.4 min
-- combinada: actualizado hace 0.4 min
-- examen_2x: actualizado hace 6205.3 min
-- flujo_7d: actualizado hace 0.4 min
-- flujo_reg200: actualizado hace 0.4 min
-- flujo_sectorial: actualizado hace 0.4 min
-- flujo_v1: actualizado hace 0.4 min
-- lider_azar: actualizado hace 0.4 min
-- lider_corto: actualizado hace 0.4 min
-- lider_sin_x: actualizado hace 0.4 min
-- lider_x: actualizado hace 0.4 min
-- mezcla_flujo_carry: actualizado hace 0.4 min
-- poly_updown: actualizado hace 15166.9 min
-- unlock_short_v1: actualizado hace 45.2 min
+- baja_vol: actualizado hace 597.4 min
+- btc_tendencia: actualizado hace 597.4 min
+- carry_funding: actualizado hace 597.4 min
+- combinada: actualizado hace 597.4 min
+- examen_2x: actualizado hace 6865.4 min
+- flujo_7d: actualizado hace 597.4 min
+- flujo_reg200: actualizado hace 597.4 min
+- flujo_sectorial: actualizado hace 597.4 min
+- flujo_v1: actualizado hace 597.4 min
+- lider_azar: actualizado hace 597.4 min
+- lider_corto: actualizado hace 597.4 min
+- lider_sin_x: actualizado hace 597.4 min
+- lider_x: actualizado hace 597.4 min
+- mezcla_flujo_carry: actualizado hace 597.4 min
+- poly_updown: actualizado hace 15826.9 min
+- unlock_short_v1: actualizado hace 645.3 min
 
 ## Recorders (última hora)
 
 | tabla | archivos | última escritura (min) |
 |---|---|---|
-| binance_perp/bbo_ticks | 607 | -1.8 |
-| binance_perp/depth_snapshots | 19 | 0.7 |
-| binance_perp/forced_liquidations | 60 | -1.3 |
-| binance_perp/futures_market_metrics | 62 | -1.3 |
-| binance_perp/futures_open_interest | 63 | -2.3 |
-| binance_perp/futures_positioning | 58 | -2.3 |
-| binance_perp/orderbook_l2_depth | 127 | -2.3 |
-| binance_perp/trade_ticks | 63 | -2.3 |
-| deribit/bbo_ticks | 0 | 6204.8 |
-| deribit/deribit_metrics | 0 | 6204.8 |
-| deribit/trade_ticks | 0 | 6205.8 |
-| dexscreener/token_boosts | 0 | 6211.9 |
-| dexscreener/token_prices | 0 | 6204.9 |
-| dexscreener/token_profiles | 0 | 6206.9 |
-| limitless/limitless_book | 0 | 6204.9 |
-| limitless/limitless_markets | 0 | 6204.9 |
-| polymarket/bbo_ticks | 0 | 6204.8 |
-| polymarket/orderbook_l2_depth | 0 | 6204.8 |
-| polymarket/polymarket_metadata_history | 0 | 6205.8 |
-| polymarket/trade_ticks | 0 | 6204.8 |
-| pumpfun/creator_funding | 0 | 6204.9 |
-| pumpfun/pumpfun_completes | 0 | 6204.9 |
-| pumpfun/pumpfun_creates | 0 | 6204.9 |
-| pumpfun/pumpfun_trades | 0 | 6204.9 |
-| pumpfun/x_mentions | 0 | 16047.0 |
-| telegram/calls | 0 | 6205.9 |
+| binance_perp/bbo_ticks | 0 | 596.4 |
+| binance_perp/depth_snapshots | 0 | 596.7 |
+| binance_perp/forced_liquidations | 0 | 596.5 |
+| binance_perp/futures_market_metrics | 0 | 596.5 |
+| binance_perp/futures_open_interest | 0 | 596.5 |
+| binance_perp/futures_positioning | 0 | 596.7 |
+| binance_perp/orderbook_l2_depth | 0 | 596.5 |
+| binance_perp/trade_ticks | 0 | 596.5 |
+| deribit/bbo_ticks | 0 | 6864.8 |
+| deribit/deribit_metrics | 0 | 6864.8 |
+| deribit/trade_ticks | 0 | 6865.8 |
+| dexscreener/token_boosts | 0 | 6872.0 |
+| dexscreener/token_prices | 0 | 6864.9 |
+| dexscreener/token_profiles | 0 | 6867.0 |
+| limitless/limitless_book | 0 | 6864.9 |
+| limitless/limitless_markets | 0 | 6864.9 |
+| polymarket/bbo_ticks | 0 | 6864.8 |
+| polymarket/orderbook_l2_depth | 0 | 6864.8 |
+| polymarket/polymarket_metadata_history | 0 | 6865.9 |
+| polymarket/trade_ticks | 0 | 6864.8 |
+| pumpfun/creator_funding | 0 | 6864.9 |
+| pumpfun/pumpfun_completes | 0 | 6864.9 |
+| pumpfun/pumpfun_creates | 0 | 6864.9 |
+| pumpfun/pumpfun_trades | 0 | 6864.9 |
+| pumpfun/x_mentions | 0 | 16707.0 |
+| telegram/calls | 0 | 6865.9 |
 
 ## Problemas en logs (últimos)
 
