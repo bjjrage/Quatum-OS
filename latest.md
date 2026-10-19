@@ -1,4 +1,4 @@
-# Snapshot Quant OS — 2026-10-19 18:51 UTC
+# Snapshot Quant OS — 2026-10-19 19:51 UTC
 
 ## Polymarket up/down (paper)
 
@@ -9,8 +9,8 @@
 ## Salud
 
 - api: RUNNING
-- web: RUNNING
-- os_launcher: RUNNING
+- web: ERROR
+- os_launcher: DEGRADED
 - supervisor: RUNNING
 - markets_recorder: RUNNING
 - paper_runtime: RUNNING
@@ -21,53 +21,53 @@
 
 ## Papers (state.json)
 
-- baja_vol: actualizado hace 0.3 min
-- btc_tendencia: actualizado hace 0.3 min
-- carry_funding: actualizado hace 0.3 min
-- combinada: actualizado hace 0.3 min
-- examen_2x: actualizado hace 8485.3 min
-- flujo_7d: actualizado hace 0.3 min
-- flujo_reg200: actualizado hace 0.3 min
-- flujo_sectorial: actualizado hace 0.3 min
-- flujo_v1: actualizado hace 0.3 min
-- lider_azar: actualizado hace 0.3 min
-- lider_corto: actualizado hace 0.3 min
-- lider_sin_x: actualizado hace 0.3 min
-- lider_x: actualizado hace 0.3 min
-- mezcla_flujo_carry: actualizado hace 0.3 min
-- poly_updown: actualizado hace 17446.8 min
-- unlock_short_v1: actualizado hace 45.3 min
+- baja_vol: actualizado hace 0.9 min
+- btc_tendencia: actualizado hace 0.9 min
+- carry_funding: actualizado hace 0.9 min
+- combinada: actualizado hace 0.9 min
+- examen_2x: actualizado hace 8545.2 min
+- flujo_7d: actualizado hace 0.9 min
+- flujo_reg200: actualizado hace 0.9 min
+- flujo_sectorial: actualizado hace 0.9 min
+- flujo_v1: actualizado hace 0.9 min
+- lider_azar: actualizado hace 0.9 min
+- lider_corto: actualizado hace 0.9 min
+- lider_sin_x: actualizado hace 0.9 min
+- lider_x: actualizado hace 0.9 min
+- mezcla_flujo_carry: actualizado hace 0.9 min
+- poly_updown: actualizado hace 17506.8 min
+- unlock_short_v1: actualizado hace 39.2 min
 
 ## Recorders (última hora)
 
 | tabla | archivos | última escritura (min) |
 |---|---|---|
-| binance_perp/bbo_ticks | 1206 | -2.7 |
-| binance_perp/depth_snapshots | 20 | -2.1 |
-| binance_perp/forced_liquidations | 61 | -2.7 |
-| binance_perp/futures_market_metrics | 61 | -2.7 |
-| binance_perp/futures_open_interest | 63 | -2.7 |
-| binance_perp/futures_positioning | 64 | -3.1 |
-| binance_perp/orderbook_l2_depth | 144 | -2.7 |
-| binance_perp/trade_ticks | 64 | -3.7 |
-| deribit/bbo_ticks | 0 | 8484.7 |
-| deribit/deribit_metrics | 0 | 8484.7 |
-| deribit/trade_ticks | 0 | 8485.7 |
-| dexscreener/token_boosts | 0 | 8491.9 |
-| dexscreener/token_prices | 0 | 8484.9 |
-| dexscreener/token_profiles | 0 | 8486.9 |
-| limitless/limitless_book | 0 | 8484.9 |
-| limitless/limitless_markets | 0 | 8484.9 |
-| polymarket/bbo_ticks | 0 | 8484.7 |
-| polymarket/orderbook_l2_depth | 0 | 8484.7 |
-| polymarket/polymarket_metadata_history | 0 | 8485.8 |
-| polymarket/trade_ticks | 0 | 8484.7 |
-| pumpfun/creator_funding | 0 | 8484.9 |
-| pumpfun/pumpfun_completes | 0 | 8484.9 |
-| pumpfun/pumpfun_creates | 0 | 8484.9 |
-| pumpfun/pumpfun_trades | 0 | 8484.9 |
-| pumpfun/x_mentions | 0 | 18326.9 |
-| telegram/calls | 0 | 8485.9 |
+| binance_perp/bbo_ticks | 1079 | -0.5 |
+| binance_perp/depth_snapshots | 18 | 4.8 |
+| binance_perp/forced_liquidations | 59 | 0.1 |
+| binance_perp/futures_market_metrics | 59 | 0.1 |
+| binance_perp/futures_open_interest | 60 | 0.1 |
+| binance_perp/futures_positioning | 61 | -0.2 |
+| binance_perp/orderbook_l2_depth | 125 | -0.4 |
+| binance_perp/trade_ticks | 60 | 0.1 |
+| deribit/bbo_ticks | 0 | 8544.7 |
+| deribit/deribit_metrics | 0 | 8544.7 |
+| deribit/trade_ticks | 0 | 8545.7 |
+| dexscreener/token_boosts | 0 | 8551.9 |
+| dexscreener/token_prices | 0 | 8544.8 |
+| dexscreener/token_profiles | 0 | 8546.9 |
+| limitless/limitless_book | 0 | 8544.8 |
+| limitless/limitless_markets | 0 | 8544.8 |
+| polymarket/bbo_ticks | 0 | 8544.7 |
+| polymarket/orderbook_l2_depth | 0 | 8544.7 |
+| polymarket/polymarket_metadata_history | 0 | 8545.7 |
+| polymarket/trade_ticks | 0 | 8544.7 |
+| pumpfun/creator_funding | 0 | 8544.8 |
+| pumpfun/pumpfun_completes | 0 | 8544.8 |
+| pumpfun/pumpfun_creates | 0 | 8544.8 |
+| pumpfun/pumpfun_trades | 0 | 8544.8 |
+| pumpfun/x_mentions | 0 | 18386.9 |
+| telegram/calls | 0 | 8545.8 |
 
 ## Problemas en logs (últimos)
 
