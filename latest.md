@@ -1,4 +1,4 @@
-# Snapshot Quant OS — 2026-10-21 11:51 UTC
+# Snapshot Quant OS — 2026-10-21 12:51 UTC
 
 ## Polymarket up/down (paper)
 
@@ -21,53 +21,53 @@
 
 ## Papers (state.json)
 
-- baja_vol: actualizado hace 669.3 min
-- btc_tendencia: actualizado hace 669.3 min
-- carry_funding: actualizado hace 669.3 min
-- combinada: actualizado hace 669.3 min
-- examen_2x: actualizado hace 10945.3 min
-- flujo_7d: actualizado hace 669.3 min
-- flujo_reg200: actualizado hace 669.3 min
-- flujo_sectorial: actualizado hace 669.3 min
-- flujo_v1: actualizado hace 669.3 min
-- lider_azar: actualizado hace 669.3 min
-- lider_corto: actualizado hace 669.3 min
-- lider_sin_x: actualizado hace 669.3 min
-- lider_x: actualizado hace 669.3 min
-- mezcla_flujo_carry: actualizado hace 669.3 min
-- poly_updown: actualizado hace 19906.9 min
-- unlock_short_v1: actualizado hace 645.4 min
+- baja_vol: actualizado hace 729.3 min
+- btc_tendencia: actualizado hace 729.3 min
+- carry_funding: actualizado hace 729.3 min
+- combinada: actualizado hace 729.3 min
+- examen_2x: actualizado hace 11005.3 min
+- flujo_7d: actualizado hace 729.3 min
+- flujo_reg200: actualizado hace 729.3 min
+- flujo_sectorial: actualizado hace 729.3 min
+- flujo_v1: actualizado hace 729.3 min
+- lider_azar: actualizado hace 729.3 min
+- lider_corto: actualizado hace 729.3 min
+- lider_sin_x: actualizado hace 729.3 min
+- lider_x: actualizado hace 729.3 min
+- mezcla_flujo_carry: actualizado hace 729.3 min
+- poly_updown: actualizado hace 19966.9 min
+- unlock_short_v1: actualizado hace 705.4 min
 
 ## Recorders (última hora)
 
 | tabla | archivos | última escritura (min) |
 |---|---|---|
-| binance_perp/bbo_ticks | 0 | 669.3 |
-| binance_perp/depth_snapshots | 0 | 669.3 |
-| binance_perp/forced_liquidations | 0 | 669.3 |
-| binance_perp/futures_market_metrics | 0 | 669.3 |
-| binance_perp/futures_open_interest | 0 | 669.3 |
-| binance_perp/futures_positioning | 0 | 669.3 |
-| binance_perp/orderbook_l2_depth | 0 | 669.3 |
-| binance_perp/trade_ticks | 0 | 669.3 |
-| deribit/bbo_ticks | 0 | 10944.8 |
-| deribit/deribit_metrics | 0 | 10944.8 |
-| deribit/trade_ticks | 0 | 10945.8 |
-| dexscreener/token_boosts | 0 | 10951.9 |
-| dexscreener/token_prices | 0 | 10944.9 |
-| dexscreener/token_profiles | 0 | 10946.9 |
-| limitless/limitless_book | 0 | 10944.9 |
-| limitless/limitless_markets | 0 | 10944.9 |
-| polymarket/bbo_ticks | 0 | 10944.8 |
-| polymarket/orderbook_l2_depth | 0 | 10944.8 |
-| polymarket/polymarket_metadata_history | 0 | 10945.8 |
-| polymarket/trade_ticks | 0 | 10944.8 |
-| pumpfun/creator_funding | 0 | 10944.9 |
-| pumpfun/pumpfun_completes | 0 | 10944.9 |
-| pumpfun/pumpfun_creates | 0 | 10944.9 |
-| pumpfun/pumpfun_trades | 0 | 10944.9 |
-| pumpfun/x_mentions | 0 | 20787.0 |
-| telegram/calls | 0 | 10945.9 |
+| binance_perp/bbo_ticks | 0 | 729.3 |
+| binance_perp/depth_snapshots | 0 | 729.3 |
+| binance_perp/forced_liquidations | 0 | 729.3 |
+| binance_perp/futures_market_metrics | 0 | 729.3 |
+| binance_perp/futures_open_interest | 0 | 729.3 |
+| binance_perp/futures_positioning | 0 | 729.3 |
+| binance_perp/orderbook_l2_depth | 0 | 729.3 |
+| binance_perp/trade_ticks | 0 | 729.3 |
+| deribit/bbo_ticks | 0 | 11004.8 |
+| deribit/deribit_metrics | 0 | 11004.8 |
+| deribit/trade_ticks | 0 | 11005.8 |
+| dexscreener/token_boosts | 0 | 11011.9 |
+| dexscreener/token_prices | 0 | 11004.9 |
+| dexscreener/token_profiles | 0 | 11006.9 |
+| limitless/limitless_book | 0 | 11004.9 |
+| limitless/limitless_markets | 0 | 11004.9 |
+| polymarket/bbo_ticks | 0 | 11004.8 |
+| polymarket/orderbook_l2_depth | 0 | 11004.8 |
+| polymarket/polymarket_metadata_history | 0 | 11005.8 |
+| polymarket/trade_ticks | 0 | 11004.8 |
+| pumpfun/creator_funding | 0 | 11004.9 |
+| pumpfun/pumpfun_completes | 0 | 11004.9 |
+| pumpfun/pumpfun_creates | 0 | 11004.9 |
+| pumpfun/pumpfun_trades | 0 | 11004.9 |
+| pumpfun/x_mentions | 0 | 20847.0 |
+| telegram/calls | 0 | 11005.9 |
 
 ## Problemas en logs (últimos)
 
